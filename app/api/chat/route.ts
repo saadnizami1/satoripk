@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json()
-    return NextResponse.json(data)
+    const message = data.choices?.[0]?.message?.content || "I'm having trouble responding right now. Please try again."
+    return NextResponse.json({ message })
   } catch (error: any) {
     console.error('Chat API Error:', error)
     return NextResponse.json(
