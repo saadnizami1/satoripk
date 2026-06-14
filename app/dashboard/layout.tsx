@@ -1,256 +1,233 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MeshGradient } from '@/components/MeshGradient'
 import Image from 'next/image'
-import { 
-  Home,
-  MessageCircle,
-  Heart,
-  BookOpen,
-  Timer,
-  Wind,
-  TrendingUp,
-  User,
-  Phone,
-  LogOut,
-  Menu,
-  X,
-  BarChart3,
-  Settings,
-  Database,
-  Brain
-} from 'lucide-react'
 import Link from 'next/link'
+import {
+  Home, MessageCircle, Heart, BookOpen, Timer, Wind,
+  TrendingUp, User, Phone, LogOut, Menu, X,
+  BarChart3, Settings, Database, Brain
+} from 'lucide-react'
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+const NAV_ITEMS = [
+  { icon: Home,          label: 'Home',             href: '/dashboard' },
+  { icon: MessageCircle, label: 'Talk to Kokoro',   href: '/dashboard/kokoro' },
+  { icon: Heart,         label: 'Mood Tracker',     href: '/dashboard/mood' },
+  { icon: BookOpen,      label: 'Journal',          href: '/dashboard/journal' },
+  { icon: Timer,         label: 'Pomodoro Timer',   href: '/dashboard/pomodoro' },
+  { icon: Wind,          label: 'Breathing',        href: '/dashboard/breathing' },
+  { icon: TrendingUp,    label: 'Mood Graph',       href: '/dashboard/graph' },
+  { icon: Brain,         label: 'Academic Stress',  href: '/dashboard/research' },
+  { icon: Phone,         label: 'Get Help',         href: '/dashboard/helpline' },
+  { icon: User,          label: 'Profile',          href: '/dashboard/profile' },
+  { icon: BarChart3,     label: 'Creator Overview', href: '/dashboard/creator' },
+  { icon: Settings,      label: 'Settings',         href: '/dashboard/settings' },
+  { icon: Database,      label: 'Research Data',    href: '/dashboard/research-data' },
+] as const
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
+  const [authReady, setAuthReady] = useState(false)
+  const resizeRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // ── Auth: use onAuthStateChange so we don't race with cookie→localStorage sync ──
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-
-      if (!session) {
-        // If no session, wait a bit and try again (for OAuth redirects)
-        await new Promise(resolve => setTimeout(resolve, 500))
-        const { data: { session: retrySession } } = await supabase.auth.getSession()
-
-        if (!retrySession) {
-          router.push('/auth')
-          return
-        } else {
-          setUser(retrySession.user)
-
-          const { data: profileData } = await supabase
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (!session) {
+            router.replace('/auth')
+            return
+          }
+          setAuthReady(true)
+          const { data } = await supabase
             .from('profiles')
-            .select('*')
-            .eq('id', retrySession.user.id)
+            .select('name, email, avatar_url')
+            .eq('id', session.user.id)
             .single()
-
-          setProfile(profileData)
+          setProfile(data)
+        } else if (event === 'SIGNED_OUT') {
+          router.replace('/auth')
         }
-      } else {
-        setUser(session.user)
-
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-
-        setProfile(profileData)
       }
-    }
-    checkUser()
-
-    // Also listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session) {
-        router.push('/auth')
-      } else {
-        setUser(session.user)
-
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-
-        setProfile(profileData)
-      }
-    })
-
+    )
     return () => subscription.unsubscribe()
   }, [router])
 
+  // ── Responsive sidebar ──
   useEffect(() => {
-    // Handle responsive sidebar
-    const checkScreenSize = () => {
-      setIsDesktop(window.innerWidth >= 1024)
+    const check = () => {
+      if (resizeRef.current) clearTimeout(resizeRef.current)
+      resizeRef.current = setTimeout(() => {
+        setIsDesktop(window.innerWidth >= 1024)
+      }, 80)
     }
-    
-    checkScreenSize()
-    window.addEventListener('resize', checkScreenSize)
-    
-    return () => window.removeEventListener('resize', checkScreenSize)
+    setIsDesktop(window.innerWidth >= 1024)
+    window.addEventListener('resize', check, { passive: true })
+    return () => {
+      window.removeEventListener('resize', check)
+      if (resizeRef.current) clearTimeout(resizeRef.current)
+    }
   }, [])
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await supabase.auth.signOut()
-    router.push('/')
-  }
+    router.replace('/')
+  }, [router])
 
-  const navItems = [
-    { icon: Home, label: 'Home', href: '/dashboard' },
-    { icon: MessageCircle, label: 'Talk to Kokoro', href: '/dashboard/kokoro' },
-    { icon: Heart, label: 'Mood Tracker', href: '/dashboard/mood' },
-    { icon: BookOpen, label: 'Journal', href: '/dashboard/journal' },
-    { icon: Timer, label: 'Pomodoro Timer', href: '/dashboard/pomodoro' },
-    { icon: Wind, label: 'Breathing Exercise', href: '/dashboard/breathing' },
-    { icon: TrendingUp, label: 'Mood Graph', href: '/dashboard/graph' },
-    { icon: Brain, label: 'Academic Stress', href: '/dashboard/research' },
-    { icon: Phone, label: 'Get Help', href: '/dashboard/helpline' },
-    { icon: User, label: 'Profile', href: '/dashboard/profile' },
-    { icon: BarChart3, label: 'Creator Overview', href: '/dashboard/creator' },
-    { icon: Settings, label: 'Settings', href: '/dashboard/settings' },
-    { label: 'Research Data', href: '/dashboard/research-data', icon: Database },
-  ]
+  const closeSidebar = useCallback(() => setSidebarOpen(false), [])
 
   const showSidebar = isDesktop || sidebarOpen
 
+  // Show nothing until auth is confirmed (middleware already handles redirect)
+  if (!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F4F0]">
+        <MeshGradient />
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="w-9 h-9 border-[3px] border-[#4A6C6F]/30 border-t-[#4A6C6F] rounded-full"
+        />
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen relative font-sans selection:bg-[#C4661F] selection:text-white overflow-hidden">
-      
-      {/* Animated Mesh Background */}
+    <div className="min-h-screen relative font-sans overflow-hidden bg-[#F7F4F0]">
       <MeshGradient />
 
-      {/* Mobile Menu Button */}
-      {!sidebarOpen && (
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setSidebarOpen(true)}
-          className="fixed top-4 left-4 z-50 lg:hidden p-2.5 sm:p-3 rounded-xl sm:rounded-2xl backdrop-blur-[40px] bg-white/40 border border-white/60 shadow-xl text-[#2C2C2C]"
-        >
-          <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
-        </motion.button>
-      )}
+      {/* ── Mobile hamburger ── */}
+      <AnimatePresence>
+        {!sidebarOpen && !isDesktop && (
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={() => setSidebarOpen(true)}
+            className="fixed top-4 left-4 z-50 p-2.5 rounded-xl glass shadow-lg text-[#2C2C2C]"
+          >
+            <Menu className="w-5 h-5" />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
-      {/* Sidebar */}
+      {/* ── Sidebar ── */}
       <AnimatePresence>
         {showSidebar && (
           <motion.aside
-            initial={{ x: -300, opacity: 0 }}
+            key="sidebar"
+            initial={isDesktop ? false : { x: -320, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -300, opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed left-0 top-0 h-full w-full sm:w-80 max-w-sm z-40 p-4 sm:p-6"
+            exit={isDesktop ? undefined : { x: -320, opacity: 0 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+            className="fixed left-0 top-0 h-full w-72 z-40 p-3 lg:p-4"
           >
-            <div className="h-full rounded-2xl sm:rounded-[2.5rem] backdrop-blur-[40px] bg-white/30 border border-white/50 shadow-2xl p-6 sm:p-8 overflow-y-auto relative">
-  
-              {/* Mobile Close Button - Inside Sidebar */}
-              {!isDesktop && (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setSidebarOpen(false)}
-                  className="absolute top-6 right-6 p-2 rounded-xl bg-white/60 border border-white/60 shadow-lg text-[#2C2C2C] lg:hidden"
-                >
-                  <X className="w-5 h-5" />
-                </motion.button>
-              )}
-
-              {/* Logo */}
-              <div className="mb-6 sm:mb-10">
-                <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                  <Image
-                    src="/logo.png"
-                    alt="Satori Logo"
-                    width={40}
-                    height={40}
-                    className="object-contain drop-shadow-lg sm:w-12 sm:h-12"
-                  />
-                  <h1 className="text-3xl sm:text-4xl font-serif font-medium text-[#2C2C2C]">Satori</h1>
+            <div className="h-full glass-strong rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="p-6 pb-4 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <Image src="/logo.png" alt="Satori" width={36} height={36} className="object-contain drop-shadow" />
+                  <h1 className="text-2xl font-serif font-semibold text-[#2C2C2C]">Satori</h1>
                 </div>
-                {profile && (
-                  <p className="text-xs sm:text-sm text-[#5F5F5F] ml-1 truncate">Welcome back, {profile.name}</p>
+                {!isDesktop && (
+                  <button
+                    onClick={closeSidebar}
+                    className="p-1.5 rounded-lg hover:bg-black/5 text-[#5F5F5F] transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 )}
               </div>
 
-              {/* Navigation */}
-              <nav className="space-y-1.5 sm:space-y-2 mb-6 sm:mb-8">
-                {navItems.map((item, index) => {
+              {/* User greeting */}
+              {profile?.name && (
+                <div className="px-6 pb-4 shrink-0">
+                  <p className="text-xs text-[#9F9F9F] uppercase tracking-widest">Welcome back</p>
+                  <p className="text-sm font-medium text-[#2C2C2C] mt-0.5 truncate">{profile.name}</p>
+                </div>
+              )}
+
+              <div className="mx-4 h-px bg-black/6 shrink-0" />
+
+              {/* Nav */}
+              <nav className="flex-1 overflow-y-auto scrollbar-hide px-3 py-4 space-y-0.5">
+                {NAV_ITEMS.map((item, i) => {
                   const isActive = pathname === item.href
                   return (
                     <motion.div
                       key={item.href}
-                      initial={{ opacity: 0, x: -20 }}
+                      initial={{ opacity: 0, x: -12 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
+                      transition={{ delay: i * 0.03, type: 'spring', stiffness: 300 }}
                     >
                       <Link
                         href={item.href}
-                        onClick={() => setSidebarOpen(false)}
-                        className={`flex items-center gap-2.5 sm:gap-3 px-3 py-3 sm:px-5 sm:py-4 rounded-xl sm:rounded-2xl transition-all duration-300 ${
+                        onClick={closeSidebar}
+                        className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-medium transition-all duration-200 ${
                           isActive
-                            ? 'bg-white/60 shadow-lg text-[#2C2C2C] border border-white/80'
-                            : 'text-[#5F5F5F] hover:bg-white/40 hover:text-[#2C2C2C]'
+                            ? 'bg-[#4A6C6F] text-white shadow-md shadow-[#4A6C6F]/25'
+                            : 'text-[#5F5F5F] hover:bg-black/5 hover:text-[#2C2C2C]'
                         }`}
                       >
-                        <item.icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                        <span className="text-xs sm:text-sm font-medium truncate">{item.label}</span>
+                        <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : ''}`} />
+                        <span className="truncate">{item.label}</span>
+                        {isActive && (
+                          <motion.div
+                            layoutId="nav-indicator"
+                            className="ml-auto w-1.5 h-1.5 rounded-full bg-white/60"
+                          />
+                        )}
                       </Link>
                     </motion.div>
                   )
                 })}
               </nav>
 
-              {/* Logout Button */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleLogout}
-                className="w-full flex items-center gap-2.5 sm:gap-3 px-3 py-3 sm:px-5 sm:py-4 rounded-xl sm:rounded-2xl text-red-600 hover:bg-red-50/60 transition-all duration-300"
-              >
-                <LogOut className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                <span className="text-xs sm:text-sm font-medium">Logout</span>
-              </motion.button>
+              <div className="mx-4 h-px bg-black/6 shrink-0" />
+
+              {/* Logout */}
+              <div className="p-4 shrink-0">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-medium text-red-500 hover:bg-red-50/60 transition-all duration-200"
+                >
+                  <LogOut className="w-4 h-4 shrink-0" />
+                  Sign out
+                </button>
+              </div>
             </div>
           </motion.aside>
         )}
       </AnimatePresence>
 
-      {/* Main Content */}
-      <main className="relative z-10 lg:ml-80 min-h-screen pt-20 pb-6 px-4 sm:px-6 lg:pt-10 lg:px-10">
-        {children}
-      </main>
-
-      {/* Mobile Overlay */}
+      {/* ── Mobile overlay ── */}
       <AnimatePresence>
         {sidebarOpen && !isDesktop && (
           <motion.div
+            key="overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 lg:hidden"
+            onClick={closeSidebar}
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30"
           />
         )}
       </AnimatePresence>
+
+      {/* ── Main content ── */}
+      <main className="relative z-10 lg:ml-76 min-h-screen pt-16 pb-8 px-4 sm:px-6 lg:pt-8 lg:px-8">
+        {children}
+      </main>
     </div>
   )
 }

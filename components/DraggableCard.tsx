@@ -1,5 +1,6 @@
 'use client'
 
+import { memo, useCallback, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { LucideIcon, ArrowRight } from 'lucide-react'
@@ -16,7 +17,7 @@ interface DraggableCardProps {
   isMobile?: boolean
 }
 
-export function DraggableCard({
+export const DraggableCard = memo(function DraggableCard({
   icon: Icon,
   title,
   description,
@@ -29,56 +30,62 @@ export function DraggableCard({
 }: DraggableCardProps) {
   const router = useRouter()
 
-  const handleNavigate = (e?: React.MouseEvent) => {
-    // Stop propagation so clicking the arrow doesn't trigger parent click events (if any)
+  // Memoized navigation handler
+  const handleNavigate = useCallback((e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
     router.push(href)
-  }
+  }, [router, href])
 
-  // Desktop size classes
-  // UPDATED: Increased 'small' height to 230px to prevent arrow clipping
-  const getDesktopSizeClass = () => {
+  // Memoized size class
+  const desktopSizeClass = useMemo(() => {
     switch (size) {
       case 'small': return 'md:w-[240px] md:h-[230px]' 
       case 'medium': return 'md:w-[280px] md:h-[240px]'
       case 'large': return 'md:w-[340px] md:h-[280px]'
       default: return 'md:w-[280px] md:h-[240px]'
     }
-  }
+  }, [size])
+
+  // Memoized animation config
+  const animateConfig = useMemo(() => ({
+    opacity: 1,
+    y: isMobile ? 0 : undefined,
+    scale: shouldGlow ? [1, 1.02, 1] : 1,
+    boxShadow: shouldGlow
+      ? [
+          '0 0 20px rgba(210, 105, 30, 0.3)',
+          '0 0 40px rgba(210, 105, 30, 0.6)',
+          '0 0 20px rgba(210, 105, 30, 0.3)'
+        ]
+      : '0 10px 30px rgba(0, 0, 0, 0.1)'
+  }), [isMobile, shouldGlow])
+
+  // Memoized transition config
+  const transitionConfig = useMemo(() => ({
+    delay: 0.1,
+    type: 'spring' as const,
+    scale: shouldGlow ? { repeat: Infinity, duration: 2, ease: "easeInOut" as const } : {},
+    boxShadow: shouldGlow ? { repeat: Infinity, duration: 2, ease: "easeInOut" as const } : {}
+  }), [shouldGlow])
+
+  // Memoized initial config
+  const initialConfig = useMemo(() => 
+    isMobile 
+      ? { opacity: 0, y: 10 } 
+      : { ...initialPosition, opacity: 0, scale: 0.8 }
+  , [isMobile, initialPosition])
 
   return (
     <motion.div
       drag={!isMobile}
       dragMomentum={!isMobile}
       dragElastic={0.1}
-      initial={isMobile 
-        ? { opacity: 0, y: 10 } 
-        : { ...initialPosition, opacity: 0, scale: 0.8 }
-      }
-      animate={{
-        opacity: 1,
-        y: isMobile ? 0 : undefined,
-        scale: shouldGlow ? [1, 1.02, 1] : 1,
-        boxShadow: shouldGlow
-          ? [
-              '0 0 20px rgba(210, 105, 30, 0.3)',
-              '0 0 40px rgba(210, 105, 30, 0.6)',
-              '0 0 20px rgba(210, 105, 30, 0.3)'
-            ]
-          : '0 10px 30px rgba(0, 0, 0, 0.1)'
-      }}
-      transition={{
-        delay: 0.1,
-        type: 'spring',
-        scale: shouldGlow ? { repeat: Infinity, duration: 2, ease: "easeInOut" } : {},
-        boxShadow: shouldGlow ? { repeat: Infinity, duration: 2, ease: "easeInOut" } : {}
-      }}
+      initial={initialConfig}
+      animate={animateConfig}
+      transition={transitionConfig}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.98 }}
-      
-      // Only attach the navigate handler to the card body if it is Mobile.
       onClick={isMobile ? handleNavigate : undefined}
-      
       className={`
         backdrop-blur-2xl bg-white/40 border-2
         ${shouldGlow ? 'border-[#D2691E] border-opacity-60' : 'border-white/60'}
@@ -90,7 +97,7 @@ export function DraggableCard({
         
         ${isMobile 
           ? 'w-full h-full min-h-[160px] cursor-pointer' 
-          : `${getDesktopSizeClass()} md:absolute cursor-default md:cursor-move active:cursor-grabbing` 
+          : `${desktopSizeClass} md:absolute cursor-default md:cursor-move active:cursor-grabbing` 
         }
       `}
       style={!isMobile ? { touchAction: 'none' } : {}}
@@ -123,7 +130,6 @@ export function DraggableCard({
           {title}
         </h3>
 
-        {/* UPDATED: Changed md:line-clamp-none to md:line-clamp-3 to ensure text never pushes the arrow out of view */}
         <p className="text-xs sm:text-sm md:text-base text-[#5F5F5F] leading-relaxed flex-1 line-clamp-2 md:line-clamp-3">
           {description}
         </p>
@@ -147,4 +153,4 @@ export function DraggableCard({
       </div>
     </motion.div>
   )
-}
+})

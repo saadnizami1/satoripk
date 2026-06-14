@@ -175,7 +175,7 @@ export default function ResearchDataPage() {
 
               <button
                 type="submit"
-                className="w-full px-4 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-[#D2691E] to-[#4A6C6F] text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
+                className="w-full px-4 py-2.5 sm:px-6 sm:py-3 bg-linear-to-r from-[#D2691E] to-[#4A6C6F] text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
               >
                 Unlock Data Access
               </button>
@@ -205,7 +205,7 @@ export default function ResearchDataPage() {
                 <button
                   onClick={() => downloadCSV('mood')}
                   disabled={downloading !== null}
-                  className="w-full px-4 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-[#D2691E] to-[#D2691E]/80 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2.5 sm:px-6 sm:py-3 bg-linear-to-r from-[#D2691E] to-[#D2691E]/80 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {downloading === 'mood' ? (
                     <>
@@ -244,7 +244,7 @@ export default function ResearchDataPage() {
                 <button
                   onClick={() => downloadCSV('stress')}
                   disabled={downloading !== null}
-                  className="w-full px-4 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2.5 sm:px-6 sm:py-3 bg-linear-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {downloading === 'stress' ? (
                     <>

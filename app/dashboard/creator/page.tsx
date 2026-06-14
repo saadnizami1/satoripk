@@ -189,7 +189,7 @@ export default function CreatorOverviewPage() {
               It is my sincere hope that this research will be conducted successfully, yielding data that can inform educational policies, mental health interventions, and support systems for students across Pakistan. Every feature, every interaction, and every data point collected through this platform serves the dual purpose of immediate support and long-term understanding.
             </p>
 
-            <div className="p-4 sm:p-5 md:p-6 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#4A6C6F]/10 to-[#6B6B6B]/10 border border-white/60 mt-4 sm:mt-6">
+            <div className="p-4 sm:p-5 md:p-6 rounded-xl sm:rounded-2xl bg-linear-to-r from-[#4A6C6F]/10 to-[#6B6B6B]/10 border border-white/60 mt-4 sm:mt-6">
               <p className="text-sm sm:text-base italic text-[#2C2C2C]">
                 "The goal is not merely to create an application, but to foster a community of understanding, support, and empirical insight that can transform how we approach student mental health in our educational landscape."
               </p>

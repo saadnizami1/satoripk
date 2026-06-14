@@ -368,7 +368,7 @@ export default function ProfilePage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowBirthdayModal(true)}
-                className="w-full py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-[#D2691E]/20 to-[#D2691E]/10 border border-[#D2691E]/40 text-[#D2691E] text-sm sm:text-base font-semibold flex items-center justify-center gap-2 hover:from-[#D2691E]/30 hover:to-[#D2691E]/20 transition-all"
+                className="w-full py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-linear-to-r from-[#D2691E]/20 to-[#D2691E]/10 border border-[#D2691E]/40 text-[#D2691E] text-sm sm:text-base font-semibold flex items-center justify-center gap-2 hover:from-[#D2691E]/30 hover:to-[#D2691E]/20 transition-all"
               >
                 <Cake className="w-4 h-4 sm:w-5 sm:h-5" />
                 It's My Birthday!
@@ -378,7 +378,7 @@ export default function ProfilePage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowEducationModal(true)}
-                className="w-full py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-[#4A6C6F]/20 to-[#4A6C6F]/10 border border-[#4A6C6F]/40 text-[#4A6C6F] text-sm sm:text-base font-semibold flex items-center justify-center gap-2 hover:from-[#4A6C6F]/30 hover:to-[#4A6C6F]/20 transition-all"
+                className="w-full py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-linear-to-r from-[#4A6C6F]/20 to-[#4A6C6F]/10 border border-[#4A6C6F]/40 text-[#4A6C6F] text-sm sm:text-base font-semibold flex items-center justify-center gap-2 hover:from-[#4A6C6F]/30 hover:to-[#4A6C6F]/20 transition-all"
               >
                 <ArrowUp className="w-4 h-4 sm:w-5 sm:h-5" />
                 Update Class/Grade
@@ -599,7 +599,7 @@ export default function ProfilePage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleBirthday}
-                  className="flex-1 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-[#D2691E] to-[#D2691E]/80 text-white text-sm sm:text-base font-semibold shadow-xl"
+                  className="flex-1 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-linear-to-r from-[#D2691E] to-[#D2691E]/80 text-white text-sm sm:text-base font-semibold shadow-xl"
                 >
                   Update Age
                 </motion.button>
@@ -668,7 +668,7 @@ export default function ProfilePage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleEducationUpdate}
-                  className="flex-1 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white text-sm sm:text-base font-semibold shadow-xl"
+                  className="flex-1 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-linear-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white text-sm sm:text-base font-semibold shadow-xl"
                 >
                   Update
                 </motion.button>

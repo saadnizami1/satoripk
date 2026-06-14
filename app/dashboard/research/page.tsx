@@ -455,7 +455,7 @@ export default function AcademicStressPage() {
                   whileTap={{ scale: alreadyLogged ? 1 : 0.98 }}
                   onClick={handleSubmit}
                   disabled={!performance || !stressLevel || loading || alreadyLogged}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#6B6B6B] to-[#6B6B6B]/80 text-white font-semibold shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                  className="w-full py-4 rounded-2xl bg-linear-to-r from-[#6B6B6B] to-[#6B6B6B]/80 text-white font-semibold shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                 >
                   {alreadyLogged ? 'Already Logged Today' : loading ? 'Submitting...' : 'Submit Entry'}
                 </motion.button>

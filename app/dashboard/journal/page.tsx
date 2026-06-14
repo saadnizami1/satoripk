@@ -265,7 +265,7 @@ export default function JournalPage() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={startNewEntry}
-            className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white font-semibold shadow-xl flex items-center gap-2 text-sm sm:text-base"
+            className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-linear-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white font-semibold shadow-xl flex items-center gap-2 text-sm sm:text-base"
           >
             <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
             New Entry
@@ -341,7 +341,7 @@ export default function JournalPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={startNewEntry}
-              className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white font-semibold shadow-xl text-sm sm:text-base"
+              className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-linear-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white font-semibold shadow-xl text-sm sm:text-base"
             >
               Create First Entry
             </motion.button>
@@ -484,7 +484,7 @@ export default function JournalPage() {
                 whileTap={{ scale: 0.98 }}
                 onClick={proceedToEditor}
                 disabled={!tempTitle.trim()}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white font-semibold shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-linear-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white font-semibold shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 Continue
                 <ArrowLeft className="w-5 h-5 rotate-180" />

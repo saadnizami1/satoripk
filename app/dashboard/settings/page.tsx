@@ -576,7 +576,7 @@ export default function SettingsPage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handlePasswordChange}
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white font-semibold shadow-xl"
+                  className="flex-1 py-3 rounded-xl bg-linear-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white font-semibold shadow-xl"
                 >
                   Update Password
                 </motion.button>
@@ -669,7 +669,7 @@ export default function SettingsPage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleDeleteAccount}
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#D2691E] to-[#D2691E]/80 text-white font-semibold shadow-xl"
+                  className="flex-1 py-3 rounded-xl bg-linear-to-r from-[#D2691E] to-[#D2691E]/80 text-white font-semibold shadow-xl"
                 >
                   Yes, Delete Everything
                 </motion.button>
@@ -726,7 +726,7 @@ export default function SettingsPage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleResetData}
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#D2691E] to-[#D2691E]/80 text-white font-semibold shadow-xl"
+                  className="flex-1 py-3 rounded-xl bg-linear-to-r from-[#D2691E] to-[#D2691E]/80 text-white font-semibold shadow-xl"
                 >
                   Yes, Clear Data
                 </motion.button>
