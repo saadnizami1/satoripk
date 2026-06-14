@@ -1,52 +1,124 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import {
   MessageCircle, Heart, BookOpen, Timer, Wind, TrendingUp,
-  Phone, BarChart3, Brain, CheckCircle2, Sparkles, ArrowRight
+  Phone, BarChart3, Brain, ArrowRight, Sparkles, CheckCircle2
 } from 'lucide-react'
-
-const CARDS = [
-  { id: 'kokoro',    icon: MessageCircle, label: 'Talk to Kokoro',   desc: 'AI companion',       href: '/dashboard/kokoro',    color: '#4A6C6F', bg: '#4A6C6F12' },
-  { id: 'mood',      icon: Heart,         label: 'Mood Tracker',     desc: 'Log your feelings',  href: '/dashboard/mood',      color: '#C4661F', bg: '#C4661F12' },
-  { id: 'journal',   icon: BookOpen,      label: 'Journal',          desc: 'Write freely',       href: '/dashboard/journal',   color: '#5F7F82', bg: '#5F7F8212' },
-  { id: 'pomodoro',  icon: Timer,         label: 'Pomodoro Timer',   desc: 'Stay focused',       href: '/dashboard/pomodoro',  color: '#8B6555', bg: '#8B655512' },
-  { id: 'breathing', icon: Wind,          label: 'Breathing',        desc: 'Calm your mind',     href: '/dashboard/breathing', color: '#6A8C6F', bg: '#6A8C6F12' },
-  { id: 'graph',     icon: TrendingUp,    label: 'Mood Graph',       desc: 'See your patterns',  href: '/dashboard/graph',     color: '#7A6C9F', bg: '#7A6C9F12' },
-  { id: 'stress',    icon: Brain,         label: 'Academic Stress',  desc: 'Track & manage',     href: '/dashboard/research',  color: '#9F6C5F', bg: '#9F6C5F12' },
-  { id: 'helpline',  icon: Phone,         label: 'Get Help',         desc: 'Resources & lines',  href: '/dashboard/helpline',  color: '#4A7C6F', bg: '#4A7C6F12' },
-  { id: 'creator',   icon: BarChart3,     label: 'Creator Overview', desc: 'Research project',   href: '/dashboard/creator',   color: '#7A8C5F', bg: '#7A8C5F12' },
-] as const
 
 const MOODS       = ['😔', '😕', '😐', '🙂', '😊']
 const MOOD_LABELS = ['Terrible', 'Bad', 'Okay', 'Good', 'Great']
+const MOOD_COLORS = ['#EF4444', '#F97316', '#EAB308', '#34D399', '#2DD4BF']
 
 function getGreeting() {
   const h = new Date().getHours()
-  if (h < 5)  return 'Good Night'
-  if (h < 12) return 'Good Morning'
-  if (h < 17) return 'Good Afternoon'
-  if (h < 21) return 'Good Evening'
-  return 'Good Night'
+  if (h < 5)  return 'Good night'
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  if (h < 21) return 'Good evening'
+  return 'Good night'
+}
+
+const CARDS = [
+  {
+    id: 'kokoro',
+    icon: MessageCircle,
+    label: 'Talk to Kokoro',
+    desc: 'Your AI wellness companion',
+    href: '/dashboard/kokoro',
+    accent: '#2DD4BF',
+    badge: 'AI',
+  },
+  {
+    id: 'mood',
+    icon: Heart,
+    label: 'Mood Tracker',
+    desc: 'Log how you feel today',
+    href: '/dashboard/mood',
+    accent: '#F97316',
+  },
+  {
+    id: 'journal',
+    icon: BookOpen,
+    label: 'Journal',
+    desc: 'Write freely',
+    href: '/dashboard/journal',
+    accent: '#818CF8',
+  },
+  {
+    id: 'pomodoro',
+    icon: Timer,
+    label: 'Pomodoro',
+    desc: 'Stay focused',
+    href: '/dashboard/pomodoro',
+    accent: '#F97316',
+  },
+  {
+    id: 'breathing',
+    icon: Wind,
+    label: 'Breathing',
+    desc: 'Calm your mind',
+    href: '/dashboard/breathing',
+    accent: '#818CF8',
+  },
+  {
+    id: 'graph',
+    icon: TrendingUp,
+    label: 'Mood Graph',
+    desc: 'See your patterns',
+    href: '/dashboard/graph',
+    accent: '#2DD4BF',
+  },
+  {
+    id: 'stress',
+    icon: Brain,
+    label: 'Academic Stress',
+    desc: 'Track & manage',
+    href: '/dashboard/research',
+    accent: '#EF4444',
+  },
+  {
+    id: 'helpline',
+    icon: Phone,
+    label: 'Get Help',
+    desc: 'Helplines & resources',
+    href: '/dashboard/helpline',
+    accent: '#4ADE80',
+  },
+  {
+    id: 'creator',
+    icon: BarChart3,
+    label: 'Creator',
+    desc: 'About the research',
+    href: '/dashboard/creator',
+    accent: '#94A3B8',
+  },
+] as const
+
+const card = {
+  hidden: { opacity: 0, y: 16 },
+  show: (i: number) => ({
+    opacity: 1, y: 0,
+    transition: { delay: i * 0.04, type: 'spring' as const, stiffness: 320, damping: 28 },
+  }),
 }
 
 export default function DashboardHome() {
-  const [profile, setProfile]               = useState<any>(null)
-  const [todayMood, setTodayMood]           = useState<any>(null)
-  const [hasMoodToday, setHasMoodToday]     = useState(false)
-  const [hasStressToday, setHasStressToday] = useState(false)
-  const [loading, setLoading]               = useState(true)
+  const [profile, setProfile]         = useState<any>(null)
+  const [todayMood, setTodayMood]     = useState<any>(null)
+  const [hasMoodToday, setHasMood]    = useState(false)
+  const [hasStressToday, setHasStress] = useState(false)
+  const [loading, setLoading]          = useState(true)
 
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
 
       const [{ data: prof }, { data: moods }, { data: stress }] = await Promise.all([
         supabase.from('profiles').select('name').eq('id', user.id).single(),
@@ -58,28 +130,22 @@ export default function DashboardHome() {
 
       setProfile(prof)
       setTodayMood(moods?.[0] ?? null)
-      setHasMoodToday(Boolean(moods?.length))
-      setHasStressToday(Boolean(stress?.length))
+      setHasMood(Boolean(moods?.length))
+      setHasStress(Boolean(stress?.length))
       setLoading(false)
     }
     load()
   }, [])
 
-  const shouldGlow = useCallback((id: string) => {
+  const needsGlow = useCallback((id: string) => {
     if (id === 'mood')   return !hasMoodToday
     if (id === 'stress') return !hasStressToday
     return false
   }, [hasMoodToday, hasStressToday])
 
-  const statusBanner = useMemo(() => {
-    if (hasMoodToday && hasStressToday)
-      return { icon: CheckCircle2, text: "All done for today — great job!", accent: 'text-emerald-600', bg: 'bg-emerald-50/60 border-emerald-200/60' }
-    if (!hasMoodToday && !hasStressToday)
-      return { icon: Sparkles,     text: 'Log your mood and academic stress to start tracking.', accent: 'text-[#4A6C6F]', bg: 'bg-white/40 border-white/60' }
-    if (!hasMoodToday)
-      return { icon: Heart,        text: 'Stress logged! Now log your mood for today.',          accent: 'text-[#C4661F]', bg: 'bg-[#C4661F]/5 border-[#C4661F]/20' }
-    return   { icon: Brain,        text: 'Mood logged! Now add your academic stress data.',       accent: 'text-[#4A6C6F]', bg: 'bg-[#4A6C6F]/5 border-[#4A6C6F]/20' }
-  }, [hasMoodToday, hasStressToday])
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric',
+  })
 
   if (loading) {
     return (
@@ -87,85 +153,153 @@ export default function DashboardHome() {
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="w-8 h-8 border-[3px] border-[#4A6C6F]/20 border-t-[#4A6C6F] rounded-full"
+          className="w-8 h-8 rounded-full border-2"
+          style={{ borderColor: 'rgba(45,212,191,0.2)', borderTopColor: '#2DD4BF' }}
         />
       </div>
     )
   }
 
-  const StatusIcon = statusBanner.icon
+  const moodScore   = todayMood?.mood_score ?? null
+  const moodEmoji   = moodScore ? MOODS[moodScore - 1] : null
+  const moodLabel   = moodScore ? MOOD_LABELS[moodScore - 1] : null
+  const moodColor   = moodScore ? MOOD_COLORS[moodScore - 1] : null
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-        <p className="text-sm text-[#9F9F9F] font-medium">{getGreeting()}</p>
-        <h1 className="text-3xl sm:text-4xl font-serif font-semibold text-[#2C2C2C] mt-0.5">
+    <div className="space-y-6">
+
+      {/* ── Greeting ── */}
+      <motion.div
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <p className="text-sm font-medium" style={{ color: '#475569' }}>{getGreeting()}</p>
+        <h1
+          className="text-4xl sm:text-5xl mt-0.5 leading-tight"
+          style={{
+            fontFamily: 'var(--font-instrument), Georgia, serif',
+            background: 'linear-gradient(135deg, #F1F5F9 30%, #2DD4BF 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
+        >
           {profile?.name || 'Welcome back'}
         </h1>
-        <p className="text-[#5F5F5F] text-sm mt-1">
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </p>
+        <p className="text-sm mt-1" style={{ color: '#475569' }}>{today}</p>
       </motion.div>
 
-      {/* Today's mood pill */}
+      {/* ── Today's mood pill (if logged) ── */}
       {todayMood && (
         <motion.div
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
-          className="glass rounded-2xl p-4 flex items-center gap-4"
         >
-          <div className="text-3xl">{MOODS[(todayMood.mood_score ?? 3) - 1]}</div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-[#9F9F9F] uppercase tracking-widest">Today's mood</p>
-            <p className="font-semibold text-[#2C2C2C] text-sm">{MOOD_LABELS[(todayMood.mood_score ?? 3) - 1]}</p>
-          </div>
-          <Link href="/dashboard/mood" className="p-2 rounded-xl hover:bg-black/5 text-[#5F5F5F] transition-colors">
-            <ArrowRight className="w-4 h-4" />
+          <Link
+            href="/dashboard/mood"
+            className="flex items-center gap-4 rounded-2xl px-5 py-4 transition-all hover:opacity-90"
+            style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
+          >
+            <span className="text-3xl">{moodEmoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#475569' }}>Today's mood</p>
+              <p className="font-semibold text-sm mt-0.5" style={{ color: moodColor ?? '#F1F5F9' }}>{moodLabel}</p>
+            </div>
+            <ArrowRight className="w-4 h-4 shrink-0" style={{ color: '#475569' }} />
           </Link>
         </motion.div>
       )}
 
-      {/* Status banner */}
+      {/* ── Status banner ── */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className={`flex items-center gap-3 px-4 py-3 rounded-2xl border ${statusBanner.bg}`}
+        className="flex items-center gap-3 px-4 py-3 rounded-2xl"
+        style={{
+          background: hasMoodToday && hasStressToday
+            ? 'rgba(74,222,128,0.06)'
+            : 'rgba(45,212,191,0.06)',
+          border: hasMoodToday && hasStressToday
+            ? '1px solid rgba(74,222,128,0.2)'
+            : '1px solid rgba(45,212,191,0.15)',
+        }}
       >
-        <StatusIcon className={`w-4 h-4 shrink-0 ${statusBanner.accent}`} />
-        <p className={`text-sm font-medium ${statusBanner.accent}`}>{statusBanner.text}</p>
+        {hasMoodToday && hasStressToday ? (
+          <>
+            <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: '#4ADE80' }} />
+            <p className="text-sm font-medium" style={{ color: '#4ADE80' }}>All done for today — great job!</p>
+          </>
+        ) : !hasMoodToday && !hasStressToday ? (
+          <>
+            <Sparkles className="w-4 h-4 shrink-0" style={{ color: '#2DD4BF' }} />
+            <p className="text-sm font-medium" style={{ color: '#2DD4BF' }}>Log your mood and stress to start tracking.</p>
+          </>
+        ) : !hasMoodToday ? (
+          <>
+            <Heart className="w-4 h-4 shrink-0" style={{ color: '#F97316' }} />
+            <p className="text-sm font-medium" style={{ color: '#F97316' }}>Stress logged — now add your mood for today.</p>
+          </>
+        ) : (
+          <>
+            <Brain className="w-4 h-4 shrink-0" style={{ color: '#2DD4BF' }} />
+            <p className="text-sm font-medium" style={{ color: '#2DD4BF' }}>Mood logged — now add your academic stress data.</p>
+          </>
+        )}
       </motion.div>
 
-      {/* Cards grid */}
+      {/* ── Feature cards grid ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {CARDS.map(({ id, icon: Icon, label, desc, href, color, bg }, i) => (
-          <motion.div
-            key={id}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 * i, type: 'spring' as const, stiffness: 300, damping: 24 }}
-          >
-            <Link
-              href={href}
-              className={`group block glass rounded-2xl p-4 hover:bg-white/55 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 ${
-                shouldGlow(id) ? 'glow-pulse ring-1 ring-[#C4661F]/20' : ''
-              }`}
+        {CARDS.map(({ id, icon: Icon, label, desc, href, accent, ...rest }, i) => {
+          const badge = 'badge' in rest ? (rest as any).badge : undefined
+          const glow = needsGlow(id)
+          return (
+            <motion.div
+              key={id}
+              custom={i}
+              variants={card}
+              initial="hidden"
+              animate="show"
             >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3" style={{ backgroundColor: bg }}>
-                <Icon className="w-[18px] h-[18px]" style={{ color }} />
-              </div>
-              <p className="text-sm font-semibold text-[#2C2C2C] truncate">{label}</p>
-              <p className="text-[11px] text-[#9F9F9F] mt-0.5">{desc}</p>
-              {shouldGlow(id) && (
-                <span className="inline-block mt-2 text-[10px] font-medium text-[#C4661F] bg-[#C4661F]/10 px-2 py-0.5 rounded-full">
-                  Log today
-                </span>
-              )}
-            </Link>
-          </motion.div>
-        ))}
+              <Link
+                href={href}
+                className="group block rounded-2xl p-4 transition-all duration-200 hover:scale-[1.02] hover:shadow-xl"
+                style={{
+                  background: '#13161F',
+                  border: glow ? `1px solid ${accent}40` : '1px solid rgba(255,255,255,0.06)',
+                  boxShadow: glow ? `0 0 16px ${accent}18` : undefined,
+                }}
+              >
+                {/* Icon */}
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center mb-3"
+                  style={{ background: `${accent}15` }}
+                >
+                  <Icon className="w-[18px] h-[18px]" style={{ color: accent }} />
+                </div>
+
+                {/* Labels */}
+                <div className="flex items-start justify-between gap-1">
+                  <p className="text-sm font-semibold leading-snug" style={{ color: '#F1F5F9' }}>{label}</p>
+                  {badge && (
+                    <span className="shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${accent}20`, color: accent }}>
+                      {badge}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] mt-0.5" style={{ color: '#475569' }}>{desc}</p>
+
+                {glow && (
+                  <span className="inline-block mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: `${accent}18`, color: accent }}>
+                    Log today
+                  </span>
+                )}
+              </Link>
+            </motion.div>
+          )
+        })}
       </div>
     </div>
   )

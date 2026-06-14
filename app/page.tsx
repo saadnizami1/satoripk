@@ -1,20 +1,19 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { MeshGradient } from '@/components/MeshGradient'
 import { MessageCircle, Heart, BookOpen, Timer, Wind, TrendingUp, Brain, Phone, ArrowRight, Sparkles } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 
 const FEATURES = [
-  { icon: MessageCircle, label: 'AI Companion',      desc: 'Talk to Kokoro — your empathetic AI wellness guide.',    color: '#4A6C6F' },
-  { icon: Heart,         label: 'Mood Tracker',      desc: 'Log your feelings daily and spot emotional patterns.',    color: '#C4661F' },
-  { icon: BookOpen,      label: 'Private Journal',   desc: 'Write freely in a safe, judgment-free space.',           color: '#5F7F82' },
-  { icon: Timer,         label: 'Focus Timer',       desc: 'Stay productive with science-backed Pomodoro sessions.', color: '#8B6555' },
-  { icon: Wind,          label: 'Breathing Guides',  desc: 'Six calming techniques to reduce stress in minutes.',    color: '#6A8C6F' },
-  { icon: TrendingUp,    label: 'Mood Insights',     desc: 'Beautiful graphs reveal trends in your well-being.',     color: '#7A6C9F' },
-  { icon: Brain,         label: 'Academic Stress',   desc: 'Track and manage academic pressure with data.',          color: '#9F6C5F' },
-  { icon: Phone,         label: 'Crisis Helplines',  desc: 'Instant access to mental health resources 24/7.',        color: '#4A7C6F' },
+  { icon: MessageCircle, label: 'AI Companion',     desc: 'Talk to Kokoro — an empathetic AI built for Pakistani students.',    color: '#2DD4BF' },
+  { icon: Heart,         label: 'Mood Tracker',     desc: 'Log your feelings daily and spot emotional patterns over time.',       color: '#F97316' },
+  { icon: BookOpen,      label: 'Private Journal',  desc: "Write freely in a safe, judgment-free space that's entirely yours.",   color: '#818CF8' },
+  { icon: Timer,         label: 'Focus Timer',      desc: 'Stay productive with science-backed Pomodoro work sessions.',           color: '#F97316' },
+  { icon: Wind,          label: 'Breathing Guides', desc: 'Four calming techniques to reduce stress in just a few minutes.',       color: '#818CF8' },
+  { icon: TrendingUp,    label: 'Mood Insights',    desc: 'Beautiful graphs reveal trends in your emotional wellbeing.',           color: '#2DD4BF' },
+  { icon: Brain,         label: 'Academic Stress',  desc: 'Track and manage academic pressure with data-driven insight.',          color: '#EF4444' },
+  { icon: Phone,         label: 'Crisis Helplines', desc: 'Instant access to mental health resources 24/7.',                       color: '#4ADE80' },
 ]
 
 const stagger = {
@@ -24,25 +23,31 @@ const stagger = {
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen relative overflow-x-hidden">
-      <MeshGradient />
+    <div className="min-h-screen" style={{ background: '#0B0D14', color: '#F1F5F9' }}>
 
       {/* ── Nav ── */}
-      <header className="relative z-20 flex items-center justify-between px-6 sm:px-10 py-5">
+      <header className="flex items-center justify-between px-6 sm:px-10 py-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-2.5">
-          <Image src="/logo.png" alt="Satori" width={36} height={36} className="object-contain drop-shadow" />
-          <span className="text-2xl font-serif font-semibold text-[#2C2C2C]">Satori</span>
+          <Image src="/logo.png" alt="Satori" width={32} height={32} className="object-contain" />
+          <span
+            className="text-[22px]"
+            style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}
+          >
+            Satori
+          </span>
         </div>
         <div className="flex items-center gap-3">
           <Link
             href="/auth"
-            className="text-sm font-medium text-[#5F5F5F] hover:text-[#2C2C2C] transition-colors px-4 py-2 rounded-xl hover:bg-white/40"
+            className="text-sm font-medium px-4 py-2 rounded-xl transition-all hover:bg-[rgba(255,255,255,0.04)]"
+            style={{ color: '#94A3B8' }}
           >
             Sign in
           </Link>
           <Link
             href="/auth"
-            className="text-sm font-semibold bg-[#4A6C6F] text-white px-5 py-2.5 rounded-xl shadow-lg hover:bg-[#3A5C5F] transition-all"
+            className="text-sm font-semibold px-5 py-2.5 rounded-xl transition-all hover:opacity-90"
+            style={{ background: '#14B8A6', color: '#fff' }}
           >
             Get started
           </Link>
@@ -50,77 +55,90 @@ export default function LandingPage() {
       </header>
 
       {/* ── Hero ── */}
-      <section className="relative z-10 flex flex-col items-center text-center px-6 pt-16 pb-24 sm:pt-24">
+      <section
+        className="flex flex-col items-center text-center px-6 pt-20 pb-28 sm:pt-28"
+        style={{ background: 'radial-gradient(ellipse at 30% 40%, rgba(45,212,191,0.06) 0%, transparent 60%)' }}
+      >
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          className="max-w-3xl"
         >
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#4A6C6F] bg-[#4A6C6F]/10 border border-[#4A6C6F]/20 px-4 py-1.5 rounded-full mb-6">
+          <span
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-1.5 rounded-full mb-6"
+            style={{ background: 'rgba(45,212,191,0.08)', border: '1px solid rgba(45,212,191,0.2)', color: '#2DD4BF' }}
+          >
             <Sparkles className="w-3 h-3" />
             Mental Wellness for Pakistani Students
           </span>
 
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-serif font-semibold text-[#2C2C2C] leading-tight mb-6 max-w-3xl">
+          <h1
+            className="text-5xl sm:text-6xl md:text-7xl leading-tight mb-6"
+            style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}
+          >
             Find your inner{' '}
-            <span className="text-gradient">calm</span>
+            <span className="italic text-gradient">calm</span>
           </h1>
 
-          <p className="text-lg sm:text-xl text-[#5F5F5F] max-w-xl mx-auto mb-10 leading-relaxed">
+          <p className="text-lg sm:text-xl max-w-xl mx-auto mb-10 leading-relaxed" style={{ color: '#94A3B8' }}>
             Satori is your private companion for mental wellness — mood tracking, AI support,
-            journaling, and breathwork, all in one beautiful space.
+            journaling, and breathwork, all in one dark, focused space.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 justify-center">
+          <div className="flex flex-col sm:flex-row items-center gap-4 justify-center">
             <Link
               href="/auth"
-              className="group inline-flex items-center gap-2 bg-linear-to-r from-[#4A6C6F] to-[#5A8C8F] text-white font-semibold px-8 py-4 rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-300"
+              className="group inline-flex items-center gap-2 font-semibold px-8 py-4 rounded-2xl shadow-xl transition-all duration-300 hover:-translate-y-0.5"
+              style={{ background: '#14B8A6', color: '#fff', boxShadow: '0 0 30px rgba(45,212,191,0.2)' }}
             >
               Start your journey
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
-            <span className="text-xs text-[#9F9F9F]">Free · Private · No ads</span>
+            <div className="flex items-center gap-2 text-xs" style={{ color: '#475569' }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#4ADE80' }} />
+              Free · Private · No ads
+            </div>
           </div>
         </motion.div>
 
-        {/* Hero card preview */}
+        {/* Hero chat preview */}
         <motion.div
           initial={{ opacity: 0, y: 40, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ delay: 0.3, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-          className="mt-16 w-full max-w-sm"
+          className="mt-16 w-full max-w-sm rounded-3xl p-6 text-left shadow-2xl"
+          style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 0 0 1px rgba(255,255,255,0.06), 0 24px 48px rgba(0,0,0,0.5)' }}
         >
-          <div className="glass rounded-3xl p-6 shadow-2xl text-left">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-xl bg-[#4A6C6F]/15 flex items-center justify-center">
-                <MessageCircle className="w-4.5 h-4.5 text-[#4A6C6F]" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-[#2C2C2C]">Kokoro AI</p>
-                <p className="text-[10px] text-[#9F9F9F]">Your wellness companion</p>
-              </div>
-              <span className="ml-auto flex items-center gap-1 text-[10px] text-green-600 font-medium">
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                Online
-              </span>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(45,212,191,0.15)' }}>
+              <MessageCircle className="w-4 h-4" style={{ color: '#2DD4BF' }} />
             </div>
-            <div className="space-y-2.5">
-              <div className="bg-[#4A6C6F]/10 rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[80%]">
-                <p className="text-xs text-[#2C2C2C] leading-relaxed">How are you feeling today? I'm here to listen without judgment 💙</p>
-              </div>
-              <div className="bg-white/70 rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[80%] ml-auto text-right">
-                <p className="text-xs text-[#2C2C2C] leading-relaxed">A little anxious about exams…</p>
-              </div>
-              <div className="bg-[#4A6C6F]/10 rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[85%]">
-                <p className="text-xs text-[#2C2C2C] leading-relaxed">That's completely valid. Let's try a 4-7-8 breathing exercise together ✨</p>
-              </div>
+            <div>
+              <p className="text-xs font-semibold" style={{ color: '#F1F5F9' }}>Kokoro AI</p>
+              <p className="text-[10px]" style={{ color: '#475569' }}>Your wellness companion</p>
+            </div>
+            <span className="ml-auto flex items-center gap-1 text-[10px] font-medium" style={{ color: '#4ADE80' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />
+              Online
+            </span>
+          </div>
+          <div className="space-y-2.5">
+            <div className="px-3.5 py-2.5 max-w-[82%] rounded-2xl rounded-tl-sm" style={{ background: '#1C2030' }}>
+              <p className="text-xs leading-relaxed" style={{ color: '#94A3B8' }}>How are you feeling today? I'm here to listen without judgment.</p>
+            </div>
+            <div className="px-3.5 py-2.5 max-w-[80%] ml-auto rounded-2xl rounded-tr-sm" style={{ background: '#14B8A6' }}>
+              <p className="text-xs leading-relaxed text-white">A little anxious about exams…</p>
+            </div>
+            <div className="px-3.5 py-2.5 max-w-[85%] rounded-2xl rounded-tl-sm" style={{ background: '#1C2030' }}>
+              <p className="text-xs leading-relaxed" style={{ color: '#94A3B8' }}>That's completely valid. Let's try a breathing exercise together.</p>
             </div>
           </div>
         </motion.div>
       </section>
 
       {/* ── Features grid ── */}
-      <section className="relative z-10 px-6 sm:px-10 pb-24 max-w-5xl mx-auto">
+      <section className="px-6 sm:px-10 pb-24 max-w-5xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -128,11 +146,14 @@ export default function LandingPage() {
           transition={{ duration: 0.6 }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl sm:text-4xl font-serif font-semibold text-[#2C2C2C] mb-3">
+          <h2
+            className="text-3xl sm:text-4xl mb-3"
+            style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}
+          >
             Everything you need to thrive
           </h2>
-          <p className="text-[#5F5F5F] max-w-md mx-auto">
-            Eight powerful tools, designed around the needs of students navigating academic pressure.
+          <p className="max-w-md mx-auto" style={{ color: '#475569' }}>
+            Eight tools, designed around the real needs of students navigating academic pressure.
           </p>
         </motion.div>
 
@@ -144,51 +165,62 @@ export default function LandingPage() {
           className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
         >
           {FEATURES.map(({ icon: Icon, label, desc, color }) => (
-            <motion.div key={label} variants={stagger.item}>
-              <div className="glass rounded-2xl p-4 h-full hover:bg-white/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-default">
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center mb-3"
-                  style={{ backgroundColor: `${color}18` }}
-                >
-                  <Icon className="w-4.5 h-4.5" style={{ color }} />
-                </div>
-                <p className="text-sm font-semibold text-[#2C2C2C] mb-1">{label}</p>
-                <p className="text-[11px] text-[#9F9F9F] leading-relaxed">{desc}</p>
+            <motion.div
+              key={label}
+              variants={stagger.item}
+              className="rounded-2xl p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl cursor-default"
+              style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${color}30` }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)' }}
+            >
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-3" style={{ background: `${color}15` }}>
+                <Icon className="w-4 h-4" style={{ color }} />
               </div>
+              <p className="text-sm font-semibold mb-1" style={{ color: '#F1F5F9' }}>{label}</p>
+              <p className="text-[11px] leading-relaxed" style={{ color: '#475569' }}>{desc}</p>
             </motion.div>
           ))}
         </motion.div>
       </section>
 
       {/* ── CTA ── */}
-      <section className="relative z-10 px-6 pb-24 text-center">
+      <section className="px-6 pb-24 text-center">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="glass-strong rounded-3xl p-10 max-w-lg mx-auto shadow-2xl"
+          className="max-w-lg mx-auto rounded-3xl p-10 shadow-2xl"
+          style={{
+            background: '#13161F',
+            border: '1px solid rgba(45,212,191,0.15)',
+            boxShadow: '0 0 0 1px rgba(255,255,255,0.06), 0 0 60px rgba(45,212,191,0.06)',
+          }}
         >
-          <h2 className="text-3xl font-serif font-semibold text-[#2C2C2C] mb-3">Ready to begin?</h2>
-          <p className="text-[#5F5F5F] text-sm mb-6">
-            Join Satori and take your first step toward better mental well-being.
+          <h2
+            className="text-3xl mb-3"
+            style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}
+          >
+            Ready to begin?
+          </h2>
+          <p className="text-sm mb-6" style={{ color: '#475569' }}>
+            Join Satori and take your first step toward better mental wellbeing.
           </p>
           <Link
             href="/auth"
-            className="group inline-flex items-center gap-2 bg-linear-to-r from-[#4A6C6F] to-[#5A8C8F] text-white font-semibold px-8 py-3.5 rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
+            className="group inline-flex items-center gap-2 font-semibold px-8 py-3.5 rounded-2xl transition-all duration-300 hover:-translate-y-0.5"
+            style={{ background: '#14B8A6', color: '#fff', boxShadow: '0 0 20px rgba(45,212,191,0.2)' }}
           >
             Create your free account
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </Link>
-          <p className="mt-4 text-[11px] text-[#C0BAB2]">
-            Your data stays private. Always.
-          </p>
+          <p className="mt-4 text-[11px]" style={{ color: '#475569' }}>Your data stays private. Always.</p>
         </motion.div>
       </section>
 
       {/* ── Footer ── */}
-      <footer className="relative z-10 text-center pb-8 text-xs text-[#C0BAB2]">
-        © 2025 Satori · Built with care for student mental health
+      <footer className="text-center pb-8 text-xs border-t pt-6" style={{ color: '#475569', borderColor: 'rgba(255,255,255,0.06)' }}>
+        2026 Satori · Built with care for student mental health
       </footer>
     </div>
   )

@@ -3,26 +3,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  User,
-  Mail,
-  MapPin,
-  Calendar,
-  LogOut,
-  Shield,
-  Award,
-  Heart,
-  BookOpen,
-  TrendingUp,
-  Sparkles,
-  Users,
-  Home,
-  GraduationCap,
-  Church,
-  Camera,
-  Cake,
-  ArrowUp,
-  Check
+import {
+  User, Mail, MapPin, Calendar, LogOut, Shield, Award,
+  Heart, BookOpen, TrendingUp, Sparkles, Users, Home,
+  GraduationCap, Camera, Cake, ArrowUp, Check
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -73,13 +57,7 @@ const educationLevels = [
 export default function ProfilePage() {
   const router = useRouter()
   const [profile, setProfile] = useState<ProfileData | null>(null)
-  const [stats, setStats] = useState<Stats>({
-    totalMoods: 0,
-    totalJournals: 0,
-    totalStressLogs: 0,
-    totalPomodoros: 0,
-    memberSince: ''
-  })
+  const [stats, setStats] = useState<Stats>({ totalMoods: 0, totalJournals: 0, totalStressLogs: 0, totalPomodoros: 0, memberSince: '' })
   const [loading, setLoading] = useState(true)
   const [showBirthdayModal, setShowBirthdayModal] = useState(false)
   const [showEducationModal, setShowEducationModal] = useState(false)
@@ -96,73 +74,39 @@ export default function ProfilePage() {
 
   const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    
     if (user) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-      
-      if (data) {
-        setProfile(data)
-        setSelectedEducation(data.education_level)
-      }
+      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      if (data) { setProfile(data); setSelectedEducation(data.education_level) }
     }
     setLoading(false)
   }
 
   const fetchStats = async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    
     if (user) {
-      const { count: moodsCount } = await supabase
-        .from('moods')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-
-      const { count: stressCount } = await supabase
-        .from('academic_stress')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-
+      const { count: moodsCount } = await supabase.from('moods').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
+      const { count: stressCount } = await supabase.from('academic_stress').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
       const journals = localStorage.getItem('journal_entries')
-      const journalCount = journals ? JSON.parse(journals).length : 0
-
       const pomodoros = localStorage.getItem('pomodoro_total') || '0'
-
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('created_at')
-        .eq('id', user.id)
-        .single()
-
+      const { data: profileData } = await supabase.from('profiles').select('created_at').eq('id', user.id).single()
       setStats({
         totalMoods: moodsCount || 0,
-        totalJournals: journalCount,
+        totalJournals: journals ? JSON.parse(journals).length : 0,
         totalStressLogs: stressCount || 0,
         totalPomodoros: parseInt(pomodoros),
-        memberSince: profileData?.created_at || ''
+        memberSince: profileData?.created_at || '',
       })
     }
   }
 
   const loadProfilePicture = () => {
     const saved = localStorage.getItem('profile_picture')
-    if (saved) {
-      setProfilePicture(saved)
-    }
+    if (saved) setProfilePicture(saved)
   }
 
   const handleProfilePictureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (!file) return
-
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file')
-      return
-    }
-
+    if (!file || !file.type.startsWith('image/')) return
     const reader = new FileReader()
     reader.onload = (e) => {
       const imageUrl = e.target?.result as string
@@ -175,40 +119,19 @@ export default function ProfilePage() {
 
   const handleBirthday = async () => {
     if (!profile) return
-
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
     const newAge = profile.age + 1
-
-    const { error } = await supabase
-      .from('profiles')
-      .update({ age: newAge })
-      .eq('id', user.id)
-
-    if (!error) {
-      setProfile({ ...profile, age: newAge })
-      setShowBirthdayModal(false)
-      showSuccessMessage()
-    }
+    const { error } = await supabase.from('profiles').update({ age: newAge }).eq('id', user.id)
+    if (!error) { setProfile({ ...profile, age: newAge }); setShowBirthdayModal(false); showSuccessMessage() }
   }
 
   const handleEducationUpdate = async () => {
     if (!profile || !selectedEducation) return
-
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
-    const { error } = await supabase
-      .from('profiles')
-      .update({ education_level: selectedEducation })
-      .eq('id', user.id)
-
-    if (!error) {
-      setProfile({ ...profile, education_level: selectedEducation })
-      setShowEducationModal(false)
-      showSuccessMessage()
-    }
+    const { error } = await supabase.from('profiles').update({ education_level: selectedEducation }).eq('id', user.id)
+    if (!error) { setProfile({ ...profile, education_level: selectedEducation }); setShowEducationModal(false); showSuccessMessage() }
   }
 
   const showSuccessMessage = () => {
@@ -225,10 +148,7 @@ export default function ProfilePage() {
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Recently'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'long',
-      year: 'numeric'
-    })
+    return new Date(dateString).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   }
 
   const formatFieldValue = (value: string | undefined) => {
@@ -243,443 +163,333 @@ export default function ProfilePage() {
 
   if (loading || !profile) {
     return (
-      <div className="max-w-6xl mx-auto min-h-screen flex items-center justify-center">
+      <div className="max-w-5xl mx-auto min-h-screen flex items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 rounded-full border-4 border-[#4A6C6F] border-t-transparent"
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="w-10 h-10 rounded-full border-2 border-t-transparent"
+          style={{ borderColor: '#2DD4BF', borderTopColor: 'transparent' }}
         />
       </div>
     )
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6">
-      {/* Success Toast */}
+    <div className="max-w-5xl mx-auto">
+      {/* Success toast */}
       <AnimatePresence>
         {showSuccess && (
           <motion.div
-            initial={{ opacity: 0, y: -50 }}
+            initial={{ opacity: 0, y: -40 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            className="fixed top-4 sm:top-8 right-4 sm:right-8 z-50 backdrop-blur-[40px] bg-[#4A6C6F]/90 border border-white/60 rounded-xl sm:rounded-2xl px-4 py-3 sm:px-6 sm:py-4 shadow-2xl flex items-center gap-2 sm:gap-3"
+            exit={{ opacity: 0, y: -40 }}
+            className="fixed top-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl"
+            style={{ background: '#13161F', border: '1px solid rgba(45,212,191,0.3)', color: '#F1F5F9' }}
           >
-            <Check className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            <span className="text-white text-sm sm:text-base font-semibold">Updated successfully!</span>
+            <Check className="w-4 h-4" style={{ color: '#2DD4BF' }} />
+            <span className="text-sm font-semibold">Updated successfully!</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleProfilePictureUpload}
-        className="hidden"
-      />
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleProfilePictureUpload} className="hidden" />
 
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-6 sm:mb-8"
-      >
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#4A6C6F]/20 to-[#4A6C6F]/10 backdrop-blur-xl flex items-center justify-center">
-            <User className="w-5 h-5 sm:w-6 sm:h-6 text-[#4A6C6F]" />
-          </div>
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-serif font-medium text-[#2C2C2C]">
-              Profile
-            </h1>
-            <p className="text-sm sm:text-base text-[#5F5F5F]">View your information and manage updates</p>
-          </div>
+      {/* Page header */}
+      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(45,212,191,0.12)' }}>
+          <User className="w-5 h-5" style={{ color: '#2DD4BF' }} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}>
+            Profile
+          </h1>
+          <p className="text-xs" style={{ color: '#475569' }}>View your information and manage updates</p>
         </div>
       </motion.div>
 
-      <div className="grid lg:grid-cols-3 gap-4 sm:gap-6">
-        {/* Left Column - Stats */}
-        <div className="space-y-4 sm:space-y-6">
-          {/* Avatar Card */}
+      <div className="grid lg:grid-cols-3 gap-5">
+        {/* Left column */}
+        <div className="space-y-4">
+          {/* Avatar card */}
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -16 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
-            className="backdrop-blur-[40px] bg-white/40 border border-white/60 rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-xl text-center"
+            className="rounded-2xl p-5 text-center"
+            style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
           >
-            {/* Profile Picture */}
-            <div className="relative inline-block mb-3 sm:mb-4">
+            <div className="relative inline-block mb-4">
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                transition={{ delay: 0.2, type: 'spring' }}
-                className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#4A6C6F] to-[#6B6B6B] flex items-center justify-center shadow-2xl overflow-hidden"
+                transition={{ delay: 0.2, type: 'spring' as const }}
+                className="w-24 h-24 rounded-2xl flex items-center justify-center overflow-hidden"
+                style={{ background: 'linear-gradient(135deg, #2DD4BF, #818CF8)' }}
               >
                 {profilePicture ? (
-                  <img
-                    src={profilePicture}
-                    alt="Profile"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={profilePicture} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-4xl sm:text-5xl font-bold text-white">
+                  <span className="text-3xl font-bold text-white">
                     {profile.name ? profile.name.charAt(0).toUpperCase() : 'U'}
                   </span>
                 )}
               </motion.div>
-
-              {/* Camera Button */}
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+              <button
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#4A6C6F] text-white shadow-xl flex items-center justify-center hover:bg-[#6B6B6B] transition-colors"
+                className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-xl flex items-center justify-center transition-opacity hover:opacity-80"
+                style={{ background: '#2DD4BF', color: '#0B0D14' }}
               >
-                <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
-              </motion.button>
+                <Camera className="w-3.5 h-3.5" />
+              </button>
             </div>
 
-            <h2 className="text-xl sm:text-2xl font-bold text-[#2C2C2C] mb-1">
-              {profile.name || 'User'}
-            </h2>
-            <p className="text-xs sm:text-sm text-[#5F5F5F] mb-3 sm:mb-4 truncate px-2">{profile.email}</p>
-
-            <div className="flex items-center justify-center gap-2 text-xs text-[#5F5F5F]">
-              <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span>Member since {formatDate(stats.memberSince)}</span>
+            <h2 className="text-lg font-bold mb-0.5" style={{ color: '#F1F5F9' }}>{profile.name || 'User'}</h2>
+            <p className="text-xs truncate mb-3 px-2" style={{ color: '#475569' }}>{profile.email}</p>
+            <div className="flex items-center justify-center gap-1.5 text-xs" style={{ color: '#475569' }}>
+              <Calendar className="w-3 h-3" />
+              <span>Since {formatDate(stats.memberSince)}</span>
             </div>
           </motion.div>
 
-          {/* Quick Actions */}
+          {/* Quick updates */}
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.15 }}
+            className="rounded-2xl p-4"
+            style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
+          >
+            <p className="text-xs font-semibold mb-3 flex items-center gap-2" style={{ color: '#94A3B8' }}>
+              <Sparkles className="w-3.5 h-3.5" style={{ color: '#2DD4BF' }} />
+              Quick Updates
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowBirthdayModal(true)}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all hover:opacity-80"
+                style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.25)', color: '#F97316' }}
+              >
+                <Cake className="w-4 h-4" />
+                It&apos;s My Birthday!
+              </button>
+              <button
+                onClick={() => setShowEducationModal(true)}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all hover:opacity-80"
+                style={{ background: 'rgba(45,212,191,0.08)', border: '1px solid rgba(45,212,191,0.2)', color: '#2DD4BF' }}
+              >
+                <ArrowUp className="w-4 h-4" />
+                Update Class/Grade
+              </button>
+            </div>
+          </motion.div>
+
+          {/* Activity stats */}
+          <motion.div
+            initial={{ opacity: 0, x: -16 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="backdrop-blur-[40px] bg-white/40 border border-white/60 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xl"
+            className="rounded-2xl p-4"
+            style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
           >
-            <h3 className="text-sm sm:text-base font-semibold text-[#2C2C2C] mb-3 sm:mb-4 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F]" />
-              Quick Updates
-            </h3>
-
-            <div className="space-y-2 sm:space-y-3">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowBirthdayModal(true)}
-                className="w-full py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-linear-to-r from-[#D2691E]/20 to-[#D2691E]/10 border border-[#D2691E]/40 text-[#D2691E] text-sm sm:text-base font-semibold flex items-center justify-center gap-2 hover:from-[#D2691E]/30 hover:to-[#D2691E]/20 transition-all"
-              >
-                <Cake className="w-4 h-4 sm:w-5 sm:h-5" />
-                It's My Birthday!
-              </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowEducationModal(true)}
-                className="w-full py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-linear-to-r from-[#4A6C6F]/20 to-[#4A6C6F]/10 border border-[#4A6C6F]/40 text-[#4A6C6F] text-sm sm:text-base font-semibold flex items-center justify-center gap-2 hover:from-[#4A6C6F]/30 hover:to-[#4A6C6F]/20 transition-all"
-              >
-                <ArrowUp className="w-4 h-4 sm:w-5 sm:h-5" />
-                Update Class/Grade
-              </motion.button>
-            </div>
-          </motion.div>
-
-          {/* Stats Cards */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-            className="backdrop-blur-[40px] bg-white/40 border border-white/60 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xl"
-          >
-            <div className="flex items-center gap-2 mb-3 sm:mb-4">
-              <Award className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F]" />
-              <h3 className="text-sm sm:text-base font-semibold text-[#2C2C2C]">Your Activity</h3>
-            </div>
-
-            <div className="space-y-3 sm:space-y-4">
+            <p className="text-xs font-semibold mb-4 flex items-center gap-2" style={{ color: '#94A3B8' }}>
+              <Award className="w-3.5 h-3.5" style={{ color: '#818CF8' }} />
+              Your Activity
+            </p>
+            <div className="space-y-3">
               {[
-                { icon: Heart, label: 'Moods Logged', value: stats.totalMoods, color: '#D2691E' },
-                { icon: BookOpen, label: 'Journal Entries', value: stats.totalJournals, color: '#4A6C6F' },
-                { icon: TrendingUp, label: 'Stress Logs', value: stats.totalStressLogs, color: '#6B6B6B' },
-                { icon: Sparkles, label: 'Pomodoros', value: stats.totalPomodoros, color: '#A8A8A8' },
-              ].map((stat, index) => (
-                <motion.div
-                  key={stat.label}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 + index * 0.1 }}
-                  className="flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div
-                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: `${stat.color}20` }}
-                    >
-                      <stat.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" style={{ color: stat.color }} />
+                { icon: Heart,      label: 'Moods Logged',   value: stats.totalMoods,      color: '#F97316' },
+                { icon: BookOpen,   label: 'Journal Entries', value: stats.totalJournals,   color: '#818CF8' },
+                { icon: TrendingUp, label: 'Stress Logs',     value: stats.totalStressLogs, color: '#EF4444' },
+                { icon: Sparkles,   label: 'Pomodoros Done',  value: stats.totalPomodoros,  color: '#2DD4BF' },
+              ].map(stat => (
+                <div key={stat.label} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${stat.color}15` }}>
+                      <stat.icon className="w-3.5 h-3.5" style={{ color: stat.color }} />
                     </div>
-                    <span className="text-xs sm:text-sm text-[#5F5F5F]">{stat.label}</span>
+                    <span className="text-xs" style={{ color: '#94A3B8' }}>{stat.label}</span>
                   </div>
-                  <span className="text-lg sm:text-xl font-bold text-[#2C2C2C]">{stat.value}</span>
-                </motion.div>
+                  <span className="text-base font-bold" style={{ color: '#F1F5F9', fontFamily: 'var(--font-jetbrains), monospace' }}>
+                    {stat.value}
+                  </span>
+                </div>
               ))}
             </div>
           </motion.div>
 
-          {/* Logout Button */}
+          {/* Logout */}
           <motion.button
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -16 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            transition={{ delay: 0.25 }}
+            whileTap={{ scale: 0.97 }}
             onClick={handleLogout}
-            className="w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-[#D2691E]/10 border border-[#D2691E]/40 text-[#D2691E] text-sm sm:text-base font-semibold flex items-center justify-center gap-2 hover:bg-[#D2691E]/20 transition-all"
+            className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all hover:opacity-80"
+            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444' }}
           >
-            <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+            <LogOut className="w-4 h-4" />
             Logout
           </motion.button>
         </div>
 
-        {/* Right Column - Profile Info */}
+        {/* Right column — personal info */}
         <div className="lg:col-span-2">
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 16 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
-            className="backdrop-blur-[40px] bg-white/40 border border-white/60 rounded-xl sm:rounded-2xl md:rounded-[2rem] p-5 sm:p-6 md:p-8 shadow-2xl"
+            className="rounded-2xl p-6"
+            style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
           >
-            <h3 className="text-xl sm:text-2xl font-serif font-semibold text-[#2C2C2C] mb-5 sm:mb-6 md:mb-8">
+            <h3
+              className="text-lg font-semibold mb-6"
+              style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}
+            >
               Personal Information
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
-              {/* Name */}
-              <div>
-                <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-[#5F5F5F] mb-2">
-                  <User className="w-3 h-3 sm:w-4 sm:h-4" />
-                  Full Name
-                </label>
-                <div className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-white/30 border border-white/40 text-[#2C2C2C] text-sm sm:text-base font-medium">
-                  {profile.name || 'Not set'}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { icon: User,          label: 'Full Name',       value: profile.name || 'Not set' },
+                { icon: Mail,          label: 'Email Address',   value: profile.email },
+                { icon: Calendar,      label: 'Age',             value: profile.age ? `${profile.age} years` : 'Not set' },
+                { icon: Users,         label: 'Gender',          value: formatFieldValue(profile.gender) },
+                { icon: GraduationCap, label: 'Education Level', value: getEducationLabel(profile.education_level) },
+                { icon: MapPin,        label: 'Location',        value: profile.location || 'Not set' },
+                { icon: Heart,         label: 'Religion',        value: profile.religion || 'Not set' },
+                { icon: Home,          label: 'Family Status',   value: formatFieldValue(profile.family_status) },
+              ].map(({ icon: Icon, label, value }) => (
+                <div key={label}>
+                  <label className="flex items-center gap-1.5 text-xs font-medium mb-1.5" style={{ color: '#475569' }}>
+                    <Icon className="w-3 h-3" />
+                    {label}
+                  </label>
+                  <div
+                    className="px-3.5 py-2.5 rounded-xl text-sm font-medium capitalize truncate"
+                    style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.06)', color: '#F1F5F9' }}
+                  >
+                    {value}
+                  </div>
                 </div>
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-[#5F5F5F] mb-2">
-                  <Mail className="w-3 h-3 sm:w-4 sm:h-4" />
-                  Email Address
-                </label>
-                <div className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-white/30 border border-white/40 text-[#2C2C2C] text-sm sm:text-base font-medium truncate">
-                  {profile.email}
-                </div>
-              </div>
-
-              {/* Age */}
-              <div>
-                <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-[#5F5F5F] mb-2">
-                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
-                  Age
-                </label>
-                <div className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-white/30 border border-white/40 text-[#2C2C2C] text-sm sm:text-base font-medium">
-                  {profile.age ? `${profile.age} years` : 'Not set'}
-                </div>
-              </div>
-
-              {/* Gender */}
-              <div>
-                <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-[#5F5F5F] mb-2">
-                  <Users className="w-3 h-3 sm:w-4 sm:h-4" />
-                  Gender
-                </label>
-                <div className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-white/30 border border-white/40 text-[#2C2C2C] text-sm sm:text-base font-medium capitalize">
-                  {formatFieldValue(profile.gender)}
-                </div>
-              </div>
-
-              {/* Education Level */}
-              <div>
-                <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-[#5F5F5F] mb-2">
-                  <GraduationCap className="w-3 h-3 sm:w-4 sm:h-4" />
-                  Education Level
-                </label>
-                <div className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-white/30 border border-white/40 text-[#2C2C2C] text-sm sm:text-base font-medium">
-                  {getEducationLabel(profile.education_level)}
-                </div>
-              </div>
-
-              {/* Location */}
-              <div>
-                <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-[#5F5F5F] mb-2">
-                  <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
-                  Location
-                </label>
-                <div className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-white/30 border border-white/40 text-[#2C2C2C] text-sm sm:text-base font-medium">
-                  {profile.location || 'Not set'}
-                </div>
-              </div>
-
-              {/* Religion */}
-              <div>
-                <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-[#5F5F5F] mb-2">
-                  <Church className="w-3 h-3 sm:w-4 sm:h-4" />
-                  Religion
-                </label>
-                <div className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-white/30 border border-white/40 text-[#2C2C2C] text-sm sm:text-base font-medium capitalize">
-                  {profile.religion || 'Not set'}
-                </div>
-              </div>
-
-              {/* Family Status */}
-              <div>
-                <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-[#5F5F5F] mb-2">
-                  <Home className="w-3 h-3 sm:w-4 sm:h-4" />
-                  Family Status
-                </label>
-                <div className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-white/30 border border-white/40 text-[#2C2C2C] text-sm sm:text-base font-medium capitalize">
-                  {formatFieldValue(profile.family_status)}
-                </div>
-              </div>
+              ))}
             </div>
 
-            {/* Privacy Notice */}
-            <div className="mt-5 sm:mt-6 md:mt-8 p-3 sm:p-4 rounded-lg sm:rounded-xl bg-[#4A6C6F]/10 border border-[#4A6C6F]/30">
-              <div className="flex items-start gap-2 sm:gap-3">
-                <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs sm:text-sm text-[#2C2C2C] font-medium mb-1">
-                    Your Privacy Matters
-                  </p>
-                  <p className="text-xs text-[#5F5F5F]">
-                    Your personal information is kept confidential and used only for research purposes. Most information was set during onboarding. You can update your age and education level as needed.
-                  </p>
-                </div>
+            {/* Privacy notice */}
+            <div className="mt-6 p-4 rounded-xl flex items-start gap-3" style={{ background: 'rgba(45,212,191,0.06)', border: '1px solid rgba(45,212,191,0.15)' }}>
+              <Shield className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#2DD4BF' }} />
+              <div>
+                <p className="text-xs font-semibold mb-0.5" style={{ color: '#F1F5F9' }}>Your Privacy Matters</p>
+                <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>
+                  Your personal information is kept confidential and used only for research purposes. Most details were set during onboarding. You can update your age and education level as needed.
+                </p>
               </div>
             </div>
           </motion.div>
         </div>
       </div>
 
-      {/* Birthday Modal */}
+      {/* Birthday modal */}
       <AnimatePresence>
         {showBirthdayModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.7)' }}
             onClick={() => setShowBirthdayModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="backdrop-blur-[40px] bg-white/95 border border-white/60 rounded-xl sm:rounded-2xl md:rounded-[2rem] p-6 sm:p-8 shadow-2xl max-w-md w-full"
+              exit={{ scale: 0.92, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="rounded-2xl p-7 max-w-sm w-full shadow-2xl text-center"
+              style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.08)' }}
             >
-              <div className="text-center mb-5 sm:mb-6">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#D2691E]/20 to-[#D2691E]/10 flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <Cake className="w-7 h-7 sm:w-8 sm:h-8 text-[#D2691E]" />
-                </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-[#2C2C2C] mb-2">
-                  Happy Birthday! 🎉
-                </h2>
-                <p className="text-sm sm:text-base text-[#5F5F5F]">
-                  Congratulations on turning <strong className="text-[#2C2C2C]">{profile.age + 1}</strong>!
-                </p>
-                <p className="text-xs sm:text-sm text-[#5F5F5F] mt-2">
-                  This will update your age in the system.
-                </p>
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(249,115,22,0.12)' }}>
+                <Cake className="w-7 h-7" style={{ color: '#F97316' }} />
               </div>
-
-              <div className="flex gap-2 sm:gap-3">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+              <h2 className="text-xl font-bold mb-2" style={{ color: '#F1F5F9' }}>Happy Birthday! 🎉</h2>
+              <p className="text-sm mb-1" style={{ color: '#94A3B8' }}>
+                Congratulations on turning <strong style={{ color: '#F1F5F9' }}>{profile.age + 1}</strong>!
+              </p>
+              <p className="text-xs mb-6" style={{ color: '#475569' }}>This will update your age in the system.</p>
+              <div className="flex gap-2">
+                <button
                   onClick={handleBirthday}
-                  className="flex-1 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-linear-to-r from-[#D2691E] to-[#D2691E]/80 text-white text-sm sm:text-base font-semibold shadow-xl"
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-80"
+                  style={{ background: '#F97316' }}
                 >
                   Update Age
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                </button>
+                <button
                   onClick={() => setShowBirthdayModal(false)}
-                  className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-white/60 border border-white/60 text-[#2C2C2C] text-sm sm:text-base font-semibold"
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                  style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.06)', color: '#94A3B8' }}
                 >
                   Cancel
-                </motion.button>
+                </button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Education Update Modal */}
+      {/* Education modal */}
       <AnimatePresence>
         {showEducationModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.7)' }}
             onClick={() => setShowEducationModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="backdrop-blur-[40px] bg-white/95 border border-white/60 rounded-xl sm:rounded-2xl md:rounded-[2rem] p-6 sm:p-8 shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto"
+              exit={{ scale: 0.92, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="rounded-2xl p-7 max-w-sm w-full shadow-2xl max-h-[80vh] overflow-y-auto"
+              style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.08)' }}
             >
-              <div className="text-center mb-5 sm:mb-6">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#4A6C6F]/20 to-[#4A6C6F]/10 flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <GraduationCap className="w-7 h-7 sm:w-8 sm:h-8 text-[#4A6C6F]" />
-                </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-[#2C2C2C] mb-2">
-                  Update Education Level
-                </h2>
-                <p className="text-xs sm:text-sm text-[#5F5F5F]">
-                  Select your current class or grade
-                </p>
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(45,212,191,0.12)' }}>
+                <GraduationCap className="w-7 h-7" style={{ color: '#2DD4BF' }} />
               </div>
+              <h2 className="text-xl font-bold mb-1 text-center" style={{ color: '#F1F5F9' }}>Update Education Level</h2>
+              <p className="text-xs mb-5 text-center" style={{ color: '#475569' }}>Select your current class or grade</p>
 
-              <div className="mb-5 sm:mb-6">
-                <label className="block text-xs sm:text-sm font-medium text-[#5F5F5F] mb-2 sm:mb-3">
-                  Current Level: <span className="text-[#2C2C2C] font-semibold">{getEducationLabel(profile.education_level)}</span>
-                </label>
-                <select
-                  value={selectedEducation}
-                  onChange={(e) => setSelectedEducation(e.target.value)}
-                  className="w-full px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-white/60 border border-white/60 text-[#2C2C2C] text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-[#4A6C6F]/50 transition-all"
-                >
-                  {educationLevels.map((level) => (
-                    <option key={level.value} value={level.value}>
-                      {level.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <label className="block text-xs font-medium mb-2" style={{ color: '#94A3B8' }}>
+                Current: <span style={{ color: '#F1F5F9' }}>{getEducationLabel(profile.education_level)}</span>
+              </label>
+              <select
+                value={selectedEducation}
+                onChange={e => setSelectedEducation(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl text-sm mb-5 focus:outline-none"
+                style={{ background: '#222638', border: '1px solid rgba(255,255,255,0.08)', color: '#F1F5F9' }}
+              >
+                {educationLevels.map(level => (
+                  <option key={level.value} value={level.value}>{level.label}</option>
+                ))}
+              </select>
 
-              <div className="flex gap-2 sm:gap-3">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+              <div className="flex gap-2">
+                <button
                   onClick={handleEducationUpdate}
-                  className="flex-1 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-linear-to-r from-[#4A6C6F] to-[#4A6C6F]/80 text-white text-sm sm:text-base font-semibold shadow-xl"
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-80"
+                  style={{ background: '#14B8A6' }}
                 >
                   Update
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                </button>
+                <button
                   onClick={() => setShowEducationModal(false)}
-                  className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-white/60 border border-white/60 text-[#2C2C2C] text-sm sm:text-base font-semibold"
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                  style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.06)', color: '#94A3B8' }}
                 >
                   Cancel
-                </motion.button>
+                </button>
               </div>
             </motion.div>
           </motion.div>

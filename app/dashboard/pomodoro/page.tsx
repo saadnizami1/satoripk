@@ -2,15 +2,14 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Timer, Play, Pause, RotateCcw, Settings2, X, ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
+import { Timer, Play, Pause, RotateCcw, Settings2, X } from 'lucide-react'
 
 type Phase = 'work' | 'short' | 'long'
 
 const PHASE_CONFIG: Record<Phase, { label: string; color: string }> = {
-  work:  { label: 'Focus',       color: '#C4661F' },
-  short: { label: 'Short Break', color: '#4A6C6F' },
-  long:  { label: 'Long Break',  color: '#7A6C9F' },
+  work:  { label: 'Focus',       color: '#2DD4BF' },
+  short: { label: 'Short Break', color: '#4ADE80' },
+  long:  { label: 'Long Break',  color: '#818CF8' },
 }
 
 export default function PomodoroPage() {
@@ -33,7 +32,7 @@ export default function PomodoroPage() {
       const next = cycles + 1
       setCycles(next)
       if (next % 4 === 0) { setPhase('long');  setSeconds(longMins * 60) }
-      else                 { setPhase('short'); setSeconds(shortMins * 60) }
+      else                  { setPhase('short'); setSeconds(shortMins * 60) }
     } else {
       setPhase('work')
       setSeconds(workMins * 60)
@@ -63,50 +62,72 @@ export default function PomodoroPage() {
   }
 
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
-  const cfg = PHASE_CONFIG[phase]
+  const cfg  = PHASE_CONFIG[phase]
   const SIZE = 240, R = 100, CIRC = 2 * Math.PI * R
 
   return (
-    <div className="max-w-md mx-auto space-y-6">
+    <div className="max-w-md mx-auto space-y-5">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-[#5F5F5F] hover:text-[#2C2C2C] mb-4 transition-colors">
-          <ArrowLeft className="w-3.5 h-3.5" /> Back
-        </Link>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#C4661F]/12 flex items-center justify-center">
-              <Timer className="w-5 h-5 text-[#C4661F]" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-serif font-semibold text-[#2C2C2C]">Pomodoro</h1>
-              <p className="text-xs text-[#9F9F9F]">Stay focused, one session at a time</p>
-            </div>
+      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(45,212,191,0.12)' }}>
+            <Timer className="w-5 h-5" style={{ color: '#2DD4BF' }} />
           </div>
-          <button onClick={() => setShowSettings(s => !s)}
-            className="p-2 rounded-xl glass text-[#5F5F5F] hover:text-[#2C2C2C] transition-colors">
-            {showSettings ? <X className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}
-          </button>
+          <div>
+            <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}>
+              Pomodoro
+            </h1>
+            <p className="text-xs" style={{ color: '#475569' }}>Stay focused, one session at a time</p>
+          </div>
         </div>
+        <button
+          onClick={() => setShowSettings(s => !s)}
+          className="p-2 rounded-xl transition-all hover:opacity-80"
+          style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)', color: '#94A3B8' }}
+        >
+          {showSettings ? <X className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}
+        </button>
       </motion.div>
 
       {/* Settings */}
       <AnimatePresence>
         {showSettings && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-            <div className="glass rounded-2xl p-4 space-y-4">
-              <p className="text-xs font-semibold text-[#5F5F5F]">Timer settings (minutes)</p>
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="rounded-2xl p-4 space-y-4" style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-xs font-semibold" style={{ color: '#94A3B8' }}>Timer settings (minutes)</p>
               {[
                 { label: 'Focus',       val: workMins,  set: (v: number) => { setWorkMins(v);  if (phase === 'work')  { setRunning(false); setSeconds(v * 60) } } },
                 { label: 'Short break', val: shortMins, set: (v: number) => { setShortMins(v); if (phase === 'short') { setRunning(false); setSeconds(v * 60) } } },
                 { label: 'Long break',  val: longMins,  set: (v: number) => { setLongMins(v);  if (phase === 'long')  { setRunning(false); setSeconds(v * 60) } } },
               ].map(({ label, val, set }) => (
                 <div key={label} className="flex items-center justify-between">
-                  <p className="text-sm text-[#2C2C2C]">{label}</p>
+                  <p className="text-sm" style={{ color: '#F1F5F9' }}>{label}</p>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => set(Math.max(1, val - 1))} className="w-7 h-7 rounded-lg glass text-[#5F5F5F] text-sm font-bold">-</button>
-                    <span className="text-sm font-semibold text-[#2C2C2C] w-6 text-center">{val}</span>
-                    <button onClick={() => set(Math.min(60, val + 1))} className="w-7 h-7 rounded-lg glass text-[#5F5F5F] text-sm font-bold">+</button>
+                    <button
+                      onClick={() => set(Math.max(1, val - 1))}
+                      className="w-7 h-7 rounded-lg text-sm font-bold transition-all hover:opacity-80"
+                      style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.06)', color: '#94A3B8' }}
+                    >
+                      -
+                    </button>
+                    <span
+                      className="text-sm font-semibold w-6 text-center"
+                      style={{ color: '#F1F5F9', fontFamily: 'var(--font-jetbrains), monospace' }}
+                    >
+                      {val}
+                    </span>
+                    <button
+                      onClick={() => set(Math.min(60, val + 1))}
+                      className="w-7 h-7 rounded-lg text-sm font-bold transition-all hover:opacity-80"
+                      style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.06)', color: '#94A3B8' }}
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
               ))}
@@ -116,59 +137,95 @@ export default function PomodoroPage() {
       </AnimatePresence>
 
       {/* Phase tabs */}
-      <div className="flex gap-2">
+      <div
+        className="flex gap-1 p-1 rounded-2xl"
+        style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
+      >
         {(['work', 'short', 'long'] as Phase[]).map(p => (
-          <button key={p} onClick={() => switchPhase(p)}
-            className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${phase === p ? 'bg-white shadow text-[#2C2C2C]' : 'glass text-[#5F5F5F]'}`}>
+          <button
+            key={p}
+            onClick={() => switchPhase(p)}
+            className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+            style={{
+              background: phase === p ? PHASE_CONFIG[p].color + '20' : 'transparent',
+              border: phase === p ? `1px solid ${PHASE_CONFIG[p].color}40` : '1px solid transparent',
+              color: phase === p ? PHASE_CONFIG[p].color : '#475569',
+            }}
+          >
             {PHASE_CONFIG[p].label}
           </button>
         ))}
       </div>
 
-      {/* Timer */}
-      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-        className="glass rounded-3xl p-8 flex flex-col items-center">
+      {/* Timer circle */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="rounded-3xl p-8 flex flex-col items-center"
+        style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
+      >
         <div className="relative" style={{ width: SIZE, height: SIZE }}>
           <svg className="absolute inset-0 -rotate-90" width={SIZE} height={SIZE}>
-            <circle cx={SIZE/2} cy={SIZE/2} r={R} fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth="8" />
-            <circle cx={SIZE/2} cy={SIZE/2} r={R} fill="none" stroke={cfg.color} strokeWidth="8"
-              strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - progress)}
-              className="transition-all duration-1000 ease-linear" />
+            <circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
+            <circle
+              cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none"
+              stroke={cfg.color} strokeWidth="8"
+              strokeLinecap="round" strokeDasharray={CIRC}
+              strokeDashoffset={CIRC * (1 - progress)}
+              className="transition-all duration-1000 ease-linear"
+            />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9F9F9F] mb-1">{cfg.label}</p>
-            <p className="text-5xl font-bold text-[#2C2C2C] tabular-nums">{fmt(seconds)}</p>
-            <p className="text-xs text-[#C0BAB2] mt-1">
+            <p className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: '#475569' }}>{cfg.label}</p>
+            <p
+              className="text-5xl font-bold tabular-nums"
+              style={{ color: '#F1F5F9', fontFamily: 'var(--font-jetbrains), monospace' }}
+            >
+              {fmt(seconds)}
+            </p>
+            <p className="text-xs mt-1" style={{ color: '#475569' }}>
               {running ? 'Stay focused' : 'Ready'} · Session {cycles + 1}
             </p>
           </div>
         </div>
 
         <div className="flex gap-3 mt-6">
-          <motion.button whileTap={{ scale: 0.92 }} onClick={reset}
-            className="w-11 h-11 rounded-2xl glass flex items-center justify-center text-[#5F5F5F]">
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            onClick={reset}
+            className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all hover:opacity-80"
+            style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.06)', color: '#94A3B8' }}
+          >
             <RotateCcw className="w-4 h-4" />
           </motion.button>
-          <motion.button whileTap={{ scale: 0.92 }} whileHover={{ scale: 1.05 }}
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            whileHover={{ scale: 1.05 }}
             onClick={() => setRunning(r => !r)}
-            className="flex items-center gap-2 px-8 py-3 rounded-2xl font-semibold text-sm text-white shadow-lg"
-            style={{ backgroundColor: cfg.color }}>
+            className="flex items-center gap-2 px-8 py-3 rounded-2xl font-semibold text-sm text-white shadow-lg transition-all"
+            style={{ background: cfg.color }}
+          >
             {running ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
             {running ? 'Pause' : 'Start'}
           </motion.button>
         </div>
       </motion.div>
 
-      {/* Session dots */}
-      <div className="glass rounded-2xl p-4">
-        <p className="text-xs font-semibold text-[#5F5F5F] mb-3">Session progress</p>
+      {/* Session progress dots */}
+      <div className="rounded-2xl p-4" style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <p className="text-xs font-semibold mb-3" style={{ color: '#94A3B8' }}>Session progress</p>
         <div className="flex gap-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex-1 h-2 rounded-full transition-all duration-300"
-              style={{ backgroundColor: i < cycles % 4 ? '#C4661F' : 'rgba(0,0,0,0.07)' }} />
+            <div
+              key={i}
+              className="flex-1 h-2 rounded-full transition-all duration-300"
+              style={{ background: i < cycles % 4 ? '#2DD4BF' : 'rgba(255,255,255,0.06)' }}
+            />
           ))}
         </div>
-        <p className="text-[10px] text-[#C0BAB2] mt-2">Every 4 sessions = long break · Total: {cycles} completed</p>
+        <p className="text-[10px] mt-2" style={{ color: '#475569' }}>
+          Every 4 sessions = long break · Total: {cycles} completed
+        </p>
       </div>
     </div>
   )
