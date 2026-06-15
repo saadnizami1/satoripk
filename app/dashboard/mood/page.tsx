@@ -3,21 +3,20 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Heart, CheckCircle2, Clock } from 'lucide-react'
 
 const MOODS = [
-  { score: 1, emoji: '😔', label: 'Terrible', color: '#EF4444', bg: 'rgba(239,68,68,0.1)' },
-  { score: 2, emoji: '😕', label: 'Bad',      color: '#F97316', bg: 'rgba(249,115,22,0.1)' },
-  { score: 3, emoji: '😐', label: 'Okay',     color: '#EAB308', bg: 'rgba(234,179,8,0.1)'  },
-  { score: 4, emoji: '🙂', label: 'Good',     color: '#34D399', bg: 'rgba(52,211,153,0.1)' },
-  { score: 5, emoji: '😊', label: 'Great',    color: '#2DD4BF', bg: 'rgba(45,212,191,0.1)' },
+  { score: 1, label: 'TERRIBLE' },
+  { score: 2, label: 'BAD' },
+  { score: 3, label: 'OKAY' },
+  { score: 4, label: 'GOOD' },
+  { score: 5, label: 'GREAT' },
 ]
 
 const STRESS_OPTIONS = [
-  { value: 'yes_heavy', label: 'Yes, heavily' },
-  { value: 'yes_some',  label: 'Yes, somewhat' },
-  { value: 'no',        label: 'Not really' },
-  { value: 'unsure',    label: 'Not sure' },
+  { value: 'yes_heavy', label: 'YES, HEAVILY' },
+  { value: 'yes_some',  label: 'YES, SOMEWHAT' },
+  { value: 'no',        label: 'NOT REALLY' },
+  { value: 'unsure',    label: 'NOT SURE' },
 ]
 
 export default function MoodPage() {
@@ -28,24 +27,22 @@ export default function MoodPage() {
   const [todayMood, setTodayMood]  = useState<any>(null)
   const [history, setHistory]      = useState<any[]>([])
   const [saving, setSaving]        = useState(false)
-  const [saved, setSaved]          = useState(false)
+  const [confirmation, setConfirm] = useState('')
   const [userId, setUserId]        = useState('')
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      setUserId(user.id)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      setUserId(session.user.id)
 
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-
       const [{ data: today }, { data: hist }] = await Promise.all([
-        supabase.from('moods').select('*').eq('user_id', user.id)
+        supabase.from('moods').select('*').eq('user_id', session.user.id)
           .gte('created_at', todayStart.toISOString()).order('created_at', { ascending: false }).limit(1),
-        supabase.from('moods').select('*').eq('user_id', user.id)
+        supabase.from('moods').select('*').eq('user_id', session.user.id)
           .order('created_at', { ascending: false }).limit(7),
       ])
-
       if (today?.length) { setLogged(true); setTodayMood(today[0]) }
       setHistory(hist ?? [])
     }
@@ -56,12 +53,16 @@ export default function MoodPage() {
     if (selected === null || !userId) return
     setSaving(true)
     const { error } = await supabase.from('moods').insert({
-      user_id: userId,
-      mood_score: selected,
+      user_id: userId, mood_score: selected,
       note: note || (stressAnswer ? `Academic stress: ${stressAnswer}` : null),
     })
     if (!error) {
-      setSaved(true)
+      const label = MOODS.find(m => m.score === selected)!.label
+      const now = new Date()
+      const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
+      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      setConfirm(`LOGGED. ${label} · ${dateStr} · ${timeStr}`)
+      setTimeout(() => setConfirm(''), 4000)
       setLogged(true)
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
       const { data } = await supabase.from('moods').select('*').eq('user_id', userId)
@@ -71,76 +72,82 @@ export default function MoodPage() {
     setSaving(false)
   }
 
-  const moodData = MOODS.find(m => m.score === selected)
+  const selectedMood = MOODS.find(m => m.score === selected)
 
   return (
-    <div className="max-w-lg mx-auto space-y-5">
+    <div style={{ maxWidth: 560 }}>
 
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(249,115,22,0.15)' }}>
-            <Heart className="w-5 h-5" style={{ color: '#F97316' }} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-serif" style={{ color: '#F1F5F9', fontFamily: 'var(--font-instrument), Georgia, serif' }}>
-              Mood Tracker
-            </h1>
-            <p className="text-xs" style={{ color: '#475569' }}>How are you feeling today?</p>
-          </div>
-        </div>
-      </motion.div>
+      <div style={{ marginBottom: 40 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(36px, 5vw, 56px)', color: 'var(--ink)', letterSpacing: '-0.03em', lineHeight: 1 }}>
+          MOOD TRACKER
+        </h1>
+        <div style={{ borderTop: '1.5px solid var(--border)', marginTop: 12 }} />
+      </div>
+
+      {/* Confirmation strip */}
+      <AnimatePresence>
+        {confirmation && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            style={{
+              fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-invert)',
+              background: 'var(--bg-invert)', padding: '10px 16px', marginBottom: 24,
+              letterSpacing: '0.08em', border: '1.5px solid var(--border)',
+            }}
+          >
+            {confirmation}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Already logged */}
       {alreadyLogged && todayMood ? (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="rounded-2xl p-6 text-center"
-          style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <div className="text-5xl mb-3">{MOODS.find(m => m.score === todayMood.mood_score)?.emoji}</div>
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <CheckCircle2 className="w-4 h-4" style={{ color: '#4ADE80' }} />
-            <p className="font-semibold text-sm" style={{ color: '#F1F5F9' }}>Mood logged for today</p>
+        <div style={{ border: '1.5px solid var(--border)', padding: '24px', marginBottom: 32 }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 12 }}>
+            TODAY&apos;S MOOD
           </div>
-          <p className="text-sm" style={{ color: '#94A3B8' }}>
-            You felt <strong style={{ color: MOODS.find(m => m.score === todayMood.mood_score)?.color }}>
-              {MOODS.find(m => m.score === todayMood.mood_score)?.label}
-            </strong>
-          </p>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 40, color: 'var(--ink)', letterSpacing: '-0.02em', marginBottom: 8 }}>
+            {MOODS.find(m => m.score === todayMood.mood_score)?.label}
+          </div>
           {todayMood.note && (
-            <p className="text-xs mt-2 italic" style={{ color: '#475569' }}>"{todayMood.note}"</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-2)', fontStyle: 'italic' }}>
+              &ldquo;{todayMood.note}&rdquo;
+            </p>
           )}
-        </motion.div>
+          <button
+            onClick={() => setLogged(false)}
+            style={{
+              marginTop: 16, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
+              color: 'var(--ink-2)', background: 'none', border: '1.5px solid var(--border-2)',
+              padding: '6px 14px', cursor: 'pointer', letterSpacing: '0.06em',
+            }}
+          >
+            LOG AGAIN
+          </button>
+        </div>
       ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="rounded-2xl p-5"
-          style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <p className="text-xs font-medium text-center mb-4" style={{ color: '#94A3B8' }}>Select how you're feeling</p>
-
-          {/* Mood cards */}
-          <div className="flex gap-2">
-            {MOODS.map(mood => (
+        <div>
+          {/* Mood selector */}
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
+            HOW ARE YOU FEELING?
+          </div>
+          <div style={{ display: 'flex', border: '1.5px solid var(--border)', marginBottom: 24 }}>
+            {MOODS.map((mood, i) => (
               <button
                 key={mood.score}
                 onClick={() => setSelected(mood.score)}
-                className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all duration-200"
                 style={{
-                  background: selected === mood.score ? mood.bg : 'rgba(28,32,48,0.6)',
-                  border: selected === mood.score ? `2px solid ${mood.color}60` : '2px solid transparent',
-                  transform: selected === mood.score ? 'scale(1.06)' : 'scale(1)',
-                  opacity: selected !== null && selected !== mood.score ? 0.45 : 1,
+                  flex: 1, padding: '20px 8px', textAlign: 'center',
+                  background: selected === mood.score ? 'var(--bg-invert)' : 'var(--bg)',
+                  color: selected === mood.score ? 'var(--ink-invert)' : 'var(--ink-2)',
+                  border: 'none', borderRight: i < 4 ? '1.5px solid var(--border)' : 'none',
+                  fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(10px, 1.5vw, 13px)',
+                  letterSpacing: '0.02em', cursor: 'pointer',
+                  transition: `background ${80}ms, color ${80}ms`,
                 }}
               >
-                <span className="text-2xl">{mood.emoji}</span>
-                <span className="text-[9px] font-semibold" style={{ color: selected === mood.score ? mood.color : '#475569' }}>
-                  {mood.label}
-                </span>
+                {mood.label}
               </button>
             ))}
           </div>
@@ -151,21 +158,26 @@ export default function MoodPage() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-5 space-y-4 overflow-hidden"
+                style={{ overflow: 'hidden' }}
               >
                 {/* Stress question */}
-                <div>
-                  <p className="text-xs font-medium mb-2" style={{ color: '#94A3B8' }}>Is this mood related to academic stress?</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {STRESS_OPTIONS.map(opt => (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
+                    IS THIS RELATED TO ACADEMIC STRESS?
+                  </div>
+                  <div style={{ display: 'flex', border: '1.5px solid var(--border)' }}>
+                    {STRESS_OPTIONS.map((opt, i) => (
                       <button
                         key={opt.value}
                         onClick={() => setStress(stressAnswer === opt.value ? '' : opt.value)}
-                        className="text-xs py-2 px-3 rounded-xl transition-all font-medium"
                         style={{
-                          background: stressAnswer === opt.value ? 'rgba(45,212,191,0.15)' : '#1C2030',
-                          border: stressAnswer === opt.value ? '1px solid rgba(45,212,191,0.4)' : '1px solid rgba(255,255,255,0.06)',
-                          color: stressAnswer === opt.value ? '#2DD4BF' : '#94A3B8',
+                          flex: 1, padding: '14px 6px', textAlign: 'center',
+                          background: stressAnswer === opt.value ? 'var(--bg-invert)' : 'var(--bg)',
+                          color: stressAnswer === opt.value ? 'var(--ink-invert)' : 'var(--ink-2)',
+                          border: 'none', borderRight: i < 3 ? '1.5px solid var(--border)' : 'none',
+                          fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
+                          letterSpacing: '0.02em', cursor: 'pointer',
+                          transition: `background ${80}ms, color ${80}ms`,
                         }}
                       >
                         {opt.label}
@@ -175,72 +187,74 @@ export default function MoodPage() {
                 </div>
 
                 {/* Note */}
-                <textarea
-                  value={note}
-                  onChange={e => setNote(e.target.value)}
-                  placeholder="Add a note (optional)…"
-                  rows={2}
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl resize-none focus:outline-none transition-all"
-                  style={{
-                    background: '#222638',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    color: '#F1F5F9',
-                  }}
-                />
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
+                    ADD A NOTE (OPTIONAL)
+                  </div>
+                  <textarea
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                    rows={3}
+                    placeholder="What's on your mind..."
+                    className="br-input"
+                    style={{ width: '100%', padding: '12px', resize: 'none', fontFamily: 'var(--font-body)', fontSize: 14, boxSizing: 'border-box' }}
+                  />
+                </div>
 
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                {/* Submit */}
+                <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all disabled:opacity-50"
+                  className="br-btn br-btn-inv"
                   style={{
-                    background: moodData ? `linear-gradient(135deg, ${moodData.color}, ${moodData.color}cc)` : '#14B8A6',
-                    boxShadow: moodData ? `0 0 20px ${moodData.color}30` : undefined,
+                    width: '100%', padding: '16px',
+                    fontSize: 14, letterSpacing: '0.06em',
+                    opacity: saving ? 0.6 : 1,
                   }}
                 >
-                  {saving ? 'Saving…' : saved ? 'Saved!' : `Log as ${moodData?.label}`}
-                </motion.button>
+                  {saving ? 'SAVING...' : `LOG AS ${selectedMood?.label} →`}
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
-        </motion.div>
+        </div>
       )}
 
       {/* History */}
       {history.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="rounded-2xl p-5"
-          style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <h2 className="text-sm font-semibold mb-4" style={{ color: '#F1F5F9' }}>Recent moods</h2>
-          <div className="space-y-3">
+        <div style={{ marginTop: 48 }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 12 }}>
+            RECENT MOODS
+          </div>
+          <div style={{ border: '1.5px solid var(--border)' }}>
             {history.map((entry, i) => {
               const mood = MOODS.find(m => m.score === entry.mood_score)
+              const date = new Date(entry.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
               return (
-                <div key={entry.id ?? i} className="flex items-center gap-3 py-2">
-                  <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center text-xl shrink-0"
-                    style={{ background: mood?.bg ?? '#1C2030' }}
-                  >
-                    {mood?.emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium" style={{ color: mood?.color ?? '#F1F5F9' }}>{mood?.label}</p>
-                    {entry.note && <p className="text-[11px] truncate" style={{ color: '#475569' }}>{entry.note}</p>}
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px]" style={{ color: '#475569' }}>
-                    <Clock className="w-3 h-3" />
-                    {new Date(entry.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </div>
+                <div
+                  key={entry.id ?? i}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    borderBottom: i < history.length - 1 ? '1px solid var(--border-2)' : 'none',
+                  }}
+                >
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14, color: 'var(--ink)' }}>
+                    {mood?.label}
+                  </span>
+                  {entry.note && (
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink-3)', flex: 1, padding: '0 16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {entry.note}
+                    </span>
+                  )}
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
+                    {date}
+                  </span>
                 </div>
               )
             })}
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   )

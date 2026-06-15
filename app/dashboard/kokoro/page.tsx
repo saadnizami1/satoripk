@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Sparkles, Trash2, Phone, ChevronDown, ChevronUp } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import Link from 'next/link'
 
 interface Message {
   id: string
@@ -12,19 +12,32 @@ interface Message {
   timestamp: Date
 }
 
-const QUICK_CHIPS = [
-  "I'm stressed about exams",
-  "Just need to vent",
-  "Teach me a breathing technique",
-]
+const QUICK_CHIPS = ['I NEED TO VENT', 'EXAM STRESS', 'BREATHING HELP']
+
+function TypingIndicator() {
+  return (
+    <div style={{ display: 'flex', gap: 6, padding: '10px 14px', background: 'var(--bg-card)', border: '1.5px solid var(--border)' }}>
+      {['_', '_', '_'].map((ch, i) => (
+        <motion.span
+          key={i}
+          style={{ fontFamily: 'var(--font-mono)', fontSize: 16, color: 'var(--ink-2)' }}
+          animate={{ opacity: [0.3, 1, 0.3] }}
+          transition={{ duration: 0.9, delay: i * 0.3, repeat: Infinity }}
+        >
+          {ch}
+        </motion.span>
+      ))}
+    </div>
+  )
+}
 
 export default function KokoroPage() {
-  const [messages, setMessages]       = useState<Message[]>([])
-  const [input, setInput]             = useState('')
-  const [isLoading, setIsLoading]     = useState(false)
-  const [sessionId, setSessionId]     = useState<string | null>(null)
-  const [userCtx, setUserCtx]         = useState<string>('')
-  const [helpExpanded, setHelp]       = useState(false)
+  const [messages, setMessages]   = useState<Message[]>([])
+  const [input, setInput]         = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [userCtx, setUserCtx]     = useState('')
+  const [helpOpen, setHelpOpen]   = useState(false)
   const endRef   = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -32,14 +45,14 @@ export default function KokoroPage() {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
 
       const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
       const [{ data: profile }, { data: moods }, { data: stress }] = await Promise.all([
-        supabase.from('profiles').select('name, age, education_level, location').eq('id', user.id).single(),
-        supabase.from('moods').select('mood_score').eq('user_id', user.id).gte('created_at', sevenDaysAgo),
-        supabase.from('academic_stress').select('stress_level').eq('user_id', user.id).gte('created_at', sevenDaysAgo),
+        supabase.from('profiles').select('name, age, education_level, location').eq('id', session.user.id).single(),
+        supabase.from('moods').select('mood_score').eq('user_id', session.user.id).gte('created_at', sevenDaysAgo),
+        supabase.from('academic_stress').select('stress_level').eq('user_id', session.user.id).gte('created_at', sevenDaysAgo),
       ])
 
       let ctx = ''
@@ -51,19 +64,17 @@ export default function KokoroPage() {
       setUserCtx(ctx)
 
       const { data: sessions } = await supabase
-        .from('chat_sessions').select('*').eq('user_id', user.id)
+        .from('chat_sessions').select('*').eq('user_id', session.user.id)
         .order('updated_at', { ascending: false }).limit(1)
 
       if (sessions?.length) {
         setSessionId(sessions[0].id)
-        const loaded = (sessions[0].messages as any[]).map((m: any) => ({
-          ...m, timestamp: new Date(m.timestamp),
-        }))
+        const loaded = (sessions[0].messages as any[]).map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }))
         setMessages(loaded)
         if (!loaded.length) greet(profile?.name)
       } else {
         const { data: newSess } = await supabase.from('chat_sessions')
-          .insert({ user_id: user.id, messages: [] }).select().single()
+          .insert({ user_id: session.user.id, messages: [] }).select().single()
         if (newSess) { setSessionId(newSess.id); greet(profile?.name) }
       }
     }
@@ -71,18 +82,15 @@ export default function KokoroPage() {
   }, [])
 
   const greet = (name?: string) => {
-    const msg: Message = {
+    setMessages([{
       id: Date.now().toString(), role: 'assistant', timestamp: new Date(),
-      content: `Hello${name ? ` ${name}` : ''}! I'm Kokoro, your mental wellness companion.\n\nI'm here to listen — whether it's academic stress, something personal, or just needing to talk. How are you feeling today?`,
-    }
-    setMessages([msg])
+      content: `Hey${name ? ` ${name}` : ''}. I'm Kokoro.\n\nTell me what's on your mind. I'm listening.`,
+    }])
   }
 
   const save = useCallback(async (msgs: Message[]) => {
     if (!sessionId) return
-    await supabase.from('chat_sessions')
-      .update({ messages: msgs, updated_at: new Date().toISOString() })
-      .eq('id', sessionId)
+    await supabase.from('chat_sessions').update({ messages: msgs, updated_at: new Date().toISOString() }).eq('id', sessionId)
   }, [sessionId])
 
   const send = async (text?: string) => {
@@ -102,7 +110,7 @@ export default function KokoroPage() {
           messages: [
             {
               role: 'system',
-              content: `You are Kokoro (心), a warm, empathetic mental wellness companion for students in Pakistan. Be caring, non-judgmental, culturally sensitive. Keep responses concise (2-4 sentences). For serious concerns (self-harm, suicidal thoughts): show empathy, strongly encourage professional help, mention: Emergency 1122, Umang helpline 0311-778-6264. ${userCtx}`,
+              content: `You are Kokoro (心), a direct but warm mental wellness companion for students in Pakistan. Be honest, concise, non-judgmental. Keep responses to 2-4 sentences. For serious concerns (self-harm, suicidal thoughts): show empathy, encourage professional help, mention: Emergency 1122, Umang 0311-778-6264. ${userCtx}`,
             },
             ...updated.slice(-6).map(m => ({ role: m.role, content: m.content })),
           ],
@@ -111,19 +119,18 @@ export default function KokoroPage() {
       const { message } = await res.json()
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(), role: 'assistant',
-        content: message || "I'm having trouble connecting right now. Please try again.",
+        content: message || "Connection issue. Try again.",
         timestamp: new Date(),
       }
       const final = [...updated, aiMsg]
       setMessages(final)
       await save(final)
     } catch {
-      const errMsg: Message = {
+      setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(), role: 'assistant',
-        content: "I'm having trouble connecting right now. Please try again in a moment.",
+        content: "Connection issue. Try again.",
         timestamp: new Date(),
-      }
-      setMessages(prev => [...prev, errMsg])
+      }])
     } finally {
       setIsLoading(false)
     }
@@ -142,214 +149,214 @@ export default function KokoroPage() {
   const isEmpty = messages.length === 0
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col" style={{ height: 'calc(100dvh - 5rem)' }}>
+    <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 6rem)' }}>
 
-      {/* ── Header ── */}
-      <motion.div
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="shrink-0 flex items-center gap-3 px-4 py-3 mb-3 rounded-2xl"
-        style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-      >
-        {/* Avatar */}
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: 'rgba(45,212,191,0.15)' }}
-        >
-          <Sparkles className="w-4 h-4" style={{ color: '#2DD4BF' }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>Kokoro</p>
-          <p className="text-[10px]" style={{ color: '#475569' }}>Mental wellness companion</p>
-        </div>
-        <span className="flex items-center gap-1.5 text-[10px] font-medium" style={{ color: '#4ADE80' }}>
-          <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80] online-pulse" />
-          Online
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px',
+        borderBottom: '1.5px solid var(--border)', flexShrink: 0, marginBottom: 0,
+        background: 'var(--bg)',
+      }}>
+        <Link href="/dashboard" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', textDecoration: 'none', letterSpacing: '0.06em' }}>
+          ← BACK
+        </Link>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, color: 'var(--ink)', flex: 1, textAlign: 'center', letterSpacing: '-0.01em' }}>
+          KOKORO
+        </span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', letterSpacing: '0.06em' }}>
+          ● ONLINE
         </span>
         <button
           onClick={clearChat}
-          className="p-1.5 rounded-lg transition-colors hover:bg-[rgba(239,68,68,0.1)]"
-          style={{ color: '#475569' }}
-          title="Clear chat"
+          style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em' }}
         >
-          <Trash2 className="w-3.5 h-3.5" />
+          DELETE
         </button>
-      </motion.div>
+      </div>
 
-      {/* ── Messages ── */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin space-y-3 px-1 py-2">
+      {/* Messages */}
+      <div className="scrollbar-thin flex-1 overflow-y-auto" style={{ padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Empty state */}
         {isEmpty && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center h-full text-center px-4"
-          >
-            <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center mb-4"
-              style={{ background: 'rgba(45,212,191,0.1)' }}
-            >
-              <Sparkles className="w-10 h-10" style={{ color: '#2DD4BF' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '40px 24px', textAlign: 'center' }}>
+            <div style={{ border: '1.5px solid var(--border)', padding: '32px 40px', marginBottom: 24 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 40, color: 'var(--ink)', marginBottom: 16, letterSpacing: '-0.02em' }}>
+                KOKORO.
+              </div>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: 'var(--ink-2)', lineHeight: 1.65, maxWidth: 320 }}>
+                An AI that listens.<br />
+                Trained to help students navigate stress, anxiety, and academic pressure.
+              </p>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', marginTop: 16, letterSpacing: '0.06em' }}>
+                TYPE TO BEGIN.
+              </p>
             </div>
-            <h2
-              className="text-2xl mb-2"
-              style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}
-            >
-              I'm Kokoro
-            </h2>
-            <p className="text-sm mb-6" style={{ color: '#475569' }}>
-              Your mental wellness companion. Tell me anything — I won't judge.
-            </p>
-            <div className="flex flex-col gap-2 w-full max-w-xs">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 320 }}>
               {QUICK_CHIPS.map(chip => (
                 <button
                   key={chip}
                   onClick={() => send(chip)}
-                  className="w-full px-4 py-2.5 rounded-xl text-sm font-medium text-left transition-all hover:opacity-80"
-                  style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.06)', color: '#94A3B8' }}
+                  className="br-btn"
+                  style={{ padding: '10px 16px', width: '100%', textAlign: 'left' }}
                 >
                   {chip}
                 </button>
               ))}
             </div>
-          </motion.div>
+          </div>
         )}
 
         <AnimatePresence initial={false}>
           {messages.map(msg => (
             <motion.div
               key={msg.id}
-              initial={{ opacity: 0, y: 10, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ type: 'spring' as const, stiffness: 320, damping: 28 }}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.12, ease: [0.25, 0, 0, 1] }}
+              style={{
+                display: 'flex',
+                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                padding: '0 4px',
+              }}
             >
-              {msg.role === 'assistant' && (
+              <div style={{ maxWidth: '78%' }}>
                 <div
-                  className="w-6 h-6 rounded-lg flex items-center justify-center mr-2 mt-1 shrink-0"
-                  style={{ background: 'rgba(45,212,191,0.15)' }}
+                  style={
+                    msg.role === 'user'
+                      ? {
+                          background: 'var(--bg-invert)', color: 'var(--ink-invert)',
+                          border: '1.5px solid var(--border)', padding: '12px 16px',
+                          fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.6,
+                          whiteSpace: 'pre-wrap',
+                        }
+                      : {
+                          background: 'var(--bg-card)', color: 'var(--ink)',
+                          border: '1.5px solid var(--border)', padding: '12px 16px',
+                          fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.6,
+                          whiteSpace: 'pre-wrap',
+                        }
+                  }
                 >
-                  <Sparkles className="w-3 h-3" style={{ color: '#2DD4BF' }} />
+                  {msg.content}
                 </div>
-              )}
-              <div
-                className="max-w-[78%] px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap"
-                style={
-                  msg.role === 'user'
-                    ? { background: '#14B8A6', color: '#fff', borderRadius: '18px 18px 4px 18px' }
-                    : { background: '#1C2030', color: '#F1F5F9', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '18px 18px 18px 4px' }
-                }
-              >
-                {msg.content}
-                <p className="text-[9px] mt-1 select-none" style={{ color: msg.role === 'user' ? 'rgba(255,255,255,0.5)' : '#475569' }}>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)',
+                    marginTop: 4, textAlign: msg.role === 'user' ? 'right' : 'left',
+                    opacity: 0, transition: 'opacity 160ms',
+                  }}
+                  className="msg-time"
+                >
                   {msg.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                </p>
+                </div>
               </div>
             </motion.div>
           ))}
         </AnimatePresence>
 
-        {/* Typing indicator */}
         {isLoading && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-end gap-2">
-            <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(45,212,191,0.15)' }}>
-              <Sparkles className="w-3 h-3" style={{ color: '#2DD4BF' }} />
-            </div>
-            <div className="px-4 py-3 rounded-2xl rounded-tl-sm" style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="flex gap-1">
-                {[0, 1, 2].map(i => (
-                  <motion.div
-                    key={i}
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: '#2DD4BF' }}
-                    animate={{ y: [0, -4, 0] }}
-                    transition={{ delay: i * 0.15, repeat: Infinity, duration: 0.8 }}
-                  />
-                ))}
-              </div>
-            </div>
-          </motion.div>
+          <div style={{ padding: '0 4px' }}>
+            <TypingIndicator />
+          </div>
         )}
+
+        {/* Quick chips when chatting */}
+        {messages.length > 0 && !isLoading && (
+          <div style={{ display: 'flex', gap: 8, padding: '4px 4px 0', flexWrap: 'wrap' }}>
+            {QUICK_CHIPS.map(chip => (
+              <button
+                key={chip}
+                onClick={() => send(chip)}
+                style={{
+                  fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
+                  color: 'var(--ink-2)', background: 'var(--bg)', border: '1.5px solid var(--border)',
+                  padding: '6px 12px', cursor: 'pointer', letterSpacing: '0.04em',
+                  transition: `background ${80}ms`,
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg)' }}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div ref={endRef} />
       </div>
 
-      {/* ── Emergency helpline banner ── */}
-      <div className="shrink-0 mb-2">
+      {/* Emergency strip */}
+      <div style={{ flexShrink: 0 }}>
         <button
-          onClick={() => setHelp(h => !h)}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-all"
-          style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}
+          onClick={() => setHelpOpen(h => !h)}
+          style={{
+            width: '100%', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8,
+            border: '1.5px solid var(--border)', borderBottom: helpOpen ? '1px solid var(--border-2)' : '1.5px solid var(--border)',
+            background: 'var(--bg-card)', cursor: 'pointer', textAlign: 'left',
+          }}
         >
-          <Phone className="w-3 h-3 shrink-0" style={{ color: '#EF4444' }} />
-          <p className="text-[10px] font-medium flex-1 text-left" style={{ color: '#EF4444' }}>
-            Emergency: <strong>1122</strong> · Umang: <strong>0311-778-6264</strong>
-          </p>
-          {helpExpanded ? (
-            <ChevronUp className="w-3 h-3 shrink-0" style={{ color: '#EF4444' }} />
-          ) : (
-            <ChevronDown className="w-3 h-3 shrink-0" style={{ color: '#EF4444' }} />
-          )}
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', letterSpacing: '0.06em', flex: 1 }}>
+            EMERGENCY: 1122  ·  UMANG HELPLINE: 0311-778-6264
+          </span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>
+            {helpOpen ? '▲' : '▼'}
+          </span>
         </button>
         <AnimatePresence>
-          {helpExpanded && (
+          {helpOpen && (
             <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
+              initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+              style={{ overflow: 'hidden' }}
             >
-              <div className="px-3 pt-2 pb-3 text-[10px] space-y-1" style={{ color: '#94A3B8' }}>
-                <p>Rescue / Emergency: <strong style={{ color: '#F1F5F9' }}>1122</strong></p>
-                <p>Umang Helpline: <strong style={{ color: '#F1F5F9' }}>0317-4288665</strong></p>
-                <p>Rozan Counselling: <strong style={{ color: '#F1F5F9' }}>051-2890505</strong></p>
-                <p>Edhi Foundation: <strong style={{ color: '#F1F5F9' }}>115</strong></p>
+              <div style={{ padding: '10px 14px', border: '1.5px solid var(--border)', borderTop: 'none', background: 'var(--bg-card)' }}>
+                {[
+                  ['Rescue / Emergency', '1122'],
+                  ['Umang Helpline', '0317-4288665'],
+                  ['Rozan Counselling', '051-2890505'],
+                  ['Edhi Foundation', '115'],
+                ].map(([label, num]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>{label}</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)' }}>{num}</strong>
+                  </div>
+                ))}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* ── Quick chips (when messages exist) ── */}
-      {messages.length > 0 && !isLoading && (
-        <div className="shrink-0 flex gap-2 overflow-x-auto scrollbar-hide pb-1 mb-2">
-          {QUICK_CHIPS.map(chip => (
-            <button
-              key={chip}
-              onClick={() => send(chip)}
-              className="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all whitespace-nowrap hover:opacity-80"
-              style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.06)', color: '#94A3B8' }}
-            >
-              {chip}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* ── Input ── */}
-      <div
-        className="shrink-0 flex gap-2 items-end rounded-2xl px-3 py-3"
-        style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.08)' }}
-      >
+      {/* Input */}
+      <div style={{
+        display: 'flex', flexShrink: 0,
+        border: '1.5px solid var(--border)', borderTop: helpOpen ? '1px solid var(--border-2)' : '1.5px solid var(--border)',
+      }}>
         <textarea
           ref={inputRef}
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder="Talk to Kokoro…"
+          placeholder="WRITE ANYTHING..."
           rows={1}
-          className="flex-1 bg-transparent text-sm focus:outline-none resize-none max-h-28 leading-relaxed"
-          style={{ color: '#F1F5F9' }}
+          style={{
+            flex: 1, background: 'transparent', border: 'none', outline: 'none',
+            padding: '14px 16px', resize: 'none', maxHeight: 120,
+            fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink)',
+          }}
         />
-        <motion.button
-          whileTap={{ scale: 0.9 }}
+        <button
           onClick={() => send()}
           disabled={!input.trim() || isLoading}
-          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-opacity disabled:opacity-30"
-          style={{ background: '#14B8A6' }}
+          style={{
+            padding: '0 20px', background: 'var(--bg-invert)', color: 'var(--ink-invert)',
+            border: 'none', borderLeft: '1.5px solid var(--border)',
+            fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13,
+            letterSpacing: '0.06em', cursor: 'pointer', opacity: (!input.trim() || isLoading) ? 0.4 : 1,
+            transition: 'opacity 80ms',
+          }}
         >
-          <Send className="w-3.5 h-3.5 text-white" />
-        </motion.button>
+          SEND
+        </button>
       </div>
     </div>
   )

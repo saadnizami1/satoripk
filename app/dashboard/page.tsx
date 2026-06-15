@@ -1,305 +1,275 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { motion } from 'framer-motion'
 import Link from 'next/link'
-import {
-  MessageCircle, Heart, BookOpen, Timer, Wind, TrendingUp,
-  Phone, BarChart3, Brain, ArrowRight, Sparkles, CheckCircle2
-} from 'lucide-react'
 
-const MOODS       = ['😔', '😕', '😐', '🙂', '😊']
-const MOOD_LABELS = ['Terrible', 'Bad', 'Okay', 'Good', 'Great']
-const MOOD_COLORS = ['#EF4444', '#F97316', '#EAB308', '#34D399', '#2DD4BF']
+const MOOD_LABELS = ['TERRIBLE', 'BAD', 'OKAY', 'GOOD', 'GREAT']
+
+const CARDS = [
+  { num: '01', label: 'TALK TO KOKORO', desc: 'Your AI companion. No judgment.',            href: '/dashboard/kokoro' },
+  { num: '02', label: 'MOOD TRACKER',   desc: 'How are you actually feeling?',              href: '/dashboard/mood' },
+  { num: '03', label: 'JOURNAL',        desc: 'Write it down. No one reads this but you.',  href: '/dashboard/journal' },
+  { num: '04', label: 'POMODORO',       desc: '25 minutes. Work, then breathe.',            href: '/dashboard/pomodoro' },
+  { num: '05', label: 'BREATHING',      desc: 'Your nervous system needs this.',            href: '/dashboard/breathing' },
+  { num: '06', label: 'MOOD GRAPH',     desc: 'Your patterns, visualised.',                 href: '/dashboard/graph' },
+  { num: '07', label: 'ACADEMIC STRESS',desc: 'Acknowledge it. Track it. Manage it.',      href: '/dashboard/research' },
+  { num: '08', label: 'GET HELP',       desc: 'Helplines. Real humans. 24/7.',             href: '/dashboard/helpline' },
+]
+
+const TICKER_ITEMS = 'MOOD TRACKER  ·  JOURNAL  ·  BREATHING  ·  POMODORO  ·  GET HELP  ·  KOKORO  ·  GRAPH  ·  STRESS  ·  '
 
 function getGreeting() {
   const h = new Date().getHours()
-  if (h < 5)  return 'Good night'
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  if (h < 21) return 'Good evening'
-  return 'Good night'
+  if (h < 5)  return 'GOOD NIGHT,'
+  if (h < 12) return 'GOOD MORNING,'
+  if (h < 17) return 'GOOD AFTERNOON,'
+  if (h < 21) return 'GOOD EVENING,'
+  return 'GOOD NIGHT,'
 }
 
-const CARDS = [
-  {
-    id: 'kokoro',
-    icon: MessageCircle,
-    label: 'Talk to Kokoro',
-    desc: 'Your AI wellness companion',
-    href: '/dashboard/kokoro',
-    accent: '#2DD4BF',
-    badge: 'AI',
-  },
-  {
-    id: 'mood',
-    icon: Heart,
-    label: 'Mood Tracker',
-    desc: 'Log how you feel today',
-    href: '/dashboard/mood',
-    accent: '#F97316',
-  },
-  {
-    id: 'journal',
-    icon: BookOpen,
-    label: 'Journal',
-    desc: 'Write freely',
-    href: '/dashboard/journal',
-    accent: '#818CF8',
-  },
-  {
-    id: 'pomodoro',
-    icon: Timer,
-    label: 'Pomodoro',
-    desc: 'Stay focused',
-    href: '/dashboard/pomodoro',
-    accent: '#F97316',
-  },
-  {
-    id: 'breathing',
-    icon: Wind,
-    label: 'Breathing',
-    desc: 'Calm your mind',
-    href: '/dashboard/breathing',
-    accent: '#818CF8',
-  },
-  {
-    id: 'graph',
-    icon: TrendingUp,
-    label: 'Mood Graph',
-    desc: 'See your patterns',
-    href: '/dashboard/graph',
-    accent: '#2DD4BF',
-  },
-  {
-    id: 'stress',
-    icon: Brain,
-    label: 'Academic Stress',
-    desc: 'Track & manage',
-    href: '/dashboard/research',
-    accent: '#EF4444',
-  },
-  {
-    id: 'helpline',
-    icon: Phone,
-    label: 'Get Help',
-    desc: 'Helplines & resources',
-    href: '/dashboard/helpline',
-    accent: '#4ADE80',
-  },
-  {
-    id: 'creator',
-    icon: BarChart3,
-    label: 'Creator',
-    desc: 'About the research',
-    href: '/dashboard/creator',
-    accent: '#94A3B8',
-  },
-] as const
+function useLiveClock() {
+  const [time, setTime] = useState('')
+  useEffect(() => {
+    const update = () => setTime(
+      new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+    )
+    update()
+    const id = setInterval(update, 1000)
+    return () => clearInterval(id)
+  }, [])
+  return time
+}
 
-const card = {
-  hidden: { opacity: 0, y: 16 },
-  show: (i: number) => ({
-    opacity: 1, y: 0,
-    transition: { delay: i * 0.04, type: 'spring' as const, stiffness: 320, damping: 28 },
-  }),
+function useScramble(finalText: string) {
+  const [display, setDisplay] = useState(finalText)
+  const rafRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const CHARS = '|/\\-_+<>[]{}あいうえおさとり'
+
+  const scramble = useCallback(() => {
+    if (rafRef.current) clearInterval(rafRef.current)
+    let iteration = 0
+    rafRef.current = setInterval(() => {
+      setDisplay(
+        finalText.split('').map((_, i) =>
+          i < iteration ? finalText[i] : CHARS[Math.floor(Math.random() * CHARS.length)]
+        ).join('')
+      )
+      if (iteration >= finalText.length) {
+        clearInterval(rafRef.current!)
+        setDisplay(finalText)
+      }
+      iteration += 1 / 3
+    }, 30)
+  }, [finalText])
+
+  useEffect(() => () => { if (rafRef.current) clearInterval(rafRef.current) }, [])
+  return { display, scramble }
 }
 
 export default function DashboardHome() {
-  const [profile, setProfile]         = useState<any>(null)
-  const [todayMood, setTodayMood]     = useState<any>(null)
-  const [hasMoodToday, setHasMood]    = useState(false)
-  const [hasStressToday, setHasStress] = useState(false)
-  const [loading, setLoading]          = useState(true)
+  const [profile, setProfile]       = useState<any>(null)
+  const [todayMood, setTodayMood]   = useState<any>(null)
+  const [hasMoodToday, setHasMood]  = useState(false)
+  const [hasStressToday, setStress] = useState(false)
+  const [loading, setLoading]       = useState(true)
+  const time = useLiveClock()
+  const name = profile?.name?.toUpperCase() || 'WELCOME'
+  const { display: scrambledName, scramble } = useScramble(name)
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
 
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-
       const [{ data: prof }, { data: moods }, { data: stress }] = await Promise.all([
-        supabase.from('profiles').select('name').eq('id', user.id).single(),
-        supabase.from('moods').select('mood_score, note').eq('user_id', user.id)
+        supabase.from('profiles').select('name').eq('id', session.user.id).single(),
+        supabase.from('moods').select('mood_score').eq('user_id', session.user.id)
           .gte('created_at', todayStart.toISOString()).order('created_at', { ascending: false }).limit(1),
-        supabase.from('academic_stress').select('id').eq('user_id', user.id)
+        supabase.from('academic_stress').select('id').eq('user_id', session.user.id)
           .gte('created_at', todayStart.toISOString()).limit(1),
       ])
-
       setProfile(prof)
       setTodayMood(moods?.[0] ?? null)
       setHasMood(Boolean(moods?.length))
-      setHasStress(Boolean(stress?.length))
+      setStress(Boolean(stress?.length))
       setLoading(false)
     }
     load()
   }, [])
 
-  const needsGlow = useCallback((id: string) => {
-    if (id === 'mood')   return !hasMoodToday
-    if (id === 'stress') return !hasStressToday
-    return false
-  }, [hasMoodToday, hasStressToday])
+  const dateStr = new Date().toLocaleDateString('en-GB', {
+    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+  }).toUpperCase()
 
-  const today = new Date().toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric',
-  })
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="w-8 h-8 rounded-full border-2"
-          style={{ borderColor: 'rgba(45,212,191,0.2)', borderTopColor: '#2DD4BF' }}
-        />
-      </div>
-    )
-  }
-
-  const moodScore   = todayMood?.mood_score ?? null
-  const moodEmoji   = moodScore ? MOODS[moodScore - 1] : null
-  const moodLabel   = moodScore ? MOOD_LABELS[moodScore - 1] : null
-  const moodColor   = moodScore ? MOOD_COLORS[moodScore - 1] : null
+  const moodLabel = todayMood ? MOOD_LABELS[todayMood.mood_score - 1] : null
 
   return (
-    <div className="space-y-6">
+    <div style={{ maxWidth: 840 }}>
 
-      {/* ── Greeting ── */}
-      <motion.div
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-      >
-        <p className="text-sm font-medium" style={{ color: '#475569' }}>{getGreeting()}</p>
-        <h1
-          className="text-4xl sm:text-5xl mt-0.5 leading-tight"
+      {/* ── Masthead ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        borderBottom: '1.5px solid var(--border)', paddingBottom: 10, marginBottom: 48,
+      }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-3)', letterSpacing: '0.06em' }}>
+          {dateStr}  ·  {time}  ·  LAHORE, PK
+        </span>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.1em', color: 'var(--ink)' }}>
+          SATORI DAILY
+        </span>
+      </div>
+
+      {/* ── Hero ── */}
+      <div style={{ marginBottom: 48 }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 4 }}>
+          {getGreeting()}
+        </div>
+        <div
+          className="t-hero"
           style={{
-            fontFamily: 'var(--font-instrument), Georgia, serif',
-            background: 'linear-gradient(135deg, #F1F5F9 30%, #2DD4BF 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
+            borderBottom: '3px solid var(--border)',
+            paddingBottom: 8,
+            marginBottom: 20,
+            display: 'inline-block',
+            cursor: 'default',
+            fontFamily: 'var(--font-display)',
           }}
+          onMouseEnter={scramble}
         >
-          {profile?.name || 'Welcome back'}
-        </h1>
-        <p className="text-sm mt-1" style={{ color: '#475569' }}>{today}</p>
-      </motion.div>
+          {loading ? '—' : scrambledName}
+        </div>
 
-      {/* ── Today's mood pill (if logged) ── */}
-      {todayMood && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Link
-            href="/dashboard/mood"
-            className="flex items-center gap-4 rounded-2xl px-5 py-4 transition-all hover:opacity-90"
-            style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-          >
-            <span className="text-3xl">{moodEmoji}</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#475569' }}>Today's mood</p>
-              <p className="font-semibold text-sm mt-0.5" style={{ color: moodColor ?? '#F1F5F9' }}>{moodLabel}</p>
+        {/* Streak callout */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 32, marginTop: 12 }}>
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28, color: 'var(--ink)', lineHeight: 1 }}>
+              {hasMoodToday ? '1+' : '0'} DAYS
             </div>
-            <ArrowRight className="w-4 h-4 shrink-0" style={{ color: '#475569' }} />
-          </Link>
-        </motion.div>
-      )}
-
-      {/* ── Status banner ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-        style={{
-          background: hasMoodToday && hasStressToday
-            ? 'rgba(74,222,128,0.06)'
-            : 'rgba(45,212,191,0.06)',
-          border: hasMoodToday && hasStressToday
-            ? '1px solid rgba(74,222,128,0.2)'
-            : '1px solid rgba(45,212,191,0.15)',
-        }}
-      >
-        {hasMoodToday && hasStressToday ? (
-          <>
-            <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: '#4ADE80' }} />
-            <p className="text-sm font-medium" style={{ color: '#4ADE80' }}>All done for today — great job!</p>
-          </>
-        ) : !hasMoodToday && !hasStressToday ? (
-          <>
-            <Sparkles className="w-4 h-4 shrink-0" style={{ color: '#2DD4BF' }} />
-            <p className="text-sm font-medium" style={{ color: '#2DD4BF' }}>Log your mood and stress to start tracking.</p>
-          </>
-        ) : !hasMoodToday ? (
-          <>
-            <Heart className="w-4 h-4 shrink-0" style={{ color: '#F97316' }} />
-            <p className="text-sm font-medium" style={{ color: '#F97316' }}>Stress logged — now add your mood for today.</p>
-          </>
-        ) : (
-          <>
-            <Brain className="w-4 h-4 shrink-0" style={{ color: '#2DD4BF' }} />
-            <p className="text-sm font-medium" style={{ color: '#2DD4BF' }}>Mood logged — now add your academic stress data.</p>
-          </>
-        )}
-      </motion.div>
-
-      {/* ── Feature cards grid ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {CARDS.map(({ id, icon: Icon, label, desc, href, accent, ...rest }, i) => {
-          const badge = 'badge' in rest ? (rest as any).badge : undefined
-          const glow = needsGlow(id)
-          return (
-            <motion.div
-              key={id}
-              custom={i}
-              variants={card}
-              initial="hidden"
-              animate="show"
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginTop: 2 }}>
+              LOGGED
+            </div>
+          </div>
+          {!hasMoodToday && (
+            <Link
+              href="/dashboard/mood"
+              style={{
+                fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
+                color: 'var(--accent)', letterSpacing: '0.06em', textDecoration: 'none',
+              }}
             >
+              ↗ START YOUR STREAK TODAY
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/* ── Status strip ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: '1.5px solid var(--border)', marginBottom: 48 }}>
+        {[
+          {
+            label: 'MOOD',
+            value: moodLabel || 'NOT LOGGED',
+            cta: !hasMoodToday ? 'LOG NOW →' : null,
+            ctaHref: '/dashboard/mood',
+          },
+          {
+            label: 'STREAK',
+            value: hasMoodToday ? '1 DAY' : '0 DAYS',
+            cta: null,
+            ctaHref: null,
+          },
+          {
+            label: 'FOCUS',
+            value: '0 MIN TODAY',
+            cta: 'START SESSION →',
+            ctaHref: '/dashboard/pomodoro',
+          },
+        ].map((col, i) => (
+          <div
+            key={col.label}
+            style={{
+              padding: '16px',
+              borderRight: i < 2 ? '1.5px solid var(--border)' : 'none',
+              borderBottom: '1.5px solid var(--border)',
+            }}
+          >
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
+              {col.label}
+            </div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(18px, 3vw, 28px)', color: 'var(--ink)', lineHeight: 1.1, marginBottom: 8 }}>
+              {loading ? '—' : col.value}
+            </div>
+            {col.cta && col.ctaHref && (
               <Link
-                href={href}
-                className="group block rounded-2xl p-4 transition-all duration-200 hover:scale-[1.02] hover:shadow-xl"
+                href={col.ctaHref}
                 style={{
-                  background: '#13161F',
-                  border: glow ? `1px solid ${accent}40` : '1px solid rgba(255,255,255,0.06)',
-                  boxShadow: glow ? `0 0 16px ${accent}18` : undefined,
+                  fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
+                  color: 'var(--accent)', letterSpacing: '0.04em', textDecoration: 'none',
+                  display: 'block', marginTop: 4,
                 }}
               >
-                {/* Icon */}
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center mb-3"
-                  style={{ background: `${accent}15` }}
-                >
-                  <Icon className="w-[18px] h-[18px]" style={{ color: accent }} />
-                </div>
-
-                {/* Labels */}
-                <div className="flex items-start justify-between gap-1">
-                  <p className="text-sm font-semibold leading-snug" style={{ color: '#F1F5F9' }}>{label}</p>
-                  {badge && (
-                    <span className="shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${accent}20`, color: accent }}>
-                      {badge}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] mt-0.5" style={{ color: '#475569' }}>{desc}</p>
-
-                {glow && (
-                  <span className="inline-block mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: `${accent}18`, color: accent }}>
-                    Log today
-                  </span>
-                )}
+                {col.cta}
               </Link>
-            </motion.div>
-          )
-        })}
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Feature grid ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: '1.5px solid var(--border)', borderLeft: '1.5px solid var(--border)', marginBottom: 0 }}>
+        {CARDS.map((card) => (
+          <Link
+            key={card.num}
+            href={card.href}
+            className="br-lift"
+            style={{
+              display: 'block',
+              padding: 20,
+              borderRight: '1.5px solid var(--border)',
+              borderBottom: '1.5px solid var(--border)',
+              textDecoration: 'none',
+              background: 'var(--bg)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>{card.num}</span>
+              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, color: 'var(--ink)', letterSpacing: '0.02em', textAlign: 'right', maxWidth: '70%' }}>
+                {card.label}
+              </span>
+            </div>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 12 }}>
+              {card.desc}
+            </p>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11, color: 'var(--ink)', letterSpacing: '0.04em' }}>
+              OPEN →
+            </span>
+          </Link>
+        ))}
+      </div>
+
+      {/* ── Ticker tape ── */}
+      <div
+        className="ticker-wrap"
+        style={{
+          overflow: 'hidden', background: 'var(--bg-invert)',
+          borderTop: '1.5px solid var(--border)', marginTop: 48,
+        }}
+      >
+        <div className="ticker-inner" style={{ padding: '12px 0' }}>
+          {[TICKER_ITEMS, TICKER_ITEMS].map((txt, i) => (
+            <span
+              key={i}
+              style={{
+                fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
+                color: 'var(--ink-invert)', letterSpacing: '0.1em', padding: '0 24px',
+              }}
+            >
+              {txt}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   )

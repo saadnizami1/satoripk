@@ -1,55 +1,56 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Wind, Play, Pause, RotateCcw } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 
 const TECHNIQUES = [
   {
     id: 'box',
-    name: 'Box Breathing',
+    name: 'BOX BREATHING',
     desc: 'Calm & focus',
-    color: '#2DD4BF',
     steps: [
-      { label: 'Inhale', duration: 4 },
-      { label: 'Hold',   duration: 4 },
-      { label: 'Exhale', duration: 4 },
-      { label: 'Hold',   duration: 4 },
+      { label: 'INHALE', duration: 4 },
+      { label: 'HOLD',   duration: 4 },
+      { label: 'EXHALE', duration: 4 },
+      { label: 'HOLD',   duration: 4 },
     ],
   },
   {
     id: '478',
     name: '4-7-8',
     desc: 'Deep relaxation',
-    color: '#818CF8',
     steps: [
-      { label: 'Inhale', duration: 4 },
-      { label: 'Hold',   duration: 7 },
-      { label: 'Exhale', duration: 8 },
+      { label: 'INHALE', duration: 4 },
+      { label: 'HOLD',   duration: 7 },
+      { label: 'EXHALE', duration: 8 },
     ],
   },
   {
     id: 'calm',
-    name: 'Calm Breath',
+    name: 'CALM BREATH',
     desc: 'Gentle & easy',
-    color: '#4ADE80',
     steps: [
-      { label: 'Inhale', duration: 4 },
-      { label: 'Exhale', duration: 6 },
+      { label: 'INHALE', duration: 4 },
+      { label: 'EXHALE', duration: 6 },
     ],
   },
   {
     id: 'deep',
-    name: 'Deep Breathing',
+    name: 'DEEP BREATHING',
     desc: 'Ground yourself',
-    color: '#F97316',
     steps: [
-      { label: 'Inhale', duration: 5 },
-      { label: 'Hold',   duration: 5 },
-      { label: 'Exhale', duration: 5 },
+      { label: 'INHALE', duration: 5 },
+      { label: 'HOLD',   duration: 5 },
+      { label: 'EXHALE', duration: 5 },
     ],
   },
 ]
+
+const PHASE_BG: Record<string, string> = {
+  INHALE: '#F4F2EE',
+  HOLD:   '#E8E6E0',
+  EXHALE: '#F4F2EE',
+}
 
 export default function BreathingPage() {
   const [selected, setSelected] = useState(TECHNIQUES[0])
@@ -86,156 +87,135 @@ export default function BreathingPage() {
   }, [running, tick])
 
   const reset = () => {
-    setRunning(false)
-    setStepIdx(0)
-    setElapsed(0)
-    setCycles(0)
+    setRunning(false); setStepIdx(0); setElapsed(0); setCycles(0)
   }
 
   const switchTechnique = (t: typeof TECHNIQUES[0]) => {
-    reset()
-    setSelected(t)
+    reset(); setSelected(t)
   }
 
-  const ringSize    = 180
-  const circumference = 2 * Math.PI * 70
+  const patternInfo = selected.steps.map(s => `${s.label} ${s.duration}s`).join('  ·  ')
+  const phaseBg = running ? (PHASE_BG[currentStep.label] ?? 'var(--bg)') : 'var(--bg)'
 
   return (
-    <div className="max-w-lg mx-auto space-y-5">
+    <div style={{ maxWidth: 560 }}>
+
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(45,212,191,0.12)' }}>
-          <Wind className="w-5 h-5" style={{ color: '#2DD4BF' }} />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}>
-            Breathing Exercises
-          </h1>
-          <p className="text-xs" style={{ color: '#475569' }}>Breathe and find your calm</p>
-        </div>
-      </motion.div>
+      <div style={{ marginBottom: 40 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(36px, 5vw, 56px)', color: 'var(--ink)', letterSpacing: '-0.03em', lineHeight: 1 }}>
+          BREATHING
+        </h1>
+        <div style={{ borderTop: '1.5px solid var(--border)', marginTop: 12 }} />
+      </div>
 
       {/* Technique selector */}
-      <div className="grid grid-cols-2 gap-2">
+      <div style={{ display: 'flex', gap: 8, marginBottom: 32, flexWrap: 'wrap' }}>
         {TECHNIQUES.map(t => (
           <button
             key={t.id}
             onClick={() => switchTechnique(t)}
-            className="text-left p-3.5 rounded-2xl transition-all duration-200"
             style={{
-              background: selected.id === t.id ? `${t.color}12` : '#13161F',
-              border: selected.id === t.id ? `1px solid ${t.color}40` : '1px solid rgba(255,255,255,0.06)',
+              padding: '8px 16px',
+              background: selected.id === t.id ? 'var(--bg-invert)' : 'var(--bg)',
+              color: selected.id === t.id ? 'var(--ink-invert)' : 'var(--ink-2)',
+              border: '1.5px solid var(--border)',
+              fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
+              letterSpacing: '0.04em', cursor: 'pointer',
+              transition: 'background 80ms, color 80ms',
             }}
           >
-            <div className="w-2 h-2 rounded-full mb-2" style={{ background: t.color }} />
-            <p className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{t.name}</p>
-            <p className="text-[10px]" style={{ color: '#475569' }}>{t.desc}</p>
+            {t.name}
           </button>
         ))}
       </div>
 
-      {/* Breathing circle */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="rounded-3xl p-8 flex flex-col items-center"
-        style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
+      {/* Main breathing block */}
+      <div
+        style={{
+          border: '1.5px solid var(--border)',
+          padding: '48px 40px',
+          marginBottom: 24,
+          background: phaseBg,
+          transition: `background 800ms ease`,
+        }}
       >
-        <div className="relative" style={{ width: ringSize, height: ringSize }}>
-          <svg className="absolute inset-0 -rotate-90" width={ringSize} height={ringSize}>
-            <circle
-              cx={ringSize / 2} cy={ringSize / 2} r={70}
-              fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6"
-            />
-            <circle
-              cx={ringSize / 2} cy={ringSize / 2} r={70}
-              fill="none"
-              stroke={selected.color}
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={circumference * (1 - progress)}
-              className="transition-all duration-1000 ease-linear"
-            />
-          </svg>
-
-          {/* Pulsing inner circle */}
+        {/* Phase word */}
+        <AnimatePresence mode="wait">
           <motion.div
-            className="absolute inset-4 rounded-full flex flex-col items-center justify-center"
-            style={{ background: `${selected.color}12` }}
-            animate={running ? {
-              scale: currentStep.label === 'Inhale' ? [1, 1.08] :
-                     currentStep.label === 'Exhale' ? [1.08, 1] : 1,
-            } : { scale: 1 }}
-            transition={{ duration: currentStep.duration, ease: 'easeInOut' }}
+            key={running ? currentStep.label : 'idle'}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
           >
-            <p
-              className="text-base font-semibold"
-              style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: selected.color }}
-            >
-              {currentStep.label}
-            </p>
-            <p
-              className="text-4xl font-bold leading-none"
-              style={{ color: '#F1F5F9', fontFamily: 'var(--font-jetbrains), monospace' }}
-            >
-              {currentStep.duration - elapsed}
-            </p>
-            <p className="text-[10px]" style={{ color: '#475569' }}>seconds</p>
-          </motion.div>
-        </div>
-
-        {/* Step dots */}
-        <div className="flex gap-2 mt-5">
-          {selected.steps.map((step, i) => (
-            <div
-              key={i}
-              className="h-1 rounded-full transition-all duration-300"
-              style={{
-                width: i === stepIdx ? 24 : 12,
-                background: i === stepIdx ? selected.color : `${selected.color}30`,
-              }}
-            />
-          ))}
-        </div>
-
-        <p className="text-xs mt-2" style={{ color: '#475569' }}>Cycles: {cycles}</p>
-
-        {/* Controls */}
-        <div className="flex gap-3 mt-5">
-          <motion.button
-            whileTap={{ scale: 0.92 }}
-            onClick={reset}
-            className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:opacity-80"
-            style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.06)', color: '#94A3B8' }}
-          >
-            <RotateCcw className="w-4 h-4" />
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.92 }}
-            whileHover={{ scale: 1.05 }}
-            onClick={() => setRunning(r => !r)}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-sm text-white shadow-lg transition-all"
-            style={{ background: selected.color }}
-          >
-            {running ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-            {running ? 'Pause' : 'Start'}
-          </motion.button>
-        </div>
-      </motion.div>
-
-      {/* Steps legend */}
-      <div className="rounded-2xl p-4" style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}>
-        <p className="text-xs font-semibold mb-3" style={{ color: '#94A3B8' }}>{selected.name} pattern</p>
-        <div className="flex gap-2">
-          {selected.steps.map((step, i) => (
-            <div key={i} className="flex-1 text-center">
-              <div className="h-1 rounded-full mb-1.5" style={{ background: `${selected.color}30` }} />
-              <p className="text-[10px] font-medium" style={{ color: '#F1F5F9' }}>{step.label}</p>
-              <p className="text-[10px]" style={{ color: '#475569' }}>{step.duration}s</p>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(40px, 8vw, 64px)', color: 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1, marginBottom: 12 }}>
+              {running ? currentStep.label : 'READY'}
             </div>
-          ))}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Progress line */}
+        <div className="phase-line-track" style={{ marginBottom: 24 }}>
+          <div
+            className="phase-line-fill"
+            style={{
+              width: running ? `${progress * 100}%` : '0%',
+              transitionDuration: running ? `${currentStep.duration}s` : '0s',
+            }}
+          />
         </div>
+
+        {/* Countdown */}
+        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 'clamp(80px, 16vw, 112px)', color: 'var(--ink)', lineHeight: 1, letterSpacing: '-0.02em', marginBottom: 20 }}>
+          {running ? currentStep.duration - elapsed : selected.steps[0].duration}
+        </div>
+
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 28 }}>
+          CYCLE {String(cycles + 1).padStart(2, '0')} OF 04
+        </div>
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button onClick={reset} className="br-btn" style={{ padding: '12px 20px' }}>
+            RESET
+          </button>
+          <button
+            onClick={() => setRunning(r => !r)}
+            className="br-btn br-btn-inv"
+            style={{ padding: '12px 32px', flex: 1 }}
+          >
+            {running ? '■ STOP' : '▶ BEGIN'}
+          </button>
+        </div>
+      </div>
+
+      {/* Pattern info */}
+      <div style={{ border: '1.5px solid var(--border)', padding: '14px 16px' }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', letterSpacing: '0.08em' }}>
+          {selected.name}  ·  {patternInfo}
+        </div>
+      </div>
+
+      {/* Steps reference */}
+      <div style={{ display: 'flex', border: '1.5px solid var(--border)', borderTop: 'none', marginBottom: 0 }}>
+        {selected.steps.map((step, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1, padding: '16px 12px', textAlign: 'center',
+              borderRight: i < selected.steps.length - 1 ? '1px solid var(--border-2)' : 'none',
+              background: running && i === stepIdx ? 'var(--bg-card)' : 'var(--bg)',
+              transition: 'background 300ms',
+            }}
+          >
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: running && i === stepIdx ? 'var(--ink)' : 'var(--ink-3)', letterSpacing: '0.04em', marginBottom: 4 }}>
+              {step.label}
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 20, color: running && i === stepIdx ? 'var(--ink)' : 'var(--ink-3)' }}>
+              {step.duration}
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.08em', marginTop: 2 }}>SEC</div>
+          </div>
+        ))}
       </div>
     </div>
   )

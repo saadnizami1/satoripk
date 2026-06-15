@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter, Instrument_Serif, JetBrains_Mono } from 'next/font/google'
+import { Inter, Syne, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 
 const inter = Inter({
@@ -8,11 +8,10 @@ const inter = Inter({
   display: 'swap',
 })
 
-const instrumentSerif = Instrument_Serif({
+const syne = Syne({
   subsets: ['latin'],
-  weight: '400',
-  style: ['normal', 'italic'],
-  variable: '--font-instrument',
+  weight: ['400', '700', '800'],
+  variable: '--font-syne',
   display: 'swap',
 })
 
@@ -33,9 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable}`}
+      className={`${inter.variable} ${syne.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="font-sans antialiased" style={{ background: '#0B0D14' }}>
+      <body className="antialiased" style={{ background: '#F4F2EE', color: '#0C0C0C', fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>
         {children}
       </body>
     </html>

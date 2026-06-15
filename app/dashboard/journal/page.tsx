@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { BookOpen, Plus, Search, Calendar, Trash2, X, Clock, FileText, Check } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 
 interface JournalEntry {
   id: string
@@ -14,26 +13,22 @@ interface JournalEntry {
 }
 
 const MOODS = [
-  { value: 'happy',     label: 'Happy',     emoji: '😊', color: '#2DD4BF' },
-  { value: 'calm',      label: 'Calm',      emoji: '😌', color: '#818CF8' },
-  { value: 'excited',   label: 'Excited',   emoji: '🤩', color: '#F97316' },
-  { value: 'tired',     label: 'Tired',     emoji: '😴', color: '#94A3B8' },
-  { value: 'sad',       label: 'Sad',       emoji: '😔', color: '#EF4444' },
-  { value: 'anxious',   label: 'Anxious',   emoji: '😰', color: '#F97316' },
-  { value: 'grateful',  label: 'Grateful',  emoji: '🙏', color: '#4ADE80' },
-  { value: 'motivated', label: 'Motivated', emoji: '💪', color: '#2DD4BF' },
+  { value: 'great',     label: 'GREAT' },
+  { value: 'good',      label: 'GOOD' },
+  { value: 'okay',      label: 'OKAY' },
+  { value: 'tired',     label: 'TIRED' },
+  { value: 'sad',       label: 'SAD' },
+  { value: 'anxious',   label: 'ANXIOUS' },
+  { value: 'grateful',  label: 'GRATEFUL' },
+  { value: 'motivated', label: 'MOTIVATED' },
 ]
-
-function getMoodData(value: string) {
-  return MOODS.find(m => m.value === value)
-}
 
 function getWordCount(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
 }
 
 function formatTime(iso: string) {
@@ -41,31 +36,28 @@ function formatTime(iso: string) {
 }
 
 export default function JournalPage() {
-  const [entries, setEntries]               = useState<JournalEntry[]>([])
-  const [filtered, setFiltered]             = useState<JournalEntry[]>([])
-  const [query, setQuery]                   = useState('')
-  const [showNewModal, setShowNewModal]     = useState(false)
-  const [tempTitle, setTempTitle]           = useState('')
-  const [tempMood, setTempMood]             = useState('')
-  const [showEditor, setShowEditor]         = useState(false)
-  const [editingEntry, setEditingEntry]     = useState<JournalEntry | null>(null)
-  const [editorTitle, setEditorTitle]       = useState('')
-  const [editorContent, setEditorContent]   = useState('')
-  const [editorMood, setEditorMood]         = useState('')
-  const [lastSaved, setLastSaved]           = useState<Date | null>(null)
-  const [isSaving, setIsSaving]             = useState(false)
+  const [entries, setEntries]             = useState<JournalEntry[]>([])
+  const [filtered, setFiltered]           = useState<JournalEntry[]>([])
+  const [query, setQuery]                 = useState('')
+  const [showNewModal, setShowNewModal]   = useState(false)
+  const [tempTitle, setTempTitle]         = useState('')
+  const [tempMood, setTempMood]           = useState('')
+  const [showEditor, setShowEditor]       = useState(false)
+  const [editingEntry, setEditingEntry]   = useState<JournalEntry | null>(null)
+  const [editorTitle, setEditorTitle]     = useState('')
+  const [editorContent, setEditorContent] = useState('')
+  const [editorMood, setEditorMood]       = useState('')
+  const [lastSaved, setLastSaved]         = useState<Date | null>(null)
+  const [isSaving, setIsSaving]           = useState(false)
 
   useEffect(() => { loadEntries() }, [])
 
   useEffect(() => {
     if (!query.trim()) { setFiltered(entries); return }
     const q = query.toLowerCase()
-    setFiltered(entries.filter(e =>
-      e.title.toLowerCase().includes(q) || e.content.toLowerCase().includes(q)
-    ))
+    setFiltered(entries.filter(e => e.title.toLowerCase().includes(q) || e.content.toLowerCase().includes(q)))
   }, [entries, query])
 
-  // Auto-save
   useEffect(() => {
     if (!showEditor || !editorTitle.trim()) return
     const t = setTimeout(() => autoSave(), 2000)
@@ -83,8 +75,7 @@ export default function JournalPage() {
   }
 
   function startNew() {
-    setTempTitle(''); setTempMood('')
-    setShowNewModal(true)
+    setTempTitle(''); setTempMood(''); setShowNewModal(true)
   }
 
   function proceedToEditor() {
@@ -138,298 +129,252 @@ export default function JournalPage() {
   const todayCount = entries.filter(e => new Date(e.createdAt).toDateString() === new Date().toDateString()).length
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div style={{ maxWidth: 840 }}>
 
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(129,140,248,0.15)' }}>
-              <BookOpen className="w-5 h-5" style={{ color: '#818CF8' }} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-serif" style={{ color: '#F1F5F9', fontFamily: 'var(--font-instrument), Georgia, serif' }}>Journal</h1>
-              <p className="text-xs" style={{ color: '#475569' }}>Write your thoughts and reflections</p>
-            </div>
-          </div>
-          <motion.button
-            whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
-            onClick={startNew}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
-            style={{ background: '#818CF8' }}
-          >
-            <Plus className="w-4 h-4" /> New Entry
-          </motion.button>
-        </div>
-      </motion.div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(36px, 6vw, 56px)', color: 'var(--ink)', letterSpacing: '-0.03em', lineHeight: 1 }}>
+          JOURNAL
+        </h1>
+        <button
+          onClick={startNew}
+          className="br-btn"
+          style={{ padding: '10px 18px', marginBottom: 6 }}
+        >
+          + NEW ENTRY
+        </button>
+      </div>
+
+      <div style={{ borderTop: '1.5px solid var(--border)', marginBottom: 16 }} />
 
       {/* Stats + Search */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="flex gap-3">
-        {/* Stats */}
-        <div className="flex gap-2 shrink-0">
-          {[{ icon: FileText, value: entries.length, label: 'Total' }, { icon: BookOpen, value: todayCount, label: 'Today' }].map(stat => (
-            <div key={stat.label} className="flex items-center gap-2.5 px-4 py-3 rounded-xl" style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <stat.icon className="w-4 h-4 shrink-0" style={{ color: '#818CF8' }} />
-              <div>
-                <p className="text-xl font-bold leading-none" style={{ color: '#F1F5F9' }}>{stat.value}</p>
-                <p className="text-[10px]" style={{ color: '#475569' }}>{stat.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+      <div style={{ display: 'flex', gap: 16, marginBottom: 32, alignItems: 'center' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', letterSpacing: '0.08em', flexShrink: 0 }}>
+          {entries.length} TOTAL  ·  {todayCount} TODAY
+        </span>
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="SEARCH..."
+          className="br-input"
+          style={{ flex: 1, padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.06em' }}
+        />
+      </div>
 
-        {/* Search */}
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#475569' }} />
-          <input
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search entries..."
-            className="w-full h-full pl-10 pr-4 py-3 rounded-xl text-sm focus:outline-none transition-all"
-            style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)', color: '#F1F5F9' }}
-          />
-        </div>
-      </motion.div>
-
-      {/* Entry grid / empty state */}
+      {/* Entry grid */}
       {filtered.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="flex flex-col items-center justify-center py-20 rounded-2xl"
-          style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <BookOpen className="w-14 h-14 mb-4 opacity-20" style={{ color: '#818CF8' }} />
-          <h3 className="text-lg font-semibold mb-2" style={{ color: '#F1F5F9' }}>
-            {query ? 'No entries found' : 'Your thoughts live here'}
-          </h3>
-          <p className="text-sm mb-6 text-center max-w-xs" style={{ color: '#475569' }}>
-            {query ? 'Try a different search term' : "Write about your day, your stress, your wins — no judgment."}
+        <div style={{ border: '1.5px solid var(--border)', padding: '60px 32px', textAlign: 'center' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--ink-3)', marginBottom: 12 }}>
+            {query ? 'NO ENTRIES FOUND.' : 'YOUR THOUGHTS LIVE HERE.'}
+          </div>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-3)', marginBottom: 24 }}>
+            {query ? 'Try a different search.' : 'Write about your day. No judgment.'}
           </p>
           {!query && (
-            <button
-              onClick={startNew}
-              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-              style={{ background: '#818CF8' }}
-            >
-              Write first entry
+            <button onClick={startNew} className="br-btn br-btn-inv" style={{ padding: '12px 24px' }}>
+              WRITE FIRST ENTRY →
             </button>
           )}
-        </motion.div>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((entry, i) => {
-            const mood = entry.mood ? getMoodData(entry.mood) : null
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 0, border: '1.5px solid var(--border)' }}>
+          {filtered.map((entry) => {
+            const mood = MOODS.find(m => m.value === entry.mood)
             return (
-              <motion.div
+              <div
                 key={entry.id}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.04 }}
                 onClick={() => openEntry(entry)}
-                className="group rounded-2xl p-5 cursor-pointer transition-all hover:scale-[1.01] hover:shadow-2xl"
+                className="br-lift"
                 style={{
-                  background: '#13161F',
-                  border: `1px solid rgba(255,255,255,0.06)`,
-                  borderLeft: mood ? `3px solid ${mood.color}` : '3px solid rgba(129,140,248,0.4)',
+                  padding: 20, cursor: 'pointer', background: 'var(--bg)',
+                  borderRight: '1.5px solid var(--border)', borderBottom: '1.5px solid var(--border)',
                 }}
               >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="text-base font-semibold line-clamp-2 flex-1 pr-2 transition-colors group-hover:text-[#818CF8]" style={{ color: '#F1F5F9' }}>
-                    {entry.title}
-                  </h3>
+                {/* Date + mood */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
+                    {formatDate(entry.createdAt)}  ·  {formatTime(entry.createdAt)}
+                  </span>
                   {mood && (
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${mood.color}18` }}>
-                      <span className="text-base">{mood.emoji}</span>
-                    </div>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
+                      ● {mood.label}
+                    </span>
                   )}
                 </div>
 
-                {/* Date */}
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="flex items-center gap-1 text-[10px]" style={{ color: '#475569' }}>
-                    <Calendar className="w-3 h-3" />{formatDate(entry.createdAt)}
-                  </span>
-                  <span className="flex items-center gap-1 text-[10px]" style={{ color: '#475569' }}>
-                    <Clock className="w-3 h-3" />{formatTime(entry.createdAt)}
-                  </span>
+                {/* Title */}
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, color: 'var(--ink)', letterSpacing: '-0.01em', marginBottom: 8, lineHeight: 1.2 }}>
+                  {entry.title}
                 </div>
 
                 {/* Preview */}
-                <p className="text-xs line-clamp-3 mb-3" style={{ color: '#475569' }}>
-                  {entry.content || 'No content yet…'}
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 12, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  {entry.content || 'No content yet.'}
                 </p>
 
                 {/* Footer */}
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'rgba(129,140,248,0.1)', color: '#818CF8' }}>
-                    {getWordCount(entry.content)} words
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
+                    {getWordCount(entry.content)} WORDS
                   </span>
-                  <button
-                    onClick={e => deleteEntry(entry.id, e)}
-                    className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-[rgba(239,68,68,0.1)]"
-                    style={{ color: '#EF4444' }}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <button
+                      onClick={e => deleteEntry(entry.id, e)}
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em' }}
+                    >
+                      DELETE
+                    </button>
+                    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink)' }}>→ OPEN</span>
+                  </div>
                 </div>
-              </motion.div>
+              </div>
             )
           })}
         </div>
       )}
 
-      {/* ── New Entry Modal ── */}
+      {/* New Entry Modal */}
       <AnimatePresence>
         {showNewModal && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+            style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(12,12,12,0.6)' }}
             onClick={() => setShowNewModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }}
               onClick={e => e.stopPropagation()}
-              className="w-full max-w-md rounded-2xl p-6"
-              style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.08)' }}
+              style={{ width: '100%', maxWidth: 480, background: 'var(--bg)', border: '1.5px solid var(--border)', padding: 32 }}
             >
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-xl font-semibold" style={{ color: '#F1F5F9', fontFamily: 'var(--font-instrument), Georgia, serif' }}>New Entry</h2>
-                <button onClick={() => setShowNewModal(false)} className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)]" style={{ color: '#475569' }}>
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28, color: 'var(--ink)', marginBottom: 24, letterSpacing: '-0.02em' }}>
+                NEW ENTRY
+              </h2>
+              <div style={{ borderTop: '1.5px solid var(--border)', marginBottom: 24 }} />
 
-              {/* Title */}
-              <div className="mb-5">
-                <label className="block text-xs font-medium mb-2" style={{ color: '#94A3B8' }}>Title</label>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>TITLE</div>
                 <input
-                  type="text"
-                  value={tempTitle}
-                  onChange={e => setTempTitle(e.target.value)}
+                  type="text" value={tempTitle} onChange={e => setTempTitle(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') proceedToEditor() }}
-                  placeholder="Give your entry a title…"
+                  placeholder="GIVE YOUR ENTRY A TITLE"
                   autoFocus
-                  className="w-full px-4 py-3 rounded-xl text-base font-medium focus:outline-none transition-all"
-                  style={{ background: '#222638', border: '1px solid rgba(255,255,255,0.06)', color: '#F1F5F9' }}
+                  className="br-input"
+                  style={{ width: '100%', padding: '12px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, letterSpacing: '0.02em', boxSizing: 'border-box' }}
                 />
               </div>
 
-              {/* Mood */}
-              <div className="mb-5">
-                <label className="block text-xs font-medium mb-3" style={{ color: '#94A3B8' }}>How are you feeling?</label>
-                <div className="grid grid-cols-4 gap-2">
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>MOOD (OPTIONAL)</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {MOODS.map(mood => (
                     <button
                       key={mood.value}
-                      onClick={() => setTempMood(mood.value)}
-                      className="flex flex-col items-center gap-1 p-2.5 rounded-xl transition-all"
+                      onClick={() => setTempMood(tempMood === mood.value ? '' : mood.value)}
                       style={{
-                        background: tempMood === mood.value ? `${mood.color}18` : '#1C2030',
-                        border: tempMood === mood.value ? `1px solid ${mood.color}50` : '1px solid transparent',
+                        padding: '6px 12px',
+                        background: tempMood === mood.value ? 'var(--bg-invert)' : 'var(--bg)',
+                        color: tempMood === mood.value ? 'var(--ink-invert)' : 'var(--ink-2)',
+                        border: '1.5px solid var(--border)',
+                        fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
+                        cursor: 'pointer', letterSpacing: '0.04em',
+                        transition: 'background 80ms, color 80ms',
                       }}
                     >
-                      <span className="text-xl">{mood.emoji}</span>
-                      <span className="text-[9px] font-medium" style={{ color: tempMood === mood.value ? mood.color : '#475569' }}>{mood.label}</span>
+                      {mood.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <button
-                onClick={proceedToEditor}
-                disabled={!tempTitle.trim()}
-                className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 hover:opacity-90"
-                style={{ background: '#818CF8' }}
-              >
-                Continue writing
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={proceedToEditor}
+                  disabled={!tempTitle.trim()}
+                  className="br-btn br-btn-inv"
+                  style={{ flex: 1, padding: '12px', opacity: !tempTitle.trim() ? 0.4 : 1 }}
+                >
+                  CONTINUE →
+                </button>
+                <button onClick={() => setShowNewModal(false)} className="br-btn" style={{ padding: '12px 20px' }}>
+                  CANCEL
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Editor ── */}
+      {/* Editor */}
       <AnimatePresence>
         {showEditor && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)' }}
+            style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}
           >
-            <motion.div
-              initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }}
-              className="w-full max-w-3xl rounded-2xl overflow-hidden flex flex-col"
-              style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.08)', height: 'min(80vh, 640px)' }}
-            >
-              {/* Editor Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={closeEditor}
-                    className="p-2 rounded-xl transition-all hover:bg-[rgba(255,255,255,0.06)]"
-                    style={{ color: '#94A3B8' }}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                  <div className="flex items-center gap-2 text-xs" style={{ color: '#475569' }}>
-                    {isSaving ? (
-                      <><span className="w-1.5 h-1.5 rounded-full bg-[#F97316] animate-pulse" />Saving…</>
-                    ) : lastSaved ? (
-                      <><Check className="w-3.5 h-3.5" style={{ color: '#4ADE80' }} />Saved {lastSaved.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</>
-                    ) : null}
-                  </div>
-                </div>
-                {editorMood && getMoodData(editorMood) && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: `${getMoodData(editorMood)!.color}18` }}>
-                    <span className="text-lg">{getMoodData(editorMood)!.emoji}</span>
-                    <span className="text-xs font-medium" style={{ color: getMoodData(editorMood)!.color }}>{getMoodData(editorMood)!.label}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Title */}
-              <div className="px-8 pt-6 pb-2 shrink-0">
-                <input
-                  type="text"
-                  value={editorTitle}
-                  onChange={e => setEditorTitle(e.target.value)}
-                  className="w-full text-3xl font-semibold focus:outline-none bg-transparent"
-                  style={{ color: '#F1F5F9', fontFamily: 'var(--font-instrument), Georgia, serif' }}
-                  placeholder="Title"
-                />
-                <p className="text-xs mt-1" style={{ color: '#475569' }}>
-                  {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                </p>
-              </div>
-
-              <div className="h-px mx-8 my-3" style={{ background: 'rgba(255,255,255,0.06)' }} />
-
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto px-8 pb-4">
-                <textarea
-                  value={editorContent}
-                  onChange={e => setEditorContent(e.target.value)}
-                  placeholder="Start writing your thoughts…"
-                  className="w-full h-full bg-transparent focus:outline-none resize-none text-base leading-[1.8]"
-                  style={{ color: '#F1F5F9', minHeight: '100%' }}
-                />
-              </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-between px-8 py-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)', background: '#0B0D14' }}>
-                <span className="text-xs" style={{ color: '#475569' }}>{getWordCount(editorContent)} words</span>
+            {/* Editor top bar */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1.5px solid var(--border)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <button
                   onClick={closeEditor}
-                  className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-                  style={{ background: '#818CF8' }}
+                  style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink-2)', background: 'none', border: '1.5px solid var(--border)', padding: '6px 14px', cursor: 'pointer', letterSpacing: '0.06em' }}
                 >
-                  Done
+                  ← BACK
+                </button>
+                {isSaving ? (
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em' }}>SAVING...</span>
+                ) : lastSaved ? (
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em' }}>SAVED {lastSaved.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                ) : null}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
+                  {getWordCount(editorContent)} WORDS
+                </span>
+                {editorMood && (
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11, color: 'var(--ink-2)', border: '1.5px solid var(--border-2)', padding: '4px 10px' }}>
+                    {MOODS.find(m => m.value === editorMood)?.label}
+                  </span>
+                )}
+                <button onClick={() => { if (editorTitle.trim()) autoSave() }} className="br-btn br-btn-inv" style={{ padding: '8px 16px' }}>
+                  SAVE
                 </button>
               </div>
-            </motion.div>
+            </div>
+
+            {/* Title */}
+            <div style={{ padding: '32px 40px 0', flexShrink: 0 }}>
+              <input
+                type="text" value={editorTitle} onChange={e => setEditorTitle(e.target.value)}
+                placeholder="UNTITLED"
+                style={{
+                  width: '100%', background: 'transparent', border: 'none', outline: 'none',
+                  fontFamily: 'var(--font-display)', fontWeight: 800,
+                  fontSize: 'clamp(28px, 5vw, 48px)', color: 'var(--ink)',
+                  letterSpacing: '-0.02em', boxSizing: 'border-box',
+                }}
+              />
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', marginTop: 6, letterSpacing: '0.06em' }}>
+                {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1.5px solid var(--border)', margin: '16px 40px' }} />
+
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 40px 32px' }}>
+              <textarea
+                value={editorContent}
+                onChange={e => setEditorContent(e.target.value)}
+                placeholder="Start writing..."
+                style={{
+                  width: '100%', minHeight: '100%', background: 'transparent',
+                  border: 'none', outline: 'none', resize: 'none',
+                  fontFamily: 'var(--font-body)', fontSize: 16, lineHeight: 1.75,
+                  color: 'var(--ink)', boxSizing: 'border-box',
+                }}
+              />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
