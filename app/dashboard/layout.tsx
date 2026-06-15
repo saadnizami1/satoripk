@@ -59,7 +59,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
-        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+          if (!session) { router.replace('/auth'); return }
+          const { data: profile } = await supabase.from('profiles')
+            .select('onboarding_completed').eq('id', session.user.id).single()
+          if (!profile?.onboarding_completed) { router.replace('/onboarding'); return }
+          setAuthReady(true)
+          refreshTodayStatus()
+        } else if (event === 'TOKEN_REFRESHED') {
           if (!session) { router.replace('/auth'); return }
           setAuthReady(true)
           refreshTodayStatus()

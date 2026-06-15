@@ -1,79 +1,54 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type CSSProperties, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MeshGradient } from '@/components/MeshGradient'
-import { useTranslation } from 'react-i18next'
-import { 
-  ArrowRight, 
-  ArrowLeft, 
-  Sparkles,
-  User,
-  Calendar,
-  Users,
-  GraduationCap,
-  Heart,
-  Palette,
-  Globe,
-  Brain,
-  CheckCircle2,
-  Shield,
-  FileText,
-  Mail,
-  MapPin,
-  School,
-  Book,
-  TrendingUp,
-  Smile,
-  Frown,
-  Meh,
-  Trophy,
-  Target,
-  Coffee
-} from 'lucide-react'
-import '@/lib/i18n'
+import type { AuthChangeEvent } from '@supabase/supabase-js'
 
-// Onboarding Steps
 const ONBOARDING_STEPS = [
-  { id: 'welcome', icon: Sparkles },
-  { id: 'privacy', icon: Shield },
-  { id: 'research', icon: FileText },
-  { id: 'name', icon: User },
-  { id: 'age', icon: Calendar },
-  { id: 'religion', icon: Heart },
-  { id: 'city', icon: MapPin },
-  { id: 'school-type', icon: School },
-  { id: 'school-name', icon: School },
-  { id: 'education-level', icon: GraduationCap },
-  { id: 'hobbies', icon: Heart },
-  { id: 'personality', icon: Palette },
-  { id: 'recent-mood', icon: Smile },
-  { id: 'academic-stress', icon: TrendingUp },
-  { id: 'fav-subject', icon: Book },
-  { id: 'fav-why', icon: Book },
-  { id: 'worst-subject', icon: Book },
-  { id: 'worst-why', icon: Book },
-  { id: 'report-card', icon: Trophy },
-  { id: 'tutoring', icon: Target },
-  { id: 'cheating', icon: FileText },
-  { id: 'research-participation', icon: Users },
-  { id: 'intermission', icon: Coffee },
-  { id: 'kokoro', icon: Brain },
-  { id: 'success', icon: CheckCircle2 },
+  'welcome', 'privacy', 'research', 'name', 'age', 'religion', 'city',
+  'school-type', 'school-name', 'education-level', 'hobbies', 'personality',
+  'recent-mood', 'academic-stress', 'fav-subject', 'fav-why',
+  'worst-subject', 'worst-why', 'report-card', 'tutoring', 'cheating',
+  'research-participation', 'intermission', 'kokoro', 'success',
 ]
 
-const PAGE_TRANSITION = {
-  initial: { opacity: 0, scale: 0.95, rotateX: -10 },
-  animate: { opacity: 1, scale: 1, rotateX: 0 },
-  exit: { opacity: 0, scale: 1.05, rotateX: 10 },
-  transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] }
+// ── Shared style helpers ──────────────────────────────────────────
+const H: CSSProperties = {
+  fontFamily: 'var(--font-display)', fontWeight: 800,
+  fontSize: 'clamp(22px,3.5vw,32px)', color: 'var(--ink)',
+  letterSpacing: '-0.02em', lineHeight: 1.1, marginBottom: 8,
+}
+const SUB: CSSProperties = {
+  fontFamily: 'var(--font-body)', fontSize: 14,
+  color: 'var(--ink-3)', marginBottom: 24, lineHeight: 1.5,
+}
+const optStyle = (selected: boolean): CSSProperties => ({
+  padding: '11px 8px',
+  textAlign: 'center',
+  background: selected ? 'var(--bg-invert)' : 'var(--bg)',
+  color: selected ? 'var(--ink-invert)' : 'var(--ink)',
+  border: '1.5px solid var(--border)',
+  fontFamily: 'var(--font-display)',
+  fontWeight: 700,
+  fontSize: 11,
+  letterSpacing: '0.04em',
+  cursor: 'pointer',
+  transition: 'background 80ms, color 80ms',
+  lineHeight: 1.3,
+})
+const INPUT_STYLE: CSSProperties = {
+  width: '100%', padding: '13px 14px',
+  fontSize: 15, boxSizing: 'border-box', marginBottom: 20,
+}
+const MONO_LABEL: CSSProperties = {
+  display: 'block', fontFamily: 'var(--font-mono)',
+  fontSize: 10, letterSpacing: '0.12em', color: 'var(--ink-3)', marginBottom: 8,
 }
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const { t, i18n } = useTranslation()
   const [currentStep, setCurrentStep] = useState(0)
   const [userData, setUserData] = useState({
     name: '',
@@ -105,40 +80,27 @@ export default function OnboardingPage() {
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-
       if (!session) {
         await new Promise(resolve => setTimeout(resolve, 500))
-        const { data: { session: retrySession } } = await supabase.auth.getSession()
-
-        if (!retrySession) {
-          router.push('/auth')
-        }
+        const { data: { session: retry } } = await supabase.auth.getSession()
+        if (!retry) router.push('/auth')
       }
     }
     checkAuth()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        router.push('/auth')
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session) => {
+      if (!session) router.push('/auth')
     })
-
     return () => subscription.unsubscribe()
   }, [router])
 
   const nextStep = () => {
-    if (ONBOARDING_STEPS[currentStep].id === 'academic-stress' && userData.recent_mood > 3) {
-      setCurrentStep(currentStep + 2)
+    if (ONBOARDING_STEPS[currentStep] === 'academic-stress' && userData.recent_mood > 3) {
+      setCurrentStep(s => s + 2)
     } else if (currentStep < ONBOARDING_STEPS.length - 1) {
-      setCurrentStep(currentStep + 1)
+      setCurrentStep(s => s + 1)
     }
   }
-
-  const prevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1)
-    }
-  }
+  const prevStep = () => { if (currentStep > 0) setCurrentStep(s => s - 1) }
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -146,281 +108,139 @@ export default function OnboardingPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user found')
 
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          name: userData.name,
-          age: parseInt(userData.age),
-          religion: userData.religion,
-          city: userData.city,
-          school_type: userData.school_type,
-          school_name: userData.school_name,
-          education_board: userData.education_board,
-          education_level: userData.education_level,
-          hobbies: userData.hobbies,
-          personality_traits: userData.personality_traits,
-          recent_mood: userData.recent_mood,
-          academic_stress: userData.academic_stress,
-          stress_is_academic: userData.stress_is_academic,
-          favorite_subject: userData.favorite_subject,
-          favorite_subject_why: userData.favorite_subject_why,
-          worst_subject: userData.worst_subject,
-          worst_subject_why: userData.worst_subject_why,
-          report_card_average: userData.report_card_average,
-          has_tutoring: userData.has_tutoring,
-          has_cheated: userData.has_cheated,
-          previous_research: userData.previous_research,
-          onboarding_completed: true,
-          language: 'en',
-          updated_at: new Date().toISOString(),
-        })
-
+      const { error } = await supabase.from('profiles').upsert({
+        id: user.id,
+        name: userData.name,
+        age: parseInt(userData.age),
+        religion: userData.religion,
+        city: userData.city,
+        location: userData.city,
+        school_type: userData.school_type,
+        school_name: userData.school_name,
+        education_board: userData.education_board,
+        education_level: userData.education_level,
+        hobbies: userData.hobbies,
+        personality_traits: userData.personality_traits,
+        recent_mood: userData.recent_mood,
+        academic_stress: userData.academic_stress,
+        stress_is_academic: userData.stress_is_academic,
+        favorite_subject: userData.favorite_subject,
+        favorite_subject_why: userData.favorite_subject_why,
+        worst_subject: userData.worst_subject,
+        worst_subject_why: userData.worst_subject_why,
+        report_card_average: userData.report_card_average,
+        has_tutoring: userData.has_tutoring,
+        has_cheated: userData.has_cheated,
+        previous_research: userData.previous_research,
+        onboarding_completed: true,
+        language: 'en',
+        updated_at: new Date().toISOString(),
+      })
       if (error) throw error
+
+      // Link onboarding mood to the moods tracking table
+      if (userData.recent_mood > 0) {
+        await supabase.from('moods').insert({
+          user_id: user.id,
+          mood_score: userData.recent_mood,
+          note: 'Onboarding baseline',
+        })
+      }
+
+      // Link onboarding stress to the academic_stress tracking table
+      if (userData.academic_stress > 0) {
+        const perfMap: Record<string, number> = {
+          'excellent': 5, 'very-good': 4, 'good': 3,
+          'satisfactory': 2, 'needs-improvement': 1, 'varies': 3,
+        }
+        await supabase.from('academic_stress').insert({
+          user_id: user.id,
+          stress_level: userData.academic_stress,
+          performance_rating: perfMap[userData.report_card_average] ?? 3,
+        })
+      }
+
       nextStep()
-    } catch (error) {
-      console.error('Error saving profile:', error)
+    } catch (err) {
+      console.error('Error saving profile:', err)
       alert('Error saving your information. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  const updateUserData = (key: string, value: any) => {
-    setUserData(prev => ({ ...prev, [key]: value }))
-  }
-
-  const CurrentStepComponent = ONBOARDING_STEPS[currentStep].id
+  const update = (key: string, value: any) => setUserData(prev => ({ ...prev, [key]: value }))
+  const step = ONBOARDING_STEPS[currentStep]
+  const total = ONBOARDING_STEPS.length
 
   return (
-    <div className="min-h-screen relative font-sans selection:bg-[#C4661F] selection:text-white overflow-hidden">
-      
-      <MeshGradient />
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
 
-      {/* Progress Indicator - MOBILE OPTIMIZED */}
-      <div className="absolute top-4 sm:top-8 left-1/2 -translate-x-1/2 z-20">
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {ONBOARDING_STEPS.map((step, index) => (
-            <motion.div
-              key={step.id}
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: index * 0.05 }}
-              className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full transition-all duration-300 ${
-                index === currentStep 
-                  ? 'bg-[#D2691E] w-4 sm:w-6' 
-                  : index < currentStep 
-                  ? 'bg-[#4A6C6F]' 
-                  : 'bg-white/20'
-              }`}
-            />
-          ))}
+      {/* ── Fixed progress header ── */}
+      <header style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
+        background: 'var(--bg)', borderBottom: '1.5px solid var(--border)',
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 clamp(16px,4vw,32px)', height: 52,
+        }}>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14, color: 'var(--ink)', letterSpacing: '-0.01em' }}>
+            SATORI
+          </span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em' }}>
+            {String(currentStep + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
+          </span>
         </div>
-        <p className="text-[10px] sm:text-xs text-[#5F5F5F] text-center mt-1.5 sm:mt-2">
-          Step {currentStep + 1} of {ONBOARDING_STEPS.length}
-        </p>
-      </div>
+        <div style={{ height: 2, background: 'var(--border-2)' }}>
+          <div style={{
+            height: '100%', background: 'var(--ink)',
+            width: `${((currentStep + 1) / total) * 100}%`,
+            transition: 'width 300ms ease',
+          }} />
+        </div>
+      </header>
 
-      {/* Main Content - MOBILE OPTIMIZED */}
-      <div className="relative z-10 min-h-screen flex items-center justify-center px-3 sm:px-4 py-16 sm:py-20">
+      {/* ── Content ── */}
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 'clamp(80px,10vw,96px) clamp(16px,4vw,32px) 40px',
+      }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={currentStep}
-            {...PAGE_TRANSITION}
-            className="w-full max-w-3xl"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -14 }}
+            transition={{ duration: 0.2, ease: [0.25, 0, 0, 1] }}
+            style={{ width: '100%', maxWidth: 600 }}
           >
-            {/* All step components... */}
-            {CurrentStepComponent === 'welcome' && <WelcomeStep nextStep={nextStep} />}
-            {CurrentStepComponent === 'privacy' && (
-              <PrivacyStep 
-                agreed={userData.agreedToPolicies}
-                onAgree={(value) => updateUserData('agreedToPolicies', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'research' && (
-              <ResearchStep 
-                agreed={userData.agreedToResearch}
-                onAgree={(value) => updateUserData('agreedToResearch', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'name' && (
-              <NameStep 
-                value={userData.name}
-                onChange={(value) => updateUserData('name', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'age' && (
-              <AgeStep 
-                value={userData.age}
-                onChange={(value) => updateUserData('age', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'religion' && (
-              <ReligionStep 
-                value={userData.religion}
-                onChange={(value) => updateUserData('religion', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'city' && (
-              <CityStep 
-                value={userData.city}
-                onChange={(value) => updateUserData('city', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'school-type' && (
-              <SchoolTypeStep 
-                value={userData.school_type}
-                onChange={(value) => updateUserData('school_type', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'school-name' && (
-              <SchoolNameStep 
-                value={userData.school_name}
-                onChange={(value) => updateUserData('school_name', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'education-level' && (
-              <EducationLevelStep 
-                boardValue={userData.education_board}
-                levelValue={userData.education_level}
-                onBoardChange={(value) => updateUserData('education_board', value)}
-                onLevelChange={(value) => updateUserData('education_level', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'hobbies' && (
-              <HobbiesStep 
-                value={userData.hobbies}
-                onChange={(value) => updateUserData('hobbies', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'personality' && (
-              <PersonalityStep 
-                value={userData.personality_traits}
-                onChange={(value) => updateUserData('personality_traits', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'recent-mood' && (
-              <RecentMoodStep 
-                value={userData.recent_mood}
-                onChange={(value) => updateUserData('recent_mood', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'academic-stress' && (
-              <AcademicStressStep 
-                value={userData.academic_stress}
-                moodValue={userData.recent_mood}
-                stressIsAcademic={userData.stress_is_academic}
-                onChange={(value) => updateUserData('academic_stress', value)}
-                onStressChange={(value) => updateUserData('stress_is_academic', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'fav-subject' && (
-              <FavoriteSubjectStep 
-                value={userData.favorite_subject}
-                onChange={(value) => updateUserData('favorite_subject', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'fav-why' && (
-              <SubjectWhyStep 
-                type="favorite"
-                subject={userData.favorite_subject}
-                value={userData.favorite_subject_why}
-                onChange={(value) => updateUserData('favorite_subject_why', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'worst-subject' && (
-              <WorstSubjectStep 
-                value={userData.worst_subject}
-                onChange={(value) => updateUserData('worst_subject', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'worst-why' && (
-              <SubjectWhyStep 
-                type="worst"
-                subject={userData.worst_subject}
-                value={userData.worst_subject_why}
-                onChange={(value) => updateUserData('worst_subject_why', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'report-card' && (
-              <ReportCardStep 
-                value={userData.report_card_average}
-                onChange={(value) => updateUserData('report_card_average', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'tutoring' && (
-              <TutoringStep 
-                value={userData.has_tutoring}
-                onChange={(value) => updateUserData('has_tutoring', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'cheating' && (
-              <CheatingStep 
-                value={userData.has_cheated}
-                onChange={(value) => updateUserData('has_cheated', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'research-participation' && (
-              <ResearchParticipationStep 
-                value={userData.previous_research}
-                onChange={(value) => updateUserData('previous_research', value)}
-                nextStep={nextStep}
-                prevStep={prevStep}
-              />
-            )}
-            {CurrentStepComponent === 'intermission' && (
-              <IntermissionStep nextStep={nextStep} prevStep={prevStep} />
-            )}
-            {CurrentStepComponent === 'kokoro' && (
-              <KokoroStep 
-                onFinish={handleSubmit}
-                prevStep={prevStep}
-                loading={loading}
-              />
-            )}
-            {CurrentStepComponent === 'success' && (
-              <SuccessStep router={router} />
-            )}
+            {step === 'welcome' && <WelcomeStep nextStep={nextStep} />}
+            {step === 'privacy' && <PrivacyStep agreed={userData.agreedToPolicies} onAgree={v => update('agreedToPolicies', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'research' && <ResearchStep agreed={userData.agreedToResearch} onAgree={v => update('agreedToResearch', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'name' && <NameStep value={userData.name} onChange={v => update('name', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'age' && <AgeStep value={userData.age} onChange={v => update('age', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'religion' && <ReligionStep value={userData.religion} onChange={v => update('religion', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'city' && <CityStep value={userData.city} onChange={v => update('city', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'school-type' && <SchoolTypeStep value={userData.school_type} onChange={v => update('school_type', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'school-name' && <SchoolNameStep value={userData.school_name} onChange={v => update('school_name', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'education-level' && <EducationLevelStep boardValue={userData.education_board} levelValue={userData.education_level} onBoardChange={v => update('education_board', v)} onLevelChange={v => update('education_level', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'hobbies' && <HobbiesStep value={userData.hobbies} onChange={v => update('hobbies', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'personality' && <PersonalityStep value={userData.personality_traits} onChange={v => update('personality_traits', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'recent-mood' && <RecentMoodStep value={userData.recent_mood} onChange={v => update('recent_mood', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'academic-stress' && <AcademicStressStep value={userData.academic_stress} moodValue={userData.recent_mood} stressIsAcademic={userData.stress_is_academic} onChange={v => update('academic_stress', v)} onStressChange={v => update('stress_is_academic', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'fav-subject' && <FavoriteSubjectStep value={userData.favorite_subject} onChange={v => update('favorite_subject', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'fav-why' && <SubjectWhyStep type="favorite" subject={userData.favorite_subject} value={userData.favorite_subject_why} onChange={v => update('favorite_subject_why', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'worst-subject' && <WorstSubjectStep value={userData.worst_subject} onChange={v => update('worst_subject', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'worst-why' && <SubjectWhyStep type="worst" subject={userData.worst_subject} value={userData.worst_subject_why} onChange={v => update('worst_subject_why', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'report-card' && <ReportCardStep value={userData.report_card_average} onChange={v => update('report_card_average', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'tutoring' && <TutoringStep value={userData.has_tutoring} onChange={v => update('has_tutoring', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'cheating' && <CheatingStep value={userData.has_cheated} onChange={v => update('has_cheated', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'research-participation' && <ResearchParticipationStep value={userData.previous_research} onChange={v => update('previous_research', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'intermission' && <IntermissionStep nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'kokoro' && <KokoroStep onFinish={handleSubmit} prevStep={prevStep} loading={loading} />}
+            {step === 'success' && <SuccessStep router={router} />}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -428,353 +248,204 @@ export default function OnboardingPage() {
   )
 }
 
-// ============= STEP COMPONENTS - MOBILE OPTIMIZED =============
+// ── Reusable shell components ─────────────────────────────────────
+
+function BCard({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ border: '1.5px solid var(--border)', padding: 'clamp(24px,5vw,40px)', background: 'var(--bg)' }}>
+      {children}
+    </div>
+  )
+}
+
+function NavBtns({ onNext, onBack, nextDisabled }: { onNext: () => void; onBack: () => void; nextDisabled: boolean }) {
+  return (
+    <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+      <button
+        onClick={onBack}
+        className="br-btn"
+        style={{ padding: '12px 20px', color: 'var(--ink-2)', fontSize: 12, letterSpacing: '0.06em' }}
+      >
+        ← BACK
+      </button>
+      <button
+        onClick={onNext}
+        disabled={nextDisabled}
+        className="br-btn br-btn-inv"
+        style={{ flex: 1, padding: '12px 20px', fontSize: 12, letterSpacing: '0.06em', opacity: nextDisabled ? 0.38 : 1, cursor: nextDisabled ? 'not-allowed' : 'pointer' }}
+      >
+        NEXT →
+      </button>
+    </div>
+  )
+}
+
+// ── Step components ───────────────────────────────────────────────
 
 function WelcomeStep({ nextStep }: { nextStep: () => void }) {
   return (
-    <GlassCard>
-      <div className="text-center">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.2, type: "spring" }}
-          className="mb-6 sm:mb-8 mx-auto w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-[#D2691E]/20 to-[#4A6C6F]/20 rounded-3xl flex items-center justify-center"
-        >
-          <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-[#D2691E]" />
-        </motion.div>
-        
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-medium text-[#2C2C2C] mb-3 sm:mb-4">
-          Welcome to Satori
+    <BCard>
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.14em', marginBottom: 16 }}>
+          MENTAL WELLNESS RESEARCH PLATFORM
+        </div>
+        <h1 style={{ ...H, fontSize: 'clamp(28px,5vw,44px)', marginBottom: 20 }}>
+          Welcome to Satori.
         </h1>
-        <p className="text-base sm:text-lg text-[#5F5F5F] mb-6 sm:mb-8 max-w-2xl mx-auto leading-relaxed px-2">
-          We're honored to have you here. This comprehensive questionnaire will help us understand you better and provide personalized mental wellness support. 
-          
-          <br/><br/>
-
-          Your responses are confidential and will be used solely for research purposes to improve mental health services for students in Pakistan.
-          
-          <br/><br/>
-          
-          <span className="text-[#2C2C2C]">This should take about 10-15 minutes to complete.</span>
+        <p style={{ ...SUB, marginBottom: 12 }}>
+          We&apos;re honored to have you here. This questionnaire will help us understand you better and provide personalized mental wellness support.
         </p>
-        
-        <button
-          onClick={nextStep}
-          className="px-6 sm:px-8 py-3 sm:py-4 bg-[#D2691E] hover:bg-[#D2691E]/90 text-white rounded-xl sm:rounded-2xl font-medium text-sm sm:text-base transition-all duration-300 hover:scale-105 flex items-center gap-2 mx-auto shadow-xl"
-        >
-          Let's Begin
-          <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-        </button>
+        <p style={{ ...SUB, marginBottom: 12 }}>
+          Your responses are confidential and used solely for research purposes to improve mental health services for students in Pakistan.
+        </p>
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', letterSpacing: '0.08em' }}>
+          TAKES 10–15 MINUTES TO COMPLETE.
+        </p>
       </div>
-    </GlassCard>
+      <button
+        onClick={nextStep}
+        className="br-btn br-btn-inv"
+        style={{ padding: '14px 28px', fontSize: 13, letterSpacing: '0.06em' }}
+      >
+        BEGIN ONBOARDING →
+      </button>
+    </BCard>
   )
 }
 
 function PrivacyStep({ agreed, onAgree, nextStep, prevStep }: any) {
   return (
-    <GlassCard>
-      <div className="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
-        <Shield className="w-8 h-8 sm:w-10 sm:h-10 text-[#D2691E]" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C]">Privacy Policy & Terms</h2>
-      </div>
-      
-      <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8 max-h-64 sm:max-h-96 overflow-y-auto pr-2 sm:pr-4 custom-scrollbar">
-        <section className="space-y-2 sm:space-y-3">
-          <h3 className="text-lg sm:text-xl font-semibold text-[#2C2C2C]">1. Data Collection & Usage</h3>
-          <p className="text-sm sm:text-base text-[#5F5F5F] leading-relaxed">
-            We collect personal information including your name, age, educational background, hobbies, personality traits, mood patterns, and academic performance data. This information is used exclusively to:
-          </p>
-          <ul className="space-y-2 text-sm sm:text-base text-[#5F5F5F] ml-2 sm:ml-4">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>Provide personalized mental wellness support through our AI companion, Kokoro</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>Analyze patterns in student mental health and academic stress in Pakistan</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>Improve our services and develop better mental health interventions</span>
-            </li>
-          </ul>
-        </section>
-
-        <section className="space-y-2 sm:space-y-3">
-          <h3 className="text-lg sm:text-xl font-semibold text-[#2C2C2C]">2. Data Security & Confidentiality</h3>
-          <ul className="space-y-2 text-sm sm:text-base text-[#5F5F5F] ml-2 sm:ml-4">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>All data is encrypted using industry-standard AES-256 encryption</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>Your conversations with Kokoro are completely private and confidential</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>We never share your personal information with third parties without explicit consent</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>Access to your data is strictly limited to authorized research personnel</span>
-            </li>
-          </ul>
-        </section>
-
-        <section className="space-y-2 sm:space-y-3">
-          <h3 className="text-lg sm:text-xl font-semibold text-[#2C2C2C]">3. Your Rights</h3>
-          <ul className="space-y-2 text-sm sm:text-base text-[#5F5F5F] ml-2 sm:ml-4">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>You have the right to access all your personal data at any time</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>You can request deletion of your account and all associated data</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>You can opt out of research participation while continuing to use the service</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>You can withdraw consent at any time without penalty</span>
-            </li>
-          </ul>
-        </section>
-
-        <section className="space-y-2 sm:space-y-3">
-          <h3 className="text-lg sm:text-xl font-semibold text-[#2C2C2C]">4. Age Restrictions</h3>
-          <p className="text-sm sm:text-base text-[#5F5F5F] leading-relaxed">
-            Users must be between 3 and 99 years old to use this service. For users under 18, we recommend parental guidance when using mental health services.
-          </p>
-        </section>
-
-        <section className="space-y-2 sm:space-y-3">
-          <h3 className="text-lg sm:text-xl font-semibold text-[#2C2C2C]">5. Limitation of Services</h3>
-          <p className="text-sm sm:text-base text-[#5F5F5F] leading-relaxed">
-            Satori is designed to provide support and guidance for mental wellness. However, it is not a substitute for professional mental health care. In case of emergency or severe mental health concerns, please contact a licensed mental health professional or emergency services immediately.
-          </p>
-        </section>
-
-        <section className="space-y-2 sm:space-y-3">
-          <h3 className="text-lg sm:text-xl font-semibold text-[#2C2C2C]">6. Changes to Privacy Policy</h3>
-          <p className="text-sm sm:text-base text-[#5F5F5F] leading-relaxed">
-            We may update this privacy policy from time to time. We will notify you of any significant changes via email or in-app notification.
-          </p>
-        </section>
+    <BCard>
+      <h2 style={H}>Privacy Policy &amp; Terms</h2>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 20 }}>
+        READ BEFORE CONTINUING
       </div>
 
-      <label className="flex items-start gap-2 sm:gap-3 mb-6 sm:mb-8 cursor-pointer group">
+      <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 20, paddingRight: 8 }}>
+        {[
+          { title: '1. Data Collection & Usage', body: 'We collect personal information including your name, age, educational background, hobbies, personality traits, mood patterns, and academic performance data. This information is used exclusively to provide personalized mental wellness support, analyze patterns in student mental health, and improve our services.' },
+          { title: '2. Data Security & Confidentiality', body: 'All data is encrypted using industry-standard AES-256 encryption. Your conversations with Kokoro are completely private and confidential. We never share your personal information with third parties without explicit consent.' },
+          { title: '3. Your Rights', body: 'You have the right to access all your personal data at any time. You can request deletion of your account and all associated data, and opt out of research participation while continuing to use the service.' },
+          { title: '4. Age Restrictions', body: 'Users must be between 3 and 99 years old to use this service. For users under 18, we recommend parental guidance when using mental health services.' },
+          { title: '5. Limitation of Services', body: 'Satori is designed to provide support and guidance for mental wellness. It is not a substitute for professional mental health care. In emergencies, please contact a licensed mental health professional or emergency services immediately.' },
+        ].map(s => (
+          <div key={s.title} style={{ marginBottom: 16 }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink)', letterSpacing: '0.04em', marginBottom: 6 }}>{s.title}</div>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.6 }}>{s.body}</p>
+          </div>
+        ))}
+      </div>
+
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 4, cursor: 'pointer' }}>
         <input
           type="checkbox"
           checked={agreed}
-          onChange={(e) => onAgree(e.target.checked)}
-          className="mt-0.5 sm:mt-1 w-4 h-4 sm:w-5 sm:h-5 rounded border-2 border-[#6B6B6B]/30 bg-white/60 checked:bg-[#D2691E] checked:border-[#D2691E] transition-all duration-300 cursor-pointer"
+          onChange={e => onAgree(e.target.checked)}
+          style={{ marginTop: 3, width: 16, height: 16, cursor: 'pointer', flexShrink: 0, accentColor: 'var(--ink)' }}
         />
-        <span className="text-xs sm:text-sm text-[#5F5F5F] group-hover:text-[#2C2C2C] transition-colors">
-          I have read and agree to the privacy policy and terms of service. I understand my rights and how my data will be used.
+        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}>
+          I have read and agree to the privacy policy and terms of service.
         </span>
       </label>
 
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!agreed}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!agreed} />
+    </BCard>
   )
 }
+
 function ResearchStep({ agreed, onAgree, nextStep, prevStep }: any) {
   return (
-    <GlassCard>
-      <div className="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
-        <FileText className="w-8 h-8 sm:w-10 sm:h-10 text-[#D2691E]" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C]">Research Participation</h2>
+    <BCard>
+      <h2 style={H}>Research Participation</h2>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 20 }}>
+        VOLUNTARY CONSENT
       </div>
-      
-      <div className="space-y-4 sm:space-y-6 mb-6 sm:mb-8">
-        <section className="space-y-2 sm:space-y-3">
-          <h3 className="text-lg sm:text-xl font-semibold text-[#2C2C2C]">Purpose of Research</h3>
-          <p className="text-sm sm:text-base text-[#5F5F5F] leading-relaxed">
-            This research aims to understand the relationship between academic stress and mental wellness among students in Pakistan. Your participation will contribute to developing better support systems and interventions for student mental health.
-          </p>
-        </section>
 
-        <section className="space-y-2 sm:space-y-3">
-          <h3 className="text-lg sm:text-xl font-semibold text-[#2C2C2C]">How Your Data Will Be Used</h3>
-          <ul className="space-y-2 text-sm sm:text-base text-[#5F5F5F]">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span><strong className="text-[#2C2C2C]">Anonymized Analysis:</strong> Your personal data will be anonymized before being used in research studies. No identifying information will be included in any published research.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span><strong className="text-[#2C2C2C]">Pattern Recognition:</strong> We'll analyze trends in mood, academic stress, study habits, and their correlations to identify patterns and risk factors.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span><strong className="text-[#2C2C2C]">Service Improvement:</strong> Research findings will directly improve Kokoro's ability to provide personalized mental health support.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span><strong className="text-[#2C2C2C]">Academic Publications:</strong> Aggregated, anonymized data may be used in academic papers and conferences to advance mental health research.</span>
-            </li>
-          </ul>
-        </section>
-
-        <section className="space-y-2 sm:space-y-3">
-          <h3 className="text-lg sm:text-xl font-semibold text-[#2C2C2C]">Your Rights as a Research Participant</h3>
-          <ul className="space-y-2 text-sm sm:text-base text-[#5F5F5F]">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>Participation is completely voluntary</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>You can withdraw from the research at any time without affecting your access to Satori</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>You can request that your data be excluded from research (while still using the service)</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>You can access a summary of research findings upon request</span>
-            </li>
-          </ul>
-        </section>
-
-        <section className="bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg">
-          <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
-            <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-[#D2691E] flex-shrink-0" />
-            <div>
-              <h3 className="text-base sm:text-lg font-semibold text-[#2C2C2C] mb-1 sm:mb-2">Questions or Concerns?</h3>
-              <p className="text-xs sm:text-sm text-[#5F5F5F] leading-relaxed">
-                If you have any questions about the research, how your data will be used, or wish to exercise any of your rights, please contact us at:
-              </p>
-              <a 
-                href="mailto:saadnizami114@gmail.com"
-                className="text-[#D2691E] hover:text-[#D2691E]/80 transition-colors inline-flex items-center gap-1 sm:gap-2 mt-1 sm:mt-2 font-medium text-xs sm:text-sm"
-              >
-                saadnizami114@gmail.com
-                <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
-              </a>
-            </div>
+      <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 20, paddingRight: 8 }}>
+        {[
+          { title: 'Purpose of Research', body: 'This research aims to understand the relationship between academic stress and mental wellness among students in Pakistan. Your participation will contribute to developing better support systems for student mental health.' },
+          { title: 'How Your Data Will Be Used', body: 'Your personal data will be anonymized before being used in research studies. We will analyze trends in mood, academic stress, and study habits. Research findings will directly improve Kokoro\'s ability to provide personalized mental health support.' },
+          { title: 'Your Rights as a Research Participant', body: 'Participation is completely voluntary. You can withdraw from the research at any time without affecting your access to Satori. You can request that your data be excluded from research while still using the service.' },
+          { title: 'Questions or Concerns?', body: 'If you have any questions about the research or wish to exercise any of your rights, please contact us at saadnizami114@gmail.com' },
+        ].map(s => (
+          <div key={s.title} style={{ marginBottom: 16 }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink)', letterSpacing: '0.04em', marginBottom: 6 }}>{s.title}</div>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.6 }}>{s.body}</p>
           </div>
-        </section>
+        ))}
       </div>
 
-      <label className="flex items-start gap-2 sm:gap-3 mb-6 sm:mb-8 cursor-pointer group">
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 4, cursor: 'pointer' }}>
         <input
           type="checkbox"
           checked={agreed}
-          onChange={(e) => onAgree(e.target.checked)}
-          className="mt-0.5 sm:mt-1 w-4 h-4 sm:w-5 sm:h-5 rounded border-2 border-[#6B6B6B]/30 bg-white/60 checked:bg-[#D2691E] checked:border-[#D2691E] transition-all duration-300 cursor-pointer"
+          onChange={e => onAgree(e.target.checked)}
+          style={{ marginTop: 3, width: 16, height: 16, cursor: 'pointer', flexShrink: 0, accentColor: 'var(--ink)' }}
         />
-        <span className="text-xs sm:text-sm text-[#5F5F5F] group-hover:text-[#2C2C2C] transition-colors">
-          I understand how my data will be used for research purposes. I voluntarily consent to participate in this research study while understanding that I can withdraw at any time.
+        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}>
+          I voluntarily consent to participate in this research study and understand I can withdraw at any time.
         </span>
       </label>
 
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!agreed}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!agreed} />
+    </BCard>
   )
 }
 
 function NameStep({ value, onChange, nextStep, prevStep }: any) {
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <User className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">What's your name?</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">This helps us personalize your experience with Kokoro</p>
-      </div>
-
+    <BCard>
+      <h2 style={H}>What&apos;s your name?</h2>
+      <p style={SUB}>This helps us personalize your experience with Kokoro.</p>
+      <label style={MONO_LABEL}>FULL NAME</label>
       <input
         type="text"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value)}
         placeholder="Enter your full name"
-        className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl text-[#2C2C2C] text-base sm:text-lg placeholder:text-[#5F5F5F]/50 focus:bg-white/80 focus:border-[#D2691E]/50 focus:outline-none transition-all duration-300 mb-6 sm:mb-8 shadow-lg"
+        className="br-input"
+        style={INPUT_STYLE}
         autoFocus
       />
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value.trim()}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value.trim()} />
+    </BCard>
   )
 }
 
 function AgeStep({ value, onChange, nextStep, prevStep }: any) {
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <Calendar className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">How old are you?</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]"></p>
-      </div>
-
+    <BCard>
+      <h2 style={H}>How old are you?</h2>
+      <p style={SUB}>Enter your current age.</p>
+      <label style={MONO_LABEL}>AGE</label>
       <input
         type="number"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Enter your age"
+        onChange={e => onChange(e.target.value)}
+        placeholder="e.g. 17"
         min="3"
         max="99"
-        className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl text-[#2C2C2C] text-base sm:text-lg placeholder:text-[#5F5F5F]/50 focus:bg-white/80 focus:border-[#D2691E]/50 focus:outline-none transition-all duration-300 mb-6 sm:mb-8 shadow-lg"
+        className="br-input"
+        style={INPUT_STYLE}
       />
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value || parseInt(value) < 3 || parseInt(value) > 99}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value || parseInt(value) < 3 || parseInt(value) > 99} />
+    </BCard>
   )
 }
 
 function ReligionStep({ value, onChange, nextStep, prevStep }: any) {
-  const religions = ['Islam', 'Christianity', 'Hinduism', 'Buddhism', 'Sikhism', 'Atheism', 'Other', 'Prefer not to say']
-
+  const options = ['Islam', 'Christianity', 'Hinduism', 'Buddhism', 'Sikhism', 'Atheism', 'Other', 'Prefer not to say']
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <Heart className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Your Religion</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">This helps us provide culturally sensitive support</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 mb-6 sm:mb-8">
-        {religions.map((religion) => (
-          <button
-            key={religion}
-            onClick={() => onChange(religion)}
-            className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all duration-300 shadow-lg ${
-              value === religion
-                ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
-          >
-            <div className="text-sm sm:text-base font-medium text-[#2C2C2C]">{religion}</div>
-          </button>
+    <BCard>
+      <h2 style={H}>Your Religion</h2>
+      <p style={SUB}>Helps us provide culturally sensitive support.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
+        {options.map(r => (
+          <button key={r} onClick={() => onChange(r)} style={optStyle(value === r)}>{r}</button>
         ))}
       </div>
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
+    </BCard>
   )
 }
 
@@ -784,186 +455,94 @@ function CityStep({ value, onChange, nextStep, prevStep }: any) {
     'Multan', 'Peshawar', 'Quetta', 'Sialkot', 'Gujranwala',
     'Hyderabad', 'Abbottabad', 'Bahawalpur', 'Sargodha', 'Sukkur',
     'Larkana', 'Sheikhupura', 'Rahim Yar Khan', 'Jhang', 'Dera Ghazi Khan',
-    'Gujrat', 'Sahiwal', 'Wah Cantonment', 'Mardan', 'Kasur', 'Other'
+    'Gujrat', 'Sahiwal', 'Wah Cantonment', 'Mardan', 'Kasur', 'Other',
   ]
-
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <MapPin className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Which city do you live in?</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">Select your city</p>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mb-6 sm:mb-8 max-h-64 sm:max-h-96 overflow-y-auto pr-1 sm:pr-2">
-        {cities.map((city) => (
-          <button
-            key={city}
-            onClick={() => onChange(city)}
-            className={`p-2 sm:p-3 rounded-lg sm:rounded-xl border-2 transition-all duration-300 shadow-lg ${
-              value === city
-                ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
-          >
-            <div className="text-xs sm:text-sm font-medium text-[#2C2C2C]">{city}</div>
-          </button>
+    <BCard>
+      <h2 style={H}>Which city do you live in?</h2>
+      <p style={SUB}>Select your city from the list below.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 4, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
+        {cities.map(c => (
+          <button key={c} onClick={() => onChange(c)} style={optStyle(value === c)}>{c}</button>
         ))}
       </div>
-
-      {value === 'Other' && (
-        <input
-          type="text"
-          placeholder="Please specify your city"
-          className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl text-[#2C2C2C] text-sm sm:text-base placeholder:text-[#5F5F5F]/50 focus:bg-white/80 focus:border-[#D2691E]/50 focus:outline-none transition-all duration-300 mb-6 sm:mb-8 shadow-lg"
-        />
-      )}
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
+    </BCard>
   )
 }
 
 function SchoolTypeStep({ value, onChange, nextStep, prevStep }: any) {
   const types = [
-    { id: 'private', name: 'Private School', icon: <School className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'public', name: 'Public/Government School', icon: <Book className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'islamic', name: 'Islamic School/Madrasa', icon: <Heart className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'homeschool', name: 'Homeschool', icon: <User className="w-6 h-6 sm:w-8 sm:h-8" /> },
+    { id: 'private', name: 'Private School' },
+    { id: 'public', name: 'Government / Public' },
+    { id: 'islamic', name: 'Islamic / Madrasa' },
+    { id: 'homeschool', name: 'Homeschool' },
   ]
-
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <School className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Type of School</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">What type of educational institution do you attend?</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
-        {types.map((type) => (
-          <button
-            key={type.id}
-            onClick={() => onChange(type.id)}
-            className={`p-4 sm:p-6 rounded-xl sm:rounded-2xl border-2 transition-all duration-300 shadow-lg ${
-              value === type.id
-                ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
-          >
-            <div className="text-[#D2691E] mb-2 sm:mb-3 flex justify-center">{type.icon}</div>
-            <div className="text-sm sm:text-base font-medium text-[#2C2C2C]">{type.name}</div>
-          </button>
+    <BCard>
+      <h2 style={H}>Type of School</h2>
+      <p style={SUB}>What type of educational institution do you attend?</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
+        {types.map(t => (
+          <button key={t.id} onClick={() => onChange(t.id)} style={optStyle(value === t.id)}>{t.name}</button>
         ))}
       </div>
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
+    </BCard>
   )
 }
 
 function SchoolNameStep({ value, onChange, nextStep, prevStep }: any) {
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <School className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">School Name</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">What's the name of your school/institution?</p>
-      </div>
-
+    <BCard>
+      <h2 style={H}>School Name</h2>
+      <p style={SUB}>What&apos;s the name of your school or institution?</p>
+      <label style={MONO_LABEL}>SCHOOL / INSTITUTION</label>
       <input
         type="text"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Enter your school name"
-        className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl text-[#2C2C2C] text-base sm:text-lg placeholder:text-[#5F5F5F]/50 focus:bg-white/80 focus:border-[#D2691E]/50 focus:outline-none transition-all duration-300 mb-6 sm:mb-8 shadow-lg"
+        onChange={e => onChange(e.target.value)}
+        placeholder="e.g. Lahore Grammar School"
+        className="br-input"
+        style={INPUT_STYLE}
       />
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value.trim()}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value.trim()} />
+    </BCard>
   )
 }
+
 function EducationLevelStep({ boardValue, levelValue, onBoardChange, onLevelChange, nextStep, prevStep }: any) {
   const boards = [
-    { id: 'primary-middle', name: 'Primary/Middle School', levels: ['Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8'] },
+    { id: 'primary-middle', name: 'Primary / Middle', levels: ['Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8'] },
     { id: 'matric', name: 'Matric', levels: ['Class 9', 'Class 10'] },
-    { id: 'fsc', name: 'FSC/Intermediate', levels: ['Class 11 (1st Year)', 'Class 12 (2nd Year)'] },
+    { id: 'fsc', name: 'FSC / Intermediate', levels: ['Class 11 (1st Year)', 'Class 12 (2nd Year)'] },
     { id: 'olevels', name: 'O-Levels', levels: ['O-Level Year 1', 'O-Level Year 2', 'O-Level Year 3'] },
     { id: 'alevels', name: 'A-Levels', levels: ['A-Level Year 1 (AS)', 'A-Level Year 2 (A2)'] },
-    { id: 'bachelors', name: 'Bachelors/University', levels: ['Semester 1', 'Semester 2', 'Semester 3', 'Semester 4', 'Semester 5', 'Semester 6', 'Semester 7', 'Semester 8'] },
+    { id: 'bachelors', name: 'Bachelors / University', levels: ['Semester 1', 'Semester 2', 'Semester 3', 'Semester 4', 'Semester 5', 'Semester 6', 'Semester 7', 'Semester 8'] },
   ]
-
-  const selectedBoard = boards.find(b => b.id === boardValue)
-
+  const selected = boards.find(b => b.id === boardValue)
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <GraduationCap className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Education Level</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">Select your educational board and current level</p>
+    <BCard>
+      <h2 style={H}>Education Level</h2>
+      <p style={SUB}>Select your board and current year.</p>
+      <label style={MONO_LABEL}>EDUCATIONAL BOARD / SYSTEM</label>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 20 }}>
+        {boards.map(b => (
+          <button key={b.id} onClick={() => { onBoardChange(b.id); onLevelChange('') }} style={optStyle(boardValue === b.id)}>{b.name}</button>
+        ))}
       </div>
-
-      <div className="mb-4 sm:mb-6">
-        <label className="block text-xs sm:text-sm text-[#2C2C2C] mb-2 sm:mb-3 ml-1">Educational Board/System</label>
-        <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          {boards.map((board) => (
-            <button
-              key={board.id}
-              onClick={() => {
-                onBoardChange(board.id)
-                onLevelChange('')
-              }}
-              className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-300 shadow-lg ${
-                boardValue === board.id
-                  ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                  : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-              }`}
-            >
-              <div className="text-xs sm:text-sm font-medium text-[#2C2C2C]">{board.name}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {selectedBoard && (
-        <div className="mb-6 sm:mb-8">
-          <label className="block text-xs sm:text-sm text-[#2C2C2C] mb-2 sm:mb-3 ml-1">Current Class/Level</label>
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3 max-h-48 sm:max-h-64 overflow-y-auto pr-1 sm:pr-2">
-            {selectedBoard.levels.map((level) => (
-              <button
-                key={level}
-                onClick={() => onLevelChange(level)}
-                className={`p-2 sm:p-3 rounded-lg sm:rounded-xl border-2 transition-all duration-300 shadow-lg ${
-                  levelValue === level
-                    ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                    : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-                }`}
-              >
-                <div className="text-[10px] sm:text-xs font-medium text-[#2C2C2C]">{level}</div>
-              </button>
+      {selected && (
+        <>
+          <label style={MONO_LABEL}>CURRENT CLASS / LEVEL</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 4, maxHeight: 200, overflowY: 'auto', paddingRight: 4 }}>
+            {selected.levels.map(l => (
+              <button key={l} onClick={() => onLevelChange(l)} style={optStyle(levelValue === l)}>{l}</button>
             ))}
           </div>
-        </div>
+        </>
       )}
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!boardValue || !levelValue}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!boardValue || !levelValue} />
+    </BCard>
   )
 }
 
@@ -971,766 +550,452 @@ function HobbiesStep({ value, onChange, nextStep, prevStep }: any) {
   const hobbies = [
     'Drawing/Painting', 'Writing', 'Photography', 'Calligraphy', 'Crafts',
     'Singing', 'Playing Instrument', 'Music Production', 'Listening to Music',
-    'Cricket', 'Football', 'Basketball', 'Badminton', 'Swimming', 'Cycling', 'Running', 'Gym/Fitness', 'Martial Arts', 'Yoga',
-    'Video Gaming', 'PC Gaming', 'Mobile Gaming', 'Coding/Programming', 'Web Design', 'Robotics',
-    'Reading Books', 'Poetry', 'Debating', 'Science Experiments', 'Chess', 'Puzzles',
-    'Watching Movies', 'Watching Drama/Series', 'Social Media', 'YouTube', 'Making Videos', 'Blogging',
-    'Cooking', 'Baking', 'Food Blogging',
-    'Gardening', 'Bird Watching', 'Pet Care', 'Traveling', 'Hiking',
-    'Quran Recitation', 'Islamic Studies', 'Volunteering', 'Community Service',
-    'Fashion Design', 'Makeup', 'Styling',
-    'Collecting (stamps, coins, etc)', 'Organizing', 'Journaling',
-    'Acting', 'Dancing', 'Public Speaking',
-    'Other'
+    'Cricket', 'Football', 'Basketball', 'Badminton', 'Swimming', 'Cycling',
+    'Running', 'Gym/Fitness', 'Martial Arts', 'Yoga',
+    'Video Gaming', 'PC Gaming', 'Mobile Gaming', 'Coding/Programming',
+    'Web Design', 'Robotics', 'Reading Books', 'Poetry', 'Debating',
+    'Science Experiments', 'Chess', 'Puzzles', 'Watching Movies',
+    'Watching Drama/Series', 'Social Media', 'YouTube', 'Making Videos',
+    'Blogging', 'Cooking', 'Baking', 'Food Blogging', 'Gardening',
+    'Bird Watching', 'Pet Care', 'Traveling', 'Hiking', 'Quran Recitation',
+    'Islamic Studies', 'Volunteering', 'Community Service', 'Fashion Design',
+    'Makeup', 'Styling', 'Collecting', 'Organizing', 'Journaling',
+    'Acting', 'Dancing', 'Public Speaking', 'Other',
   ]
-
-  const toggleHobby = (hobby: string) => {
-    if (value.includes(hobby)) {
-      onChange(value.filter((h: string) => h !== hobby))
-    } else {
-      onChange([...value, hobby])
-    }
-  }
-
+  const toggle = (h: string) => onChange(value.includes(h) ? value.filter((x: string) => x !== h) : [...value, h])
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <Heart className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Your Hobbies & Interests</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">Select all that apply (minimum 1)</p>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mb-6 sm:mb-8 max-h-64 sm:max-h-96 overflow-y-auto pr-1 sm:pr-2">
-        {hobbies.map((hobby) => (
-          <button
-            key={hobby}
-            onClick={() => toggleHobby(hobby)}
-            className={`p-2 sm:p-3 rounded-lg sm:rounded-xl border-2 transition-all duration-300 shadow-lg ${
-              value.includes(hobby)
-                ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
-          >
-            <div className="text-[10px] sm:text-xs font-medium text-[#2C2C2C]">{hobby}</div>
-          </button>
+    <BCard>
+      <h2 style={H}>Your Hobbies &amp; Interests</h2>
+      <p style={SUB}>Select all that apply — at least 1.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 12, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
+        {hobbies.map(h => (
+          <button key={h} onClick={() => toggle(h)} style={optStyle(value.includes(h))}>{h}</button>
         ))}
       </div>
-
       {value.length > 0 && (
-        <p className="text-xs sm:text-sm text-[#4A6C6F] mb-3 sm:mb-4">Selected: {value.length} {value.length === 1 ? 'hobby' : 'hobbies'}</p>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 4 }}>
+          {value.length} SELECTED
+        </div>
       )}
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={value.length === 0}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={value.length === 0} />
+    </BCard>
   )
 }
 
 function PersonalityStep({ value, onChange, nextStep, prevStep }: any) {
   const traits = [
-    'Introverted', 'Extroverted', 'Analytical', 'Creative', 
+    'Introverted', 'Extroverted', 'Analytical', 'Creative',
     'Organized', 'Spontaneous', 'Empathetic', 'Logical',
     'Optimistic', 'Realistic', 'Ambitious', 'Relaxed',
     'Confident', 'Humble', 'Independent', 'Team Player',
     'Adventurous', 'Cautious', 'Outgoing', 'Reserved',
-    'Leader', 'Follower', 'Perfectionist', 'Flexible'
+    'Leader', 'Follower', 'Perfectionist', 'Flexible',
   ]
-
-  const toggleTrait = (trait: string) => {
-    if (value.includes(trait)) {
-      onChange(value.filter((t: string) => t !== trait))
-    } else {
-      onChange([...value, trait])
-    }
-  }
-
+  const toggle = (t: string) => onChange(value.includes(t) ? value.filter((x: string) => x !== t) : [...value, t])
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <Palette className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Your Personality</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">Choose traits that describe you (select at least 3)</p>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mb-6 sm:mb-8">
-        {traits.map((trait) => (
-          <button
-            key={trait}
-            onClick={() => toggleTrait(trait)}
-            className={`p-2 sm:p-3 rounded-lg sm:rounded-xl border-2 transition-all duration-300 shadow-lg ${
-              value.includes(trait)
-                ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
-          >
-            <div className="text-xs sm:text-sm font-medium text-[#2C2C2C]">{trait}</div>
-          </button>
+    <BCard>
+      <h2 style={H}>Your Personality</h2>
+      <p style={SUB}>Choose traits that describe you — select at least 3.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 12 }}>
+        {traits.map(t => (
+          <button key={t} onClick={() => toggle(t)} style={optStyle(value.includes(t))}>{t}</button>
         ))}
       </div>
-
       {value.length > 0 && (
-        <p className="text-xs sm:text-sm text-[#4A6C6F] mb-3 sm:mb-4">Selected: {value.length} {value.length === 1 ? 'trait' : 'traits'}</p>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 4 }}>
+          {value.length} SELECTED
+        </div>
       )}
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={value.length < 3}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={value.length < 3} />
+    </BCard>
   )
 }
 
 function RecentMoodStep({ value, onChange, nextStep, prevStep }: any) {
   const moods = [
-    { value: 1, label: 'Very Bad', icon: <Frown className="w-8 h-8 sm:w-12 sm:h-12" />, color: 'from-red-500/20 to-red-600/20 border-red-500' },
-    { value: 2, label: 'Bad', icon: <Frown className="w-7 h-7 sm:w-10 sm:h-10" />, color: 'from-orange-500/20 to-orange-600/20 border-orange-500' },
-    { value: 3, label: 'Neutral', icon: <Meh className="w-7 h-7 sm:w-10 sm:h-10" />, color: 'from-yellow-500/20 to-yellow-600/20 border-yellow-500' },
-    { value: 4, label: 'Good', icon: <Smile className="w-7 h-7 sm:w-10 sm:h-10" />, color: 'from-green-500/20 to-green-600/20 border-green-500' },
-    { value: 5, label: 'Very Good', icon: <Smile className="w-8 h-8 sm:w-12 sm:h-12" />, color: 'from-blue-500/20 to-blue-600/20 border-blue-500' },
+    { value: 1, label: 'VERY BAD' },
+    { value: 2, label: 'BAD' },
+    { value: 3, label: 'NEUTRAL' },
+    { value: 4, label: 'GOOD' },
+    { value: 5, label: 'VERY GOOD' },
   ]
-
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <Smile className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">How have you been feeling lately?</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">Rate your mood over the past few days</p>
-      </div>
-
-      <div className="grid grid-cols-5 gap-2 sm:gap-3 mb-6 sm:mb-8">
-        {moods.map((mood) => (
+    <BCard>
+      <h2 style={H}>How have you been feeling lately?</h2>
+      <p style={SUB}>Rate your mood over the past few days.</p>
+      <div style={{ display: 'flex', border: '1.5px solid var(--border)', marginBottom: 4 }}>
+        {moods.map((m, i) => (
           <button
-            key={mood.value}
-            onClick={() => onChange(mood.value)}
-            className={`p-3 sm:p-6 rounded-xl sm:rounded-2xl border-2 transition-all duration-300 bg-gradient-to-br shadow-lg ${
-              value === mood.value
-                ? mood.color
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
+            key={m.value}
+            onClick={() => onChange(m.value)}
+            style={{
+              flex: 1,
+              padding: 'clamp(14px,3vw,20px) clamp(4px,1vw,8px)',
+              textAlign: 'center',
+              background: value === m.value ? 'var(--bg-invert)' : 'var(--bg)',
+              color: value === m.value ? 'var(--ink-invert)' : 'var(--ink)',
+              border: 'none',
+              borderRight: i < moods.length - 1 ? '1.5px solid var(--border)' : 'none',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 800,
+              fontSize: 'clamp(9px,1.8vw,12px)',
+              letterSpacing: '0.04em',
+              cursor: 'pointer',
+              transition: 'background 80ms, color 80ms',
+            }}
           >
-            <div className="text-[#2C2C2C] mb-1 sm:mb-2 flex justify-center">{mood.icon}</div>
-            <div className="text-[10px] sm:text-sm font-medium text-[#2C2C2C]">{mood.label}</div>
+            {m.label}
           </button>
         ))}
       </div>
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={value === 0}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={value === 0} />
+    </BCard>
   )
 }
 
 function AcademicStressStep({ value, moodValue, stressIsAcademic, onChange, onStressChange, nextStep, prevStep }: any) {
-  const stressLevels = [
-    { value: 1, label: 'Very Low', color: 'from-green-500/20 to-green-600/20 border-green-500' },
-    { value: 2, label: 'Low', color: 'from-blue-500/20 to-blue-600/20 border-blue-500' },
-    { value: 3, label: 'Moderate', color: 'from-yellow-500/20 to-yellow-600/20 border-yellow-500' },
-    { value: 4, label: 'High', color: 'from-orange-500/20 to-orange-600/20 border-orange-500' },
-    { value: 5, label: 'Very High', color: 'from-red-500/20 to-red-600/20 border-red-500' },
+  const levels = [
+    { value: 1, label: 'VERY LOW' },
+    { value: 2, label: 'LOW' },
+    { value: 3, label: 'MODERATE' },
+    { value: 4, label: 'HIGH' },
+    { value: 5, label: 'VERY HIGH' },
   ]
-
-  const showStressQuestion = moodValue <= 3
-
+  const showQ = moodValue <= 3
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <TrendingUp className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Academic Stress Level</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">How stressed do you feel about your studies?</p>
-      </div>
-
-      <div className="grid grid-cols-5 gap-2 sm:gap-3 mb-6 sm:mb-8">
-        {stressLevels.map((level) => (
+    <BCard>
+      <h2 style={H}>Academic Stress Level</h2>
+      <p style={SUB}>How stressed do you feel about your studies?</p>
+      <div style={{ display: 'flex', border: '1.5px solid var(--border)', marginBottom: 20 }}>
+        {levels.map((l, i) => (
           <button
-            key={level.value}
-            onClick={() => onChange(level.value)}
-            className={`p-3 sm:p-6 rounded-xl sm:rounded-2xl border-2 transition-all duration-300 bg-gradient-to-br shadow-lg ${
-              value === level.value
-                ? level.color
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
+            key={l.value}
+            onClick={() => onChange(l.value)}
+            style={{
+              flex: 1,
+              padding: 'clamp(12px,2.5vw,18px) clamp(4px,1vw,6px)',
+              textAlign: 'center',
+              background: value === l.value ? 'var(--bg-invert)' : 'var(--bg)',
+              color: value === l.value ? 'var(--ink-invert)' : 'var(--ink)',
+              border: 'none',
+              borderRight: i < levels.length - 1 ? '1.5px solid var(--border)' : 'none',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 800,
+              fontSize: 'clamp(9px,1.8vw,12px)',
+              letterSpacing: '0.04em',
+              cursor: 'pointer',
+              transition: 'background 80ms, color 80ms',
+            }}
           >
-            <div className="text-xl sm:text-2xl font-bold text-[#2C2C2C] mb-1 sm:mb-2">{level.value}</div>
-            <div className="text-[9px] sm:text-xs font-medium text-[#2C2C2C]">{level.label}</div>
+            {l.label}
           </button>
         ))}
       </div>
-
-      {showStressQuestion && value > 0 && (
-        <div className="mb-6 sm:mb-8 p-4 sm:p-6 bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl shadow-lg">
-          <p className="text-sm sm:text-base text-[#2C2C2C] mb-3 sm:mb-4">Is your mood related to academic stress?</p>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-            <button
-              onClick={() => onStressChange('yes')}
-              className={`flex-1 p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-300 shadow-lg ${
-                stressIsAcademic === 'yes'
-                  ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                  : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-              }`}
-            >
-              <div className="text-sm sm:text-base font-medium text-[#2C2C2C]">Yes</div>
-            </button>
-            <button
-              onClick={() => onStressChange('no')}
-              className={`flex-1 p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-300 shadow-lg ${
-                stressIsAcademic === 'no'
-                  ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                  : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-              }`}
-            >
-              <div className="text-sm sm:text-base font-medium text-[#2C2C2C]">No</div>
-            </button>
-            <button
-              onClick={() => onStressChange('partially')}
-              className={`flex-1 p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-300 shadow-lg ${
-                stressIsAcademic === 'partially'
-                  ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                  : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-              }`}
-            >
-              <div className="text-sm sm:text-base font-medium text-[#2C2C2C]">Partially</div>
-            </button>
+      {showQ && value > 0 && (
+        <div style={{ border: '1.5px solid var(--border-2)', padding: 16, marginBottom: 8 }}>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 12 }}>
+            IS YOUR MOOD RELATED TO ACADEMIC STRESS?
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {['yes', 'no', 'partially'].map(opt => (
+              <button
+                key={opt}
+                onClick={() => onStressChange(opt)}
+                style={{ ...optStyle(stressIsAcademic === opt), flex: 1, textTransform: 'uppercase' as const }}
+              >
+                {opt}
+              </button>
+            ))}
           </div>
         </div>
       )}
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={value === 0 || (showStressQuestion && !stressIsAcademic)}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={value === 0 || (showQ && !stressIsAcademic)} />
+    </BCard>
   )
 }
 
 function FavoriteSubjectStep({ value, onChange, nextStep, prevStep }: any) {
   const subjects = [
-    'Mathematics', 'Physics', 'Chemistry', 'Biology', 
+    'Mathematics', 'Physics', 'Chemistry', 'Biology',
     'English', 'Urdu', 'Islamiyat', 'Pakistan Studies',
     'Computer Science', 'Economics', 'Accounting', 'Business Studies',
     'History', 'Geography', 'Psychology', 'Sociology',
-    'Art', 'Physical Education', 'Other'
+    'Art', 'Physical Education', 'Other',
   ]
-
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <Book className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Favorite Subject</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">Which subject do you enjoy the most?</p>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mb-6 sm:mb-8">
-        {subjects.map((subject) => (
-          <button
-            key={subject}
-            onClick={() => onChange(subject)}
-            className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-300 shadow-lg ${
-              value === subject
-                ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
-          >
-            <div className="text-xs sm:text-sm font-medium text-[#2C2C2C]">{subject}</div>
-          </button>
+    <BCard>
+      <h2 style={H}>Favorite Subject</h2>
+      <p style={SUB}>Which subject do you enjoy the most?</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 4 }}>
+        {subjects.map(s => (
+          <button key={s} onClick={() => onChange(s)} style={optStyle(value === s)}>{s}</button>
         ))}
       </div>
-
-      {value === 'Other' && (
-        <input
-          type="text"
-          placeholder="Please specify the subject"
-          className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl text-[#2C2C2C] text-sm sm:text-base placeholder:text-[#5F5F5F]/50 focus:bg-white/80 focus:border-[#D2691E]/50 focus:outline-none transition-all duration-300 mb-6 sm:mb-8 shadow-lg"
-        />
-      )}
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
+    </BCard>
   )
 }
 
 function WorstSubjectStep({ value, onChange, nextStep, prevStep }: any) {
   const subjects = [
-    'Mathematics', 'Physics', 'Chemistry', 'Biology', 
+    'Mathematics', 'Physics', 'Chemistry', 'Biology',
     'English', 'Urdu', 'Islamiyat', 'Pakistan Studies',
     'Computer Science', 'Economics', 'Accounting', 'Business Studies',
     'History', 'Geography', 'Psychology', 'Sociology',
-    'Art', 'Physical Education', 'Other', 'None - I like all subjects'
+    'Art', 'Physical Education', 'Other', 'None — I like all',
   ]
-
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <Book className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Least Favorite Subject</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">Which subject do you find most challenging?</p>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mb-6 sm:mb-8">
-        {subjects.map((subject) => (
-          <button
-            key={subject}
-            onClick={() => onChange(subject)}
-            className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-300 shadow-lg ${
-              value === subject
-                ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
-          >
-            <div className="text-xs sm:text-sm font-medium text-[#2C2C2C]">{subject}</div>
-          </button>
+    <BCard>
+      <h2 style={H}>Least Favorite Subject</h2>
+      <p style={SUB}>Which subject do you find most challenging?</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 4 }}>
+        {subjects.map(s => (
+          <button key={s} onClick={() => onChange(s)} style={optStyle(value === s)}>{s}</button>
         ))}
       </div>
-
-      {value === 'Other' && (
-        <input
-          type="text"
-          placeholder="Please specify the subject"
-          className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl text-[#2C2C2C] text-sm sm:text-base placeholder:text-[#5F5F5F]/50 focus:bg-white/80 focus:border-[#D2691E]/50 focus:outline-none transition-all duration-300 mb-6 sm:mb-8 shadow-lg"
-        />
-      )}
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
+    </BCard>
   )
 }
 
 function SubjectWhyStep({ type, subject, value, onChange, nextStep, prevStep }: any) {
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <Book className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">
-          Why {subject}?
-        </h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">
-          {type === 'favorite' 
-            ? `What makes ${subject} your favorite subject?`
-            : `What makes ${subject} challenging for you?`
-          }
-        </p>
-      </div>
-
+    <BCard>
+      <h2 style={H}>Why {subject}?</h2>
+      <p style={SUB}>
+        {type === 'favorite'
+          ? `What makes ${subject} your favorite subject?`
+          : `What makes ${subject} challenging for you?`}
+      </p>
+      <label style={MONO_LABEL}>YOUR ANSWER</label>
       <textarea
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value)}
         placeholder="Share your thoughts..."
         rows={5}
-        className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl text-[#2C2C2C] text-sm sm:text-base placeholder:text-[#5F5F5F]/50 focus:bg-white/80 focus:border-[#D2691E]/50 focus:outline-none transition-all duration-300 mb-6 sm:mb-8 resize-none shadow-lg"
+        className="br-input"
+        style={{ width: '100%', padding: '13px 14px', fontSize: 14, boxSizing: 'border-box', resize: 'none', marginBottom: 4 }}
       />
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value.trim() || value.trim().length < 10}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value.trim() || value.trim().length < 10} />
+    </BCard>
   )
 }
 
 function ReportCardStep({ value, onChange, nextStep, prevStep }: any) {
   const grades = [
-    { id: 'excellent', label: 'Excellent (A+/90-100%)', icon: <Trophy className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'very-good', label: 'Very Good (A/80-89%)', icon: <Target className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'good', label: 'Good (B/70-79%)', icon: <CheckCircle2 className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'satisfactory', label: 'Satisfactory (C/60-69%)', icon: <Book className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'needs-improvement', label: 'Needs Improvement (<60%)', icon: <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'varies', label: 'Varies by Subject', icon: <Palette className="w-6 h-6 sm:w-8 sm:h-8" /> },
+    { id: 'excellent', label: 'EXCELLENT — A+ / 90–100%' },
+    { id: 'very-good', label: 'VERY GOOD — A / 80–89%' },
+    { id: 'good', label: 'GOOD — B / 70–79%' },
+    { id: 'satisfactory', label: 'SATISFACTORY — C / 60–69%' },
+    { id: 'needs-improvement', label: 'NEEDS IMPROVEMENT — < 60%' },
+    { id: 'varies', label: 'VARIES BY SUBJECT' },
   ]
-
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <Trophy className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Report Card Average</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">On average, how do you perform academically?</p>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
-        {grades.map((grade) => (
-          <button
-            key={grade.id}
-            onClick={() => onChange(grade.id)}
-            className={`p-4 sm:p-5 rounded-xl sm:rounded-2xl border-2 transition-all duration-300 shadow-lg ${
-              value === grade.id
-                ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
-          >
-            <div className="text-[#D2691E] mb-2 flex justify-center">{grade.icon}</div>
-            <div className="text-xs sm:text-sm font-medium text-[#2C2C2C]">{grade.label}</div>
+    <BCard>
+      <h2 style={H}>Report Card Average</h2>
+      <p style={SUB}>On average, how do you perform academically?</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
+        {grades.map(g => (
+          <button key={g.id} onClick={() => onChange(g.id)} style={{ ...optStyle(value === g.id), textAlign: 'left' as const, padding: '13px 12px' }}>
+            {g.label}
           </button>
         ))}
       </div>
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
+    </BCard>
   )
 }
 
 function TutoringStep({ value, onChange, nextStep, prevStep }: any) {
   const options = [
-    { id: 'yes-regularly', label: 'Yes, regularly', icon: <Book className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'yes-occasionally', label: 'Yes, occasionally', icon: <Calendar className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'no', label: 'No', icon: <School className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'online-courses', label: 'Online courses/YouTube', icon: <Globe className="w-6 h-6 sm:w-8 sm:h-8" /> },
+    { id: 'yes-regularly', label: 'YES — REGULARLY' },
+    { id: 'yes-occasionally', label: 'YES — OCCASIONALLY' },
+    { id: 'no', label: 'NO' },
+    { id: 'online-courses', label: 'ONLINE COURSES / YOUTUBE' },
   ]
-
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <Target className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Private Tutoring</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">Do you take any private tutoring or extra classes?</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
-        {options.map((option) => (
-          <button
-            key={option.id}
-            onClick={() => onChange(option.id)}
-            className={`p-4 sm:p-6 rounded-xl sm:rounded-2xl border-2 transition-all duration-300 shadow-lg ${
-              value === option.id
-                ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
-          >
-            <div className="text-[#D2691E] mb-2 flex justify-center">{option.icon}</div>
-            <div className="text-xs sm:text-sm font-medium text-[#2C2C2C]">{option.label}</div>
-          </button>
+    <BCard>
+      <h2 style={H}>Private Tutoring</h2>
+      <p style={SUB}>Do you take any private tutoring or extra classes?</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
+        {options.map(o => (
+          <button key={o.id} onClick={() => onChange(o.id)} style={optStyle(value === o.id)}>{o.label}</button>
         ))}
       </div>
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
+    </BCard>
   )
 }
 
 function CheatingStep({ value, onChange, nextStep, prevStep }: any) {
   const options = [
-    { id: 'never', label: 'Never', icon: <CheckCircle2 className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'once-twice', label: 'Once or twice', icon: <Calendar className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'occasionally', label: 'Occasionally', icon: <Book className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'frequently', label: 'Frequently', icon: <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8" /> },
-    { id: 'prefer-not-say', label: 'Prefer not to say', icon: <Shield className="w-6 h-6 sm:w-8 sm:h-8" /> },
+    { id: 'never', label: 'NEVER' },
+    { id: 'once-twice', label: 'ONCE OR TWICE' },
+    { id: 'occasionally', label: 'OCCASIONALLY' },
+    { id: 'frequently', label: 'FREQUENTLY' },
+    { id: 'prefer-not-say', label: 'PREFER NOT TO SAY' },
   ]
-
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <FileText className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Academic Honesty</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">
-          Have you ever cheated on exams or assignments? 
-          <br/>
-          <span className="text-xs text-[#5F5F5F]/70">(Your honest answer helps us understand academic pressures)</span>
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-6 sm:mb-8">
-        {options.map((option) => (
-          <button
-            key={option.id}
-            onClick={() => onChange(option.id)}
-            className={`p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border-2 transition-all duration-300 shadow-lg ${
-              value === option.id
-                ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
-          >
-            <div className="text-[#D2691E] mb-2 flex justify-center">{option.icon}</div>
-            <div className="text-xs sm:text-sm font-medium text-[#2C2C2C]">{option.label}</div>
-          </button>
+    <BCard>
+      <h2 style={H}>Academic Honesty</h2>
+      <p style={SUB}>Have you ever cheated on exams or assignments? Your honest answer helps us understand academic pressures.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
+        {options.map(o => (
+          <button key={o.id} onClick={() => onChange(o.id)} style={optStyle(value === o.id)}>{o.label}</button>
         ))}
       </div>
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
+    </BCard>
   )
 }
 
 function ResearchParticipationStep({ value, onChange, nextStep, prevStep }: any) {
   const options = [
-    { id: 'yes', label: 'Yes', description: "I've participated in research studies before" },
-    { id: 'no', label: 'No', description: "This is my first time" },
-    { id: 'not-sure', label: 'Not Sure', description: "I might have, but I'm not certain" },
+    { id: 'yes', label: 'YES', desc: "I've participated in research studies before" },
+    { id: 'no', label: 'NO', desc: 'This is my first time' },
+    { id: 'not-sure', label: 'NOT SURE', desc: "I might have but I'm not certain" },
   ]
-
   return (
-    <GlassCard>
-      <div className="mb-6 sm:mb-8">
-        <Users className="w-10 h-10 sm:w-12 sm:h-12 text-[#D2691E] mb-3 sm:mb-4" />
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-[#2C2C2C] mb-2">Research Experience</h2>
-        <p className="text-sm sm:text-base text-[#5F5F5F]">Have you ever participated in a research study before?</p>
-      </div>
-
-      <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
-        {options.map((option) => (
+    <BCard>
+      <h2 style={H}>Research Experience</h2>
+      <p style={SUB}>Have you ever participated in a research study before?</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 4 }}>
+        {options.map(o => (
           <button
-            key={option.id}
-            onClick={() => onChange(option.id)}
-            className={`w-full p-4 sm:p-6 rounded-xl sm:rounded-2xl border-2 transition-all duration-300 text-left shadow-lg ${
-              value === option.id
-                ? 'bg-[#D2691E]/20 border-[#D2691E]'
-                : 'bg-white/60 border-white/60 hover:border-[#6B6B6B]/30'
-            }`}
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            style={{
+              ...optStyle(value === o.id),
+              textAlign: 'left' as const,
+              padding: '14px 16px',
+            }}
           >
-            <div className="text-base sm:text-lg font-semibold text-[#2C2C2C] mb-1">{option.label}</div>
-            <div className="text-xs sm:text-sm text-[#5F5F5F]">{option.description}</div>
+            <div style={{ fontWeight: 800, marginBottom: 2 }}>{o.label}</div>
+            <div style={{ fontSize: 11, opacity: 0.7, fontFamily: 'var(--font-body)', fontWeight: 400, letterSpacing: 0 }}>{o.desc}</div>
           </button>
         ))}
       </div>
-
-      <NavigationButtons 
-        onNext={nextStep}
-        onBack={prevStep}
-        nextDisabled={!value}
-      />
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
+    </BCard>
   )
 }
 
 function IntermissionStep({ nextStep, prevStep }: any) {
   return (
-    <GlassCard>
-      <div className="text-center">
-        <motion.div
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-          className="mb-6 sm:mb-8 mx-auto w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-[#D2691E]/20 to-[#4A6C6F]/20 rounded-full flex items-center justify-center"
-        >
-          <Coffee className="w-8 h-8 sm:w-10 sm:h-10 text-[#D2691E]" />
-        </motion.div>
-        
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-medium text-[#2C2C2C] mb-4 sm:mb-6">
-          Almost There!
+    <BCard>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.14em', marginBottom: 16 }}>
+          ALMOST THERE
+        </div>
+        <h1 style={{ ...H, fontSize: 'clamp(28px,5vw,44px)', marginBottom: 20 }}>
+          Thank you for your patience.
         </h1>
-        
-        <div className="bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl p-6 sm:p-8 mb-6 sm:mb-8 shadow-lg">
-          <p className="text-lg sm:text-xl text-[#2C2C2C] mb-3 sm:mb-4 leading-relaxed">
+        <div style={{ border: '1.5px solid var(--border-2)', padding: 20, marginBottom: 20 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: 'var(--ink-2)', lineHeight: 1.7, marginBottom: 8 }}>
             We know that form felt like a marathon.
           </p>
-          <p className="text-base sm:text-lg text-[#5F5F5F] leading-relaxed">
-            Thank you for crossing the finish line with us. We promise the personalized experience will be worth the leg cramps.
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.7 }}>
+            Thank you for crossing the finish line with us. We promise the personalized experience will be worth it.
           </p>
         </div>
-
-        <div className="flex items-center justify-center gap-3 sm:gap-4 mb-6 sm:mb-8 flex-wrap">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-[#4A6C6F]" />
-            <span className="text-xs sm:text-sm text-[#5F5F5F]">Data Collected</span>
+        <div style={{ display: 'flex', gap: 20 }}>
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, color: 'var(--ink)', letterSpacing: '0.06em', marginBottom: 2 }}>✓ DATA COLLECTED</div>
           </div>
-          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[#5F5F5F]/30" />
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-[#D2691E]" />
-            <span className="text-xs sm:text-sm text-[#5F5F5F]">Personalization Ready</span>
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, color: 'var(--ink)', letterSpacing: '0.06em', marginBottom: 2 }}>✓ PERSONALIZATION READY</div>
           </div>
-        </div>
-        
-        <div className="flex gap-3 sm:gap-4 justify-center">
-          <button
-            onClick={prevStep}
-            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white/60 hover:bg-white/80 border border-white/60 text-[#2C2C2C] rounded-xl sm:rounded-2xl font-medium text-sm sm:text-base transition-all duration-300 flex items-center gap-2 shadow-lg"
-          >
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-            Back
-          </button>
-          
-          <button
-            onClick={nextStep}
-            className="px-6 sm:px-8 py-3 sm:py-4 bg-[#D2691E] hover:bg-[#D2691E]/90 text-white rounded-xl sm:rounded-2xl font-medium text-sm sm:text-base transition-all duration-300 hover:scale-105 flex items-center gap-2 shadow-xl"
-          >
-            Meet Your AI Companion
-            <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
         </div>
       </div>
-    </GlassCard>
+      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={false} />
+    </BCard>
   )
 }
 
 function KokoroStep({ onFinish, prevStep, loading }: any) {
   return (
-    <GlassCard>
-      <div className="text-center">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.2, type: "spring" }}
-          className="mb-6 sm:mb-8 mx-auto w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-[#D2691E]/30 to-[#4A6C6F]/30 rounded-full flex items-center justify-center shadow-xl"
-        >
-          <Brain className="w-10 h-10 sm:w-12 sm:h-12 text-[#2C2C2C]" />
-        </motion.div>
-        
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-medium text-[#2C2C2C] mb-3 sm:mb-4">
-          Meet Kokoro
+    <BCard>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.14em', marginBottom: 16 }}>
+          YOUR AI COMPANION
+        </div>
+        <h1 style={{ ...H, fontSize: 'clamp(28px,5vw,44px)', marginBottom: 20 }}>
+          Meet Kokoro.
         </h1>
-        <p className="text-base sm:text-lg text-[#5F5F5F] mb-6 max-w-2xl mx-auto leading-relaxed px-2">
-          Your AI companion, designed to listen, understand, and support you through your mental wellness journey. Kokoro is here for you 24/7, ready to help you process your thoughts and emotions in a safe, judgment-free space.
-        </p>
-
-        <div className="bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl p-6 sm:p-8 mb-6 sm:mb-8 shadow-lg">
-          <p className="text-[#2C2C2C] italic text-base sm:text-lg leading-relaxed">
-            "Hello! I'm Kokoro, and I'm honored to be part of your journey toward mental clarity and academic success. Together, we'll explore your thoughts, celebrate your victories, and navigate challenges with compassion and understanding. Your well-being is my priority."
+        <div style={{ border: '1.5px solid var(--border-2)', padding: 20, marginBottom: 20 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.7, fontStyle: 'italic' }}>
+            &ldquo;Hello! I&apos;m Kokoro, and I&apos;m honored to be part of your journey toward mental clarity and academic success. Together, we&apos;ll explore your thoughts, celebrate your victories, and navigate challenges with compassion and understanding. Your well-being is my priority.&rdquo;
           </p>
         </div>
-        
-        <div className="flex gap-3 sm:gap-4 justify-center">
-          <button
-            onClick={prevStep}
-            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white/60 hover:bg-white/80 border border-white/60 text-[#2C2C2C] rounded-xl sm:rounded-2xl font-medium text-sm sm:text-base transition-all duration-300 flex items-center gap-2 shadow-lg"
-          >
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-            Back
-          </button>
-          
-          <button
-            onClick={onFinish}
-            disabled={loading}
-            className="px-6 sm:px-8 py-3 sm:py-4 bg-[#D2691E] hover:bg-[#D2691E]/90 text-white rounded-xl sm:rounded-2xl font-medium text-sm sm:text-base transition-all duration-300 hover:scale-105 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl"
-          >
-            {loading ? (
-              <>
-                <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                Complete Onboarding
-                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-              </>
-            )}
-          </button>
-        </div>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.6 }}>
+          Kokoro is available 24/7, ready to help you process your thoughts and emotions in a safe, judgment-free space.
+        </p>
       </div>
-    </GlassCard>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button
+          onClick={prevStep}
+          className="br-btn"
+          style={{ padding: '12px 20px', fontSize: 12, letterSpacing: '0.06em', color: 'var(--ink-2)' }}
+        >
+          ← BACK
+        </button>
+        <button
+          onClick={onFinish}
+          disabled={loading}
+          className="br-btn br-btn-inv"
+          style={{ flex: 1, padding: '14px 20px', fontSize: 12, letterSpacing: '0.06em', opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+        >
+          {loading ? 'SAVING...' : 'COMPLETE ONBOARDING →'}
+        </button>
+      </div>
+    </BCard>
   )
 }
 
 function SuccessStep({ router }: { router: any }) {
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.push('/dashboard')
-    }, 5000)
-    return () => clearTimeout(timer)
+    const t = setTimeout(() => router.push('/dashboard'), 4000)
+    return () => clearTimeout(t)
   }, [router])
 
   return (
-    <GlassCard>
-      <div className="text-center">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: [0, 1.2, 1] }}
-          transition={{ duration: 0.6, times: [0, 0.6, 1] }}
-          className="mb-6 sm:mb-8 mx-auto w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-[#4A6C6F]/30 to-[#D2691E]/30 rounded-full flex items-center justify-center shadow-xl"
-        >
-          <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-[#4A6C6F]" />
-        </motion.div>
-        
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-medium text-[#2C2C2C] mb-3 sm:mb-4">
-          All Done!
-        </h1>
-        
-        <p className="text-base sm:text-xl text-[#5F5F5F] mb-6 max-w-2xl mx-auto leading-relaxed px-2">
-          Thank you for sharing your responses with us. Your insights are invaluable in helping us understand student mental health and academic wellness in Pakistan.
-        </p>
-
-        <div className="bg-white/60 border border-white/60 rounded-xl sm:rounded-2xl p-6 sm:p-8 mb-6 sm:mb-8 space-y-3 sm:space-y-4 shadow-lg">
-          <p className="text-[#2C2C2C] text-sm sm:text-base leading-relaxed">
-            <strong>What happens next?</strong>
-          </p>
-          <ul className="text-[#5F5F5F] space-y-2 sm:space-y-3 text-left max-w-xl mx-auto text-xs sm:text-sm">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>Your responses have been securely saved and anonymized</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>Kokoro is now personalized to support your unique needs</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#4A6C6F] flex-shrink-0 mt-0.5" />
-              <span>You'll be redirected to your dashboard momentarily</span>
-            </li>
-          </ul>
+    <BCard>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.14em', marginBottom: 16 }}>
+          ONBOARDING COMPLETE
         </div>
-
-        <p className="text-xs sm:text-sm text-[#5F5F5F] mb-6">
-          Need help or have questions?<br/>
-          Contact us at: <a href="mailto:saadnizami114@gmail.com" className="text-[#D2691E] hover:underline">saadnizami114@gmail.com</a>
+        <h1 style={{ ...H, fontSize: 'clamp(28px,5vw,44px)', marginBottom: 20 }}>
+          All Done.
+        </h1>
+        <div style={{ border: '1.5px solid var(--border-2)', padding: 20, marginBottom: 20 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: 'var(--ink-2)', lineHeight: 1.7, marginBottom: 12 }}>
+            Thank you for sharing your responses with us. Your insights are invaluable in helping us understand student mental health and academic wellness in Pakistan.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              'Your responses have been securely saved and anonymized',
+              'Kokoro is now personalized to support your unique needs',
+              'You\'ll be redirected to your dashboard momentarily',
+            ].map(item => (
+              <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--ink)', flexShrink: 0 }}>✓</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5 }}>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em' }}>
+          Questions? Contact us at{' '}
+          <a href="mailto:saadnizami114@gmail.com" style={{ color: 'var(--ink-2)' }}>saadnizami114@gmail.com</a>
         </p>
-
-        <motion.div
-          animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="text-[#5F5F5F] text-xs sm:text-sm"
-        >
-          Redirecting in a few seconds...
-        </motion.div>
       </div>
-    </GlassCard>
-  )
-}
-
-// Reusable Components
-function GlassCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="relative backdrop-blur-[40px] bg-white/40 border border-white/60 rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 shadow-2xl overflow-hidden">
-      <div className="absolute -top-20 -right-20 w-40 h-40 bg-[#D2691E] rounded-full mix-blend-screen filter blur-[80px] opacity-10"></div>
-      <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-[#4A6C6F] rounded-full mix-blend-screen filter blur-[80px] opacity-10"></div>
-      <div className="relative z-10">{children}</div>
-    </div>
-  )
-}
-
-function NavigationButtons({ onNext, onBack, nextDisabled }: any) {
-  return (
-    <div className="flex gap-3 sm:gap-4">
-      <button
-        onClick={onBack}
-        className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white/60 hover:bg-white/80 border border-white/60 text-[#2C2C2C] rounded-xl sm:rounded-2xl font-medium text-sm sm:text-base transition-all duration-300 flex items-center gap-2 shadow-lg"
+      <motion.div
+        animate={{ opacity: [0.4, 1, 0.4] }}
+        transition={{ duration: 2, repeat: Infinity }}
+        style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em' }}
       >
-        <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-        Back
-      </button>
-      
-      <button
-        onClick={onNext}
-        disabled={nextDisabled}
-        className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 bg-[#D2691E] hover:bg-[#D2691E]/90 text-white rounded-xl sm:rounded-2xl font-medium text-sm sm:text-base transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-xl"
-      >
-        Next
-        <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-      </button>
-    </div>
+        REDIRECTING TO DASHBOARD...
+      </motion.div>
+    </BCard>
   )
 }
-            
