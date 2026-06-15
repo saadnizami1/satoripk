@@ -22,7 +22,16 @@ interface Stats {
   totalJournals: number
   totalStressLogs: number
   totalPomodoros: number
-  memberSince: string
+}
+
+interface EditData {
+  name: string
+  age: string
+  gender: string
+  location: string
+  religion: string
+  family_status: string
+  education_level: string
 }
 
 const EDUCATION_LEVELS = [
@@ -48,6 +57,36 @@ const EDUCATION_LEVELS = [
   { value: 'postgraduate',    label: 'Postgraduate' },
 ]
 
+const GENDERS = ['Male', 'Female', 'Non-binary', 'Other', 'Prefer not to say']
+
+const FAMILY_STATUSES = ['Living with Parents', 'Independent', 'Married', 'Other']
+
+const RELIGIONS = ['Islam', 'Christianity', 'Hinduism', 'Buddhism', 'Sikhism', 'Atheism', 'Other', 'Prefer not to say']
+
+const CITIES = [
+  'Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad',
+  'Multan', 'Peshawar', 'Quetta', 'Sialkot', 'Gujranwala',
+  'Hyderabad', 'Abbottabad', 'Bahawalpur', 'Sargodha', 'Sukkur',
+  'Larkana', 'Sheikhupura', 'Rahim Yar Khan', 'Jhang', 'Dera Ghazi Khan',
+  'Gujrat', 'Sahiwal', 'Wah Cantonment', 'Mardan', 'Kasur', 'Other',
+]
+
+const SELECT_STYLE: React.CSSProperties = {
+  width: '100%', padding: '7px 8px', boxSizing: 'border-box',
+  fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
+  color: 'var(--ink)', background: 'var(--bg-card)',
+  border: '1px solid var(--border-2)', outline: 'none', cursor: 'pointer',
+  letterSpacing: '0.02em', appearance: 'auto',
+}
+
+const INPUT_STYLE: React.CSSProperties = {
+  width: '100%', padding: '7px 8px', boxSizing: 'border-box',
+  fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
+  color: 'var(--ink)', background: 'var(--bg-card)',
+  border: '1px solid var(--border-2)', outline: 'none',
+  letterSpacing: '0.02em',
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', borderBottom: '1px solid var(--border-2)' }}>
@@ -61,15 +100,27 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+function EditRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-2)' }}>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 5 }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  )
+}
+
 export default function ProfilePage() {
-  const [profile, setProfile]             = useState<ProfileData | null>(null)
-  const [stats, setStats]                 = useState<Stats>({ totalMoods: 0, totalJournals: 0, totalStressLogs: 0, totalPomodoros: 0, memberSince: '' })
-  const [loading, setLoading]             = useState(true)
-  const [showBirthdayModal, setBirthday]  = useState(false)
-  const [showEducationModal, setEducation] = useState(false)
-  const [selectedEducation, setSelEdu]    = useState('')
-  const [profilePicture, setPicture]      = useState<string | null>(null)
-  const [showSuccess, setSuccess]         = useState(false)
+  const [profile, setProfile]     = useState<ProfileData | null>(null)
+  const [stats, setStats]         = useState<Stats>({ totalMoods: 0, totalJournals: 0, totalStressLogs: 0, totalPomodoros: 0 })
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
+  const [editMode, setEditMode]   = useState(false)
+  const [editData, setEditData]   = useState<EditData>({ name: '', age: '', gender: '', location: '', religion: '', family_status: '', education_level: '' })
+  const [profilePicture, setPicture] = useState<string | null>(null)
+  const [showSuccess, setSuccess] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { fetchProfile(); fetchStats(); loadPicture() }, [])
@@ -78,7 +129,7 @@ export default function ProfilePage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-      if (data) { setProfile(data); setSelEdu(data.education_level) }
+      if (data) setProfile(data)
     }
     setLoading(false)
   }
@@ -90,13 +141,11 @@ export default function ProfilePage() {
     const { count: stressCount } = await supabase.from('academic_stress').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
     const journals  = localStorage.getItem('journal_entries')
     const pomodoros = localStorage.getItem('pomodoro_total') || '0'
-    const { data: pd } = await supabase.from('profiles').select('created_at').eq('id', user.id).single()
     setStats({
       totalMoods:      moodsCount || 0,
       totalJournals:   journals ? JSON.parse(journals).length : 0,
       totalStressLogs: stressCount || 0,
       totalPomodoros:  parseInt(pomodoros),
-      memberSince:     pd?.created_at || '',
     })
   }
 
@@ -113,29 +162,60 @@ export default function ProfilePage() {
       const url = ev.target?.result as string
       setPicture(url)
       localStorage.setItem('profile_picture', url)
-      flash()
     }
     reader.readAsDataURL(file)
   }
 
-  const handleBirthday = async () => {
+  const enterEditMode = () => {
     if (!profile) return
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const newAge = profile.age + 1
-    const { error } = await supabase.from('profiles').update({ age: newAge }).eq('id', user.id)
-    if (!error) { setProfile({ ...profile, age: newAge }); setBirthday(false); flash() }
+    setEditData({
+      name:            profile.name || '',
+      age:             profile.age ? String(profile.age) : '',
+      gender:          profile.gender || '',
+      location:        profile.location || '',
+      religion:        profile.religion || '',
+      family_status:   profile.family_status || '',
+      education_level: profile.education_level || '',
+    })
+    setSaveError('')
+    setEditMode(true)
   }
 
-  const handleEducationUpdate = async () => {
-    if (!profile || !selectedEducation) return
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { error } = await supabase.from('profiles').update({ education_level: selectedEducation }).eq('id', user.id)
-    if (!error) { setProfile({ ...profile, education_level: selectedEducation }); setEducation(false); flash() }
+  const cancelEdit = () => {
+    setEditMode(false)
+    setSaveError('')
   }
 
-  const flash = () => { setSuccess(true); setTimeout(() => setSuccess(false), 2500) }
+  const handleSave = async () => {
+    if (!profile || !editData.name.trim()) { setSaveError('Name is required.'); return }
+    const ageNum = parseInt(editData.age)
+    if (editData.age && (isNaN(ageNum) || ageNum < 3 || ageNum > 99)) { setSaveError('Age must be between 3 and 99.'); return }
+    setSaving(true)
+    setSaveError('')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setSaving(false); return }
+    const { error } = await supabase.from('profiles').update({
+      name:            editData.name.trim(),
+      age:             editData.age ? ageNum : null,
+      gender:          editData.gender || null,
+      location:        editData.location || null,
+      religion:        editData.religion || null,
+      family_status:   editData.family_status || null,
+      education_level: editData.education_level || null,
+    }).eq('id', user.id)
+    if (error) {
+      setSaveError('Failed to save. Please try again.')
+    } else {
+      await fetchProfile()
+      setEditMode(false)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 2500)
+    }
+    setSaving(false)
+  }
+
+  const set = (key: keyof EditData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setEditData(prev => ({ ...prev, [key]: e.target.value }))
 
   const fmt = (v: string | undefined) => {
     if (!v) return 'NOT SET'
@@ -172,13 +252,13 @@ export default function ProfilePage() {
           <motion.div
             initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             style={{
-              position: 'fixed', top: 20, right: 20, zIndex: 60,
+              position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 60,
               background: 'var(--bg-invert)', color: 'var(--ink-invert)',
               fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em',
-              padding: '10px 16px',
+              padding: '10px 20px', whiteSpace: 'nowrap',
             }}
           >
-            SAVED.
+            PROFILE SAVED.
           </motion.div>
         )}
       </AnimatePresence>
@@ -187,22 +267,56 @@ export default function ProfilePage() {
 
       {/* Header */}
       <div style={{ marginBottom: 8 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(36px,5vw,56px)', color: 'var(--ink)', letterSpacing: '-0.03em', lineHeight: 1 }}>
-          PROFILE.
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(36px,5vw,56px)', color: 'var(--ink)', letterSpacing: '-0.03em', lineHeight: 1 }}>
+            PROFILE.
+          </h1>
+          {!editMode ? (
+            <button
+              onClick={enterEditMode}
+              className="br-btn"
+              style={{ padding: '8px 16px', fontSize: 11, letterSpacing: '0.06em', cursor: 'pointer', marginBottom: 4 }}
+            >
+              EDIT →
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="br-btn br-btn-inv"
+                style={{ padding: '8px 16px', fontSize: 11, letterSpacing: '0.06em', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
+              >
+                {saving ? 'SAVING...' : 'SAVE →'}
+              </button>
+              <button
+                onClick={cancelEdit}
+                className="br-btn"
+                style={{ padding: '8px 14px', fontSize: 11, letterSpacing: '0.06em', cursor: 'pointer' }}
+              >
+                CANCEL
+              </button>
+            </div>
+          )}
+        </div>
+        {saveError && (
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', letterSpacing: '0.06em', marginTop: 6 }}>
+            {saveError}
+          </div>
+        )}
         <div style={{ borderTop: '1.5px solid var(--border)', marginTop: 8 }} />
       </div>
 
       {/* Identity */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '24px 0', borderBottom: '1.5px solid var(--border)', marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 0', borderBottom: '1.5px solid var(--border)', marginBottom: 24, flexWrap: 'wrap' }}>
         <div
           onClick={() => fileInputRef.current?.click()}
           title="Click to change photo"
           style={{
-            width: 72, height: 72, flexShrink: 0,
+            width: 64, height: 64, flexShrink: 0,
             background: 'var(--bg-invert)', color: 'var(--ink-invert)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 22,
+            fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20,
             overflow: 'hidden', cursor: 'pointer',
           }}
         >
@@ -211,8 +325,8 @@ export default function ProfilePage() {
             : initials
           }
         </div>
-        <div>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(18px,3vw,24px)', color: 'var(--ink)', letterSpacing: '-0.01em', marginBottom: 3 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(16px,3vw,24px)', color: 'var(--ink)', letterSpacing: '-0.01em', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {profile.name.toUpperCase()}
           </div>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', letterSpacing: '0.06em', marginBottom: 2 }}>
@@ -224,7 +338,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="grid-2col">
 
         {/* Personal info */}
         <div>
@@ -232,20 +346,63 @@ export default function ProfilePage() {
             PERSONAL INFO
           </div>
           <div style={{ border: '1.5px solid var(--border)' }}>
-            <InfoRow label="NAME"       value={profile.name.toUpperCase()} />
-            <InfoRow label="AGE"        value={profile.age ? `${profile.age} YEARS` : 'NOT SET'} />
-            <InfoRow label="GENDER"     value={fmt(profile.gender)} />
-            <InfoRow label="LOCATION"   value={fmt(profile.location)} />
-            <InfoRow label="RELIGION"   value={fmt(profile.religion)} />
-            <InfoRow label="FAMILY"     value={fmt(profile.family_status)} />
-            <div style={{ padding: '11px 14px' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em', marginBottom: 4 }}>
-                EDUCATION
-              </div>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink)', letterSpacing: '0.02em' }}>
-                {getEduLabel(profile.education_level)}
-              </div>
-            </div>
+            {editMode ? (
+              <>
+                <EditRow label="NAME">
+                  <input type="text" value={editData.name} onChange={set('name')} style={INPUT_STYLE} />
+                </EditRow>
+                <EditRow label="AGE">
+                  <input type="number" value={editData.age} onChange={set('age')} min="3" max="99" placeholder="—" style={INPUT_STYLE} />
+                </EditRow>
+                <EditRow label="GENDER">
+                  <select value={editData.gender} onChange={set('gender')} style={SELECT_STYLE}>
+                    <option value="">— Select —</option>
+                    {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </EditRow>
+                <EditRow label="LOCATION">
+                  <select value={editData.location} onChange={set('location')} style={SELECT_STYLE}>
+                    <option value="">— Select city —</option>
+                    {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </EditRow>
+                <EditRow label="RELIGION">
+                  <select value={editData.religion} onChange={set('religion')} style={SELECT_STYLE}>
+                    <option value="">— Select —</option>
+                    {RELIGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </EditRow>
+                <EditRow label="FAMILY STATUS">
+                  <select value={editData.family_status} onChange={set('family_status')} style={SELECT_STYLE}>
+                    <option value="">— Select —</option>
+                    {FAMILY_STATUSES.map(f => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </EditRow>
+                <EditRow label="EDUCATION">
+                  <select value={editData.education_level} onChange={set('education_level')} style={SELECT_STYLE}>
+                    <option value="">— Select —</option>
+                    {EDUCATION_LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                  </select>
+                </EditRow>
+              </>
+            ) : (
+              <>
+                <InfoRow label="NAME"       value={profile.name.toUpperCase()} />
+                <InfoRow label="AGE"        value={profile.age ? `${profile.age} YEARS` : 'NOT SET'} />
+                <InfoRow label="GENDER"     value={fmt(profile.gender)} />
+                <InfoRow label="LOCATION"   value={fmt(profile.location)} />
+                <InfoRow label="RELIGION"   value={fmt(profile.religion)} />
+                <InfoRow label="FAMILY"     value={fmt(profile.family_status)} />
+                <div style={{ padding: '11px 14px' }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em', marginBottom: 4 }}>
+                    EDUCATION
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink)', letterSpacing: '0.02em' }}>
+                    {getEduLabel(profile.education_level)}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -276,128 +433,19 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Updates */}
+          {/* Privacy notice */}
           <div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.14em', marginBottom: 6 }}>
-              UPDATES
+              YOUR PRIVACY
             </div>
-            <div style={{ border: '1.5px solid var(--border)' }}>
-              {[
-                { label: "IT'S MY BIRTHDAY", action: () => setBirthday(true) },
-                { label: 'UPDATE CLASS / GRADE', action: () => setEducation(true) },
-              ].map((btn, i) => (
-                <button
-                  key={btn.label}
-                  onClick={btn.action}
-                  style={{
-                    display: 'block', width: '100%', padding: '12px 14px', textAlign: 'left',
-                    background: 'var(--bg)', border: 'none',
-                    borderBottom: i === 0 ? '1px solid var(--border-2)' : 'none',
-                    fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
-                    color: 'var(--ink)', letterSpacing: '0.04em', cursor: 'pointer',
-                    transition: 'background 80ms',
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg)' }}
-                >
-                  {btn.label} →
-                </button>
-              ))}
+            <div style={{ border: '1.5px solid var(--border)', padding: '14px' }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.65 }}>
+                Your personal information is kept confidential and used only for research purposes. All data is anonymised before use.
+              </p>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Privacy notice */}
-      <div style={{ border: '1.5px solid var(--border)', padding: '14px 16px', marginTop: 20 }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-          YOUR PRIVACY
-        </div>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.65 }}>
-          Your personal information is kept confidential and used only for research purposes.
-          Most details were set during onboarding. You can update your age and education level as needed.
-        </p>
-      </div>
-
-      {/* Birthday modal */}
-      <AnimatePresence>
-        {showBirthdayModal && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(12,12,12,0.6)' }}
-            onClick={() => setBirthday(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.97, opacity: 0 }}
-              onClick={e => e.stopPropagation()}
-              style={{ width: '100%', maxWidth: 400, background: 'var(--bg)', border: '1.5px solid var(--border)', padding: 28 }}
-            >
-              <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--ink)', marginBottom: 8, letterSpacing: '-0.01em' }}>
-                HAPPY BIRTHDAY!
-              </h2>
-              <div style={{ borderTop: '1.5px solid var(--border)', marginBottom: 16 }} />
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 24 }}>
-                Congratulations on turning {profile.age + 1}. This will update your age in the system.
-              </p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={handleBirthday} className="br-btn br-btn-inv" style={{ flex: 1, padding: '12px', cursor: 'pointer' }}>
-                  UPDATE AGE →
-                </button>
-                <button onClick={() => setBirthday(false)} className="br-btn" style={{ padding: '12px 16px', cursor: 'pointer' }}>
-                  CANCEL
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Education modal */}
-      <AnimatePresence>
-        {showEducationModal && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(12,12,12,0.6)' }}
-            onClick={() => setEducation(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.97, opacity: 0 }}
-              onClick={e => e.stopPropagation()}
-              style={{ width: '100%', maxWidth: 400, background: 'var(--bg)', border: '1.5px solid var(--border)', padding: 28, maxHeight: '80vh', overflowY: 'auto' }}
-            >
-              <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--ink)', marginBottom: 8, letterSpacing: '-0.01em' }}>
-                UPDATE GRADE
-              </h2>
-              <div style={{ borderTop: '1.5px solid var(--border)', marginBottom: 16 }} />
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em', marginBottom: 14 }}>
-                CURRENT: {getEduLabel(profile.education_level)}
-              </div>
-              <select
-                value={selectedEducation}
-                onChange={e => setSelEdu(e.target.value)}
-                style={{
-                  width: '100%', padding: '11px 12px', marginBottom: 20, boxSizing: 'border-box',
-                  fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
-                  color: 'var(--ink)', background: 'var(--bg)',
-                  border: '1.5px solid var(--border)', outline: 'none', cursor: 'pointer',
-                }}
-              >
-                {EDUCATION_LEVELS.map(level => (
-                  <option key={level.value} value={level.value}>{level.label}</option>
-                ))}
-              </select>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={handleEducationUpdate} className="br-btn br-btn-inv" style={{ flex: 1, padding: '12px', cursor: 'pointer' }}>
-                  UPDATE →
-                </button>
-                <button onClick={() => setEducation(false)} className="br-btn" style={{ padding: '12px 16px', cursor: 'pointer' }}>
-                  CANCEL
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }

@@ -147,7 +147,7 @@ export default function AcademicStressPage() {
     <div>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 8, paddingRight: 64 }}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between" style={{ marginBottom: 8 }}>
         <h1 style={{
           fontFamily: 'var(--font-display)', fontWeight: 800,
           fontSize: 'clamp(36px,5vw,56px)', color: 'var(--ink)',
@@ -158,7 +158,7 @@ export default function AcademicStressPage() {
         <button
           onClick={() => router.push('/dashboard/research/insights')}
           className="br-btn"
-          style={{ padding: '8px 16px', fontSize: 11, letterSpacing: '0.06em', marginBottom: 4, cursor: 'pointer' }}
+          style={{ padding: '8px 16px', fontSize: 11, letterSpacing: '0.06em', cursor: 'pointer', alignSelf: 'flex-start' }}
         >
           INSIGHTS →
         </button>
@@ -192,7 +192,7 @@ export default function AcademicStressPage() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: 24 }}>
+      <div className="grid-2fr1fr">
 
         {/* Form */}
         <div style={{ opacity: alreadyLogged ? 0.4 : 1, pointerEvents: alreadyLogged ? 'none' : 'auto' }}>

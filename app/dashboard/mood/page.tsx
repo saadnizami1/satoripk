@@ -138,11 +138,11 @@ export default function MoodPage() {
                 key={mood.score}
                 onClick={() => setSelected(mood.score)}
                 style={{
-                  flex: 1, padding: '20px 8px', textAlign: 'center',
+                  flex: 1, padding: 'clamp(12px,3vw,20px) clamp(3px,1vw,8px)', textAlign: 'center',
                   background: selected === mood.score ? 'var(--bg-invert)' : 'var(--bg)',
                   color: selected === mood.score ? 'var(--ink-invert)' : 'var(--ink-2)',
                   border: 'none', borderRight: i < 4 ? '1.5px solid var(--border)' : 'none',
-                  fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(10px, 1.5vw, 13px)',
+                  fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(8px, 1.8vw, 13px)',
                   letterSpacing: '0.02em', cursor: 'pointer',
                   transition: `background ${80}ms, color ${80}ms`,
                 }}
@@ -171,11 +171,11 @@ export default function MoodPage() {
                         key={opt.value}
                         onClick={() => setStress(stressAnswer === opt.value ? '' : opt.value)}
                         style={{
-                          flex: 1, padding: '14px 6px', textAlign: 'center',
+                          flex: 1, padding: 'clamp(10px,2.5vw,14px) clamp(3px,1vw,6px)', textAlign: 'center',
                           background: stressAnswer === opt.value ? 'var(--bg-invert)' : 'var(--bg)',
                           color: stressAnswer === opt.value ? 'var(--ink-invert)' : 'var(--ink-2)',
                           border: 'none', borderRight: i < 3 ? '1.5px solid var(--border)' : 'none',
-                          fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
+                          fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'clamp(8px,1.8vw,11px)',
                           letterSpacing: '0.02em', cursor: 'pointer',
                           transition: `background ${80}ms, color ${80}ms`,
                         }}

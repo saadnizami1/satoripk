@@ -19,7 +19,7 @@ const CARDS = [
   { num: '08', label: 'GET HELP',        desc: 'Helplines. Real humans. 24/7.',             href: '/dashboard/helpline' },
 ]
 
-const TICKER_ITEMS = 'MOOD TRACKER  ·  JOURNAL  ·  BREATHING  ·  POMODORO  ·  KOKORO  ·  STRESS  ·  GRAPH  ·  SATORI SUPPORTS STUDENT MENTAL HEALTH WELLBEING  ·  DATA COLLECTED IS ANONYMISED AND USED FOR RESEARCH PURPOSES ONLY  ·  '
+const TICKER_ITEMS = 'DATA COLLECTED IS ANONYMISED AND USED FOR RESEARCH PURPOSES ONLY  ·  '
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -170,20 +170,21 @@ export default function DashboardHome() {
     <div>
 
       {/* ── Masthead ── */}
-      <div style={{
+      <div className="pr-0 sm:pr-16" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        borderBottom: '1.5px solid var(--border)', paddingBottom: 10, marginBottom: 48, paddingRight: 64,
+        borderBottom: '1.5px solid var(--border)', paddingBottom: 10, marginBottom: 40,
       }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-3)', letterSpacing: '0.06em' }}>
-          {dateStr}  ·  {time}  ·  LAHORE, PK
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', letterSpacing: '0.06em' }}>
+          <span className="hidden sm:inline">{dateStr}  ·  {time}  ·  LAHORE, PK</span>
+          <span className="sm:hidden">{dateStr}</span>
         </span>
-        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.1em', color: 'var(--ink)' }}>
+        <span className="hidden sm:inline" style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.1em', color: 'var(--ink)' }}>
           SATORI DAILY
         </span>
       </div>
 
       {/* ── Hero ── */}
-      <div style={{ marginBottom: 48 }}>
+      <div style={{ marginBottom: 32 }}>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 4 }}>
           {getGreeting()}
         </div>
@@ -218,7 +219,7 @@ export default function DashboardHome() {
         ].map((col, i) => (
           <div key={col.label} style={{ padding: '16px', borderRight: i < 2 ? '1.5px solid var(--border)' : 'none', borderBottom: '1.5px solid var(--border)' }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>{col.label}</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(18px,3vw,28px)', color: 'var(--ink)', lineHeight: 1.1, marginBottom: 8 }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(12px,2.5vw,28px)', color: 'var(--ink)', lineHeight: 1.1, marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {loading ? '—' : col.value}
             </div>
             {col.cta && col.ctaHref && (
