@@ -1,145 +1,145 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import { Phone, Heart, Shield, Globe, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 
-const EMERGENCY = [
-  { name: 'Rescue / Ambulance',  number: '1122',          note: '24/7 emergency services',        color: '#EF4444' },
-  { name: 'Umang Mental Health', number: '0317-4288665',  note: 'Free counselling helpline',       color: '#F97316' },
-  { name: 'Umang WhatsApp',      number: '0311-7786264',  note: 'Mental health on WhatsApp',       color: '#4ADE80' },
-  { name: 'Rozan Counselling',   number: '051-2890505',   note: 'Islamabad counselling',           color: '#2DD4BF' },
-  { name: 'Edhi Foundation',     number: '115',           note: 'Social welfare & crisis support', color: '#818CF8' },
+const HELPLINES = [
+  { name: 'RESCUE / AMBULANCE',  number: '1122',         note: '24/7 emergency services' },
+  { name: 'UMANG MENTAL HEALTH', number: '0317-4288665', note: 'Free counselling helpline' },
+  { name: 'UMANG WHATSAPP',      number: '0311-7786264', note: 'Mental health on WhatsApp' },
+  { name: 'ROZAN COUNSELLING',   number: '051-2890505',  note: 'Islamabad counselling' },
+  { name: 'EDHI FOUNDATION',     number: '115',          note: 'Social welfare & crisis support' },
 ]
 
-const RESOURCES = [
+const REMINDERS = [
   {
-    icon: Heart,
-    title: 'You are not alone',
-    body: 'Mental health struggles are common, especially among students. Reaching out is a sign of strength, not weakness.',
-    color: '#F97316',
+    q: 'YOU ARE NOT ALONE.',
+    a: 'Mental health struggles are common, especially among students. Reaching out is a sign of strength, not weakness.',
   },
   {
-    icon: Shield,
-    title: "It's okay to ask for help",
-    body: "If you're feeling overwhelmed, anxious, or depressed — please talk to someone. A professional, a friend, or Kokoro right here in the app.",
-    color: '#2DD4BF',
+    q: "IT'S OKAY TO ASK FOR HELP.",
+    a: "If you're feeling overwhelmed, anxious, or depressed — talk to someone. A professional, a friend, or Kokoro right here in the app.",
   },
   {
-    icon: Globe,
-    title: 'Online resources',
-    body: 'Umang Pakistan and Rozan offer free, confidential mental health support available via call and WhatsApp.',
-    color: '#818CF8',
+    q: 'FREE SUPPORT EXISTS.',
+    a: 'Umang Pakistan and Rozan offer free, confidential mental health support via call and WhatsApp.',
   },
 ]
 
 export default function HelplinePage() {
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
+    <div style={{ maxWidth: 680 }}>
 
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
-          <Phone className="w-5 h-5" style={{ color: '#EF4444' }} />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}>
-            Get Help
-          </h1>
-          <p className="text-xs" style={{ color: '#475569' }}>You are never alone</p>
-        </div>
-      </motion.div>
-
-      {/* Crisis banner */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.97 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.05 }}
-        className="flex items-start gap-3 px-4 py-3.5 rounded-2xl"
-        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}
-      >
-        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#EF4444' }} />
-        <div>
-          <p className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>In immediate danger?</p>
-          <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
-            Call <strong style={{ color: '#EF4444' }}>1122</strong> for emergency services right now.
-          </p>
-        </div>
-      </motion.div>
-
-      {/* Helplines */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="rounded-2xl p-5"
-        style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-      >
-        <h2 className="text-sm font-semibold mb-4" style={{ color: '#F1F5F9' }}>Pakistan helplines</h2>
-        <div className="space-y-1">
-          {EMERGENCY.map(({ name, number, note, color }, i) => (
-            <motion.div
-              key={name}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.12 + i * 0.05 }}
-              className="flex items-center justify-between py-3"
-              style={{ borderBottom: i < EMERGENCY.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}
-            >
-              <div>
-                <p className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{name}</p>
-                <p className="text-[11px] mt-0.5" style={{ color: '#475569' }}>{note}</p>
-              </div>
-              <a
-                href={`tel:${number}`}
-                className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-all hover:scale-105"
-                style={{ color, background: `${color}12`, border: `1px solid ${color}25` }}
-              >
-                <Phone className="w-3.5 h-3.5" />
-                {number}
-              </a>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* Support cards */}
-      <div className="space-y-3">
-        {RESOURCES.map(({ icon: Icon, title, body, color }, i) => (
-          <motion.div
-            key={title}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.22 + i * 0.07 }}
-            className="flex gap-3 p-4 rounded-2xl"
-            style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-          >
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}12` }}>
-              <Icon className="w-4 h-4" style={{ color }} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold mb-1" style={{ color: '#F1F5F9' }}>{title}</p>
-              <p className="text-xs leading-relaxed" style={{ color: '#94A3B8' }}>{body}</p>
-            </div>
-          </motion.div>
-        ))}
+      <div style={{ marginBottom: 8 }}>
+        <h1 style={{
+          fontFamily: 'var(--font-display)', fontWeight: 800,
+          fontSize: 'clamp(36px,5vw,56px)', color: 'var(--ink)',
+          letterSpacing: '-0.03em', lineHeight: 1,
+        }}>
+          GET HELP.
+        </h1>
+        <div style={{ borderTop: '1.5px solid var(--border)', marginTop: 8 }} />
       </div>
 
-      {/* Reminder */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="text-center pb-4"
-      >
-        <p className="text-xs" style={{ color: '#475569' }}>
-          You can also talk to{' '}
-          <Link href="/dashboard/kokoro" className="font-medium hover:underline" style={{ color: '#2DD4BF' }}>
-            Kokoro
+      {/* Crisis banner */}
+      <div style={{
+        border: '2px solid var(--accent)', padding: '14px 18px', marginBottom: 32,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span style={{
+          fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13,
+          letterSpacing: '0.04em', color: 'var(--accent)',
+        }}>
+          IN IMMEDIATE DANGER? CALL 1122 NOW.
+        </span>
+        <a
+          href="tel:1122"
+          style={{
+            fontFamily: 'var(--font-mono)', fontSize: 20,
+            color: 'var(--accent)', textDecoration: 'none',
+          }}
+        >
+          →
+        </a>
+      </div>
+
+      {/* Helplines */}
+      <div style={{ marginBottom: 40 }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 6 }}>
+          PAKISTAN HELPLINES
+        </div>
+        <div style={{ borderTop: '1.5px solid var(--border)' }}>
+          {HELPLINES.map((h, i) => (
+            <div
+              key={h.name}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '14px 0',
+                borderBottom: '1px solid var(--border-2)',
+              }}
+            >
+              <div>
+                <div style={{
+                  fontFamily: 'var(--font-display)', fontWeight: 700,
+                  fontSize: 13, color: 'var(--ink)', letterSpacing: '0.02em', marginBottom: 2,
+                }}>
+                  {h.name}
+                </div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.04em' }}>
+                  {h.note}
+                </div>
+              </div>
+              <a
+                href={`tel:${h.number}`}
+                className="br-btn"
+                style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 12, padding: '6px 14px',
+                  letterSpacing: '0.04em', textDecoration: 'none', color: 'var(--ink)',
+                  whiteSpace: 'nowrap', display: 'inline-block',
+                }}
+              >
+                {h.number}
+              </a>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Reminders */}
+      <div style={{ marginBottom: 40 }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 6 }}>
+          REMEMBER
+        </div>
+        <div style={{ borderTop: '1.5px solid var(--border)' }}>
+          {REMINDERS.map((item, i) => (
+            <div
+              key={i}
+              style={{ padding: '16px 0', borderBottom: i < REMINDERS.length - 1 ? '1px solid var(--border-2)' : 'none' }}
+            >
+              <div style={{
+                fontFamily: 'var(--font-display)', fontWeight: 800,
+                fontSize: 14, color: 'var(--ink)', letterSpacing: '0.02em', marginBottom: 6,
+              }}>
+                {item.q}
+              </div>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.65 }}>
+                {item.a}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', letterSpacing: '0.06em' }}>
+          YOU CAN ALSO TALK TO{' '}
+          <Link href="/dashboard/kokoro" style={{ color: 'var(--ink)', textDecoration: 'underline', letterSpacing: '0.06em' }}>
+            KOKORO
           </Link>{' '}
-          anytime in the app
+          ANYTIME IN THE APP
         </p>
-      </motion.div>
+      </div>
     </div>
   )
 }

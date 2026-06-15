@@ -1,20 +1,22 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { motion } from 'framer-motion'
 
 const MOOD_LABELS = ['TERRIBLE', 'BAD', 'OKAY', 'GOOD', 'GREAT']
 
 const CARDS = [
-  { num: '01', label: 'TALK TO KOKORO', desc: 'Your AI companion. No judgment.',            href: '/dashboard/kokoro' },
-  { num: '02', label: 'MOOD TRACKER',   desc: 'How are you actually feeling?',              href: '/dashboard/mood' },
-  { num: '03', label: 'JOURNAL',        desc: 'Write it down. No one reads this but you.',  href: '/dashboard/journal' },
-  { num: '04', label: 'POMODORO',       desc: '25 minutes. Work, then breathe.',            href: '/dashboard/pomodoro' },
-  { num: '05', label: 'BREATHING',      desc: 'Your nervous system needs this.',            href: '/dashboard/breathing' },
-  { num: '06', label: 'MOOD GRAPH',     desc: 'Your patterns, visualised.',                 href: '/dashboard/graph' },
-  { num: '07', label: 'ACADEMIC STRESS',desc: 'Acknowledge it. Track it. Manage it.',      href: '/dashboard/research' },
-  { num: '08', label: 'GET HELP',       desc: 'Helplines. Real humans. 24/7.',             href: '/dashboard/helpline' },
+  { num: '01', label: 'TALK TO KOKORO',  desc: 'Your AI companion. No judgment.',            href: '/dashboard/kokoro' },
+  { num: '02', label: 'MOOD TRACKER',    desc: 'How are you actually feeling?',              href: '/dashboard/mood' },
+  { num: '03', label: 'JOURNAL',         desc: 'Write it down. No one reads this but you.',  href: '/dashboard/journal' },
+  { num: '04', label: 'POMODORO',        desc: '25 minutes. Work, then breathe.',            href: '/dashboard/pomodoro' },
+  { num: '05', label: 'BREATHING',       desc: 'Your nervous system needs this.',            href: '/dashboard/breathing' },
+  { num: '06', label: 'MOOD GRAPH',      desc: 'Your patterns, visualised.',                 href: '/dashboard/graph' },
+  { num: '07', label: 'ACADEMIC STRESS', desc: 'Acknowledge it. Track it. Manage it.',      href: '/dashboard/research' },
+  { num: '08', label: 'GET HELP',        desc: 'Helplines. Real humans. 24/7.',             href: '/dashboard/helpline' },
 ]
 
 const TICKER_ITEMS = 'MOOD TRACKER  ·  JOURNAL  ·  BREATHING  ·  POMODORO  ·  GET HELP  ·  KOKORO  ·  GRAPH  ·  STRESS  ·  '
@@ -67,12 +69,50 @@ function useScramble(finalText: string) {
   return { display, scramble }
 }
 
+function DraggableCard({ card }: { card: typeof CARDS[0] }) {
+  const didDrag = useRef(false)
+  const router  = useRouter()
+
+  return (
+    <motion.div
+      drag
+      dragMomentum={false}
+      dragElastic={0}
+      onDragStart={() => { didDrag.current = false }}
+      onDrag={() => { didDrag.current = true }}
+      whileDrag={{ boxShadow: '8px 8px 0px var(--border)', zIndex: 50 }}
+      onClick={() => { if (!didDrag.current) router.push(card.href) }}
+      style={{
+        padding: 20,
+        borderRight: '1.5px solid var(--border)',
+        borderBottom: '1.5px solid var(--border)',
+        background: 'var(--bg)',
+        cursor: 'grab',
+        position: 'relative',
+        userSelect: 'none',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, pointerEvents: 'none' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>{card.num}</span>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, color: 'var(--ink)', letterSpacing: '0.02em', textAlign: 'right', maxWidth: '70%' }}>
+          {card.label}
+        </span>
+      </div>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 12, pointerEvents: 'none' }}>
+        {card.desc}
+      </p>
+      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11, color: 'var(--ink)', letterSpacing: '0.04em', pointerEvents: 'none' }}>
+        OPEN →
+      </span>
+    </motion.div>
+  )
+}
+
 export default function DashboardHome() {
-  const [profile, setProfile]       = useState<any>(null)
-  const [todayMood, setTodayMood]   = useState<any>(null)
-  const [hasMoodToday, setHasMood]  = useState(false)
-  const [hasStressToday, setStress] = useState(false)
-  const [loading, setLoading]       = useState(true)
+  const [profile, setProfile]     = useState<any>(null)
+  const [todayMood, setTodayMood] = useState<any>(null)
+  const [hasMoodToday, setHasMood] = useState(false)
+  const [loading, setLoading]      = useState(true)
   const time = useLiveClock()
   const name = profile?.name?.toUpperCase() || 'WELCOME'
   const { display: scrambledName, scramble } = useScramble(name)
@@ -81,19 +121,15 @@ export default function DashboardHome() {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
-
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-      const [{ data: prof }, { data: moods }, { data: stress }] = await Promise.all([
+      const [{ data: prof }, { data: moods }] = await Promise.all([
         supabase.from('profiles').select('name').eq('id', session.user.id).single(),
         supabase.from('moods').select('mood_score').eq('user_id', session.user.id)
           .gte('created_at', todayStart.toISOString()).order('created_at', { ascending: false }).limit(1),
-        supabase.from('academic_stress').select('id').eq('user_id', session.user.id)
-          .gte('created_at', todayStart.toISOString()).limit(1),
       ])
       setProfile(prof)
       setTodayMood(moods?.[0] ?? null)
       setHasMood(Boolean(moods?.length))
-      setStress(Boolean(stress?.length))
       setLoading(false)
     }
     load()
@@ -106,12 +142,13 @@ export default function DashboardHome() {
   const moodLabel = todayMood ? MOOD_LABELS[todayMood.mood_score - 1] : null
 
   return (
-    <div style={{ maxWidth: 840 }}>
+    <div>
 
       {/* ── Masthead ── */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         borderBottom: '1.5px solid var(--border)', paddingBottom: 10, marginBottom: 48,
+        paddingRight: 64,
       }}>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-3)', letterSpacing: '0.06em' }}>
           {dateStr}  ·  {time}  ·  LAHORE, PK
@@ -129,19 +166,14 @@ export default function DashboardHome() {
         <div
           className="t-hero"
           style={{
-            borderBottom: '3px solid var(--border)',
-            paddingBottom: 8,
-            marginBottom: 20,
-            display: 'inline-block',
-            cursor: 'default',
-            fontFamily: 'var(--font-display)',
+            borderBottom: '3px solid var(--border)', paddingBottom: 8,
+            marginBottom: 20, display: 'inline-block',
+            cursor: 'default', fontFamily: 'var(--font-display)',
           }}
           onMouseEnter={scramble}
         >
           {loading ? '—' : scrambledName}
         </div>
-
-        {/* Streak callout */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 32, marginTop: 12 }}>
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28, color: 'var(--ink)', lineHeight: 1 }}>
@@ -154,10 +186,7 @@ export default function DashboardHome() {
           {!hasMoodToday && (
             <Link
               href="/dashboard/mood"
-              style={{
-                fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
-                color: 'var(--accent)', letterSpacing: '0.06em', textDecoration: 'none',
-              }}
+              style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--accent)', letterSpacing: '0.06em', textDecoration: 'none' }}
             >
               ↗ START YOUR STREAK TODAY
             </Link>
@@ -168,24 +197,9 @@ export default function DashboardHome() {
       {/* ── Status strip ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: '1.5px solid var(--border)', marginBottom: 48 }}>
         {[
-          {
-            label: 'MOOD',
-            value: moodLabel || 'NOT LOGGED',
-            cta: !hasMoodToday ? 'LOG NOW →' : null,
-            ctaHref: '/dashboard/mood',
-          },
-          {
-            label: 'STREAK',
-            value: hasMoodToday ? '1 DAY' : '0 DAYS',
-            cta: null,
-            ctaHref: null,
-          },
-          {
-            label: 'FOCUS',
-            value: '0 MIN TODAY',
-            cta: 'START SESSION →',
-            ctaHref: '/dashboard/pomodoro',
-          },
+          { label: 'MOOD',   value: moodLabel || 'NOT LOGGED', cta: !hasMoodToday ? 'LOG NOW →' : null, ctaHref: '/dashboard/mood' },
+          { label: 'STREAK', value: hasMoodToday ? '1 DAY' : '0 DAYS', cta: null, ctaHref: null },
+          { label: 'FOCUS',  value: '0 MIN TODAY', cta: 'START SESSION →', ctaHref: '/dashboard/pomodoro' },
         ].map((col, i) => (
           <div
             key={col.label}
@@ -198,17 +212,13 @@ export default function DashboardHome() {
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
               {col.label}
             </div>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(18px, 3vw, 28px)', color: 'var(--ink)', lineHeight: 1.1, marginBottom: 8 }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(18px,3vw,28px)', color: 'var(--ink)', lineHeight: 1.1, marginBottom: 8 }}>
               {loading ? '—' : col.value}
             </div>
             {col.cta && col.ctaHref && (
               <Link
                 href={col.ctaHref}
-                style={{
-                  fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
-                  color: 'var(--accent)', letterSpacing: '0.04em', textDecoration: 'none',
-                  display: 'block', marginTop: 4,
-                }}
+                style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11, color: 'var(--accent)', letterSpacing: '0.04em', textDecoration: 'none', display: 'block', marginTop: 4 }}
               >
                 {col.cta}
               </Link>
@@ -217,45 +227,26 @@ export default function DashboardHome() {
         ))}
       </div>
 
-      {/* ── Feature grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: '1.5px solid var(--border)', borderLeft: '1.5px solid var(--border)', marginBottom: 0 }}>
+      {/* ── Feature grid (draggable) ── */}
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.14em', marginBottom: 8 }}>
+        DRAG TO REARRANGE  ·  CLICK TO OPEN
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+        borderTop: '1.5px solid var(--border)',
+        borderLeft: '1.5px solid var(--border)',
+        marginBottom: 0,
+      }}>
         {CARDS.map((card) => (
-          <Link
-            key={card.num}
-            href={card.href}
-            className="br-lift"
-            style={{
-              display: 'block',
-              padding: 20,
-              borderRight: '1.5px solid var(--border)',
-              borderBottom: '1.5px solid var(--border)',
-              textDecoration: 'none',
-              background: 'var(--bg)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>{card.num}</span>
-              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, color: 'var(--ink)', letterSpacing: '0.02em', textAlign: 'right', maxWidth: '70%' }}>
-                {card.label}
-              </span>
-            </div>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 12 }}>
-              {card.desc}
-            </p>
-            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11, color: 'var(--ink)', letterSpacing: '0.04em' }}>
-              OPEN →
-            </span>
-          </Link>
+          <DraggableCard key={card.num} card={card} />
         ))}
       </div>
 
       {/* ── Ticker tape ── */}
       <div
         className="ticker-wrap"
-        style={{
-          overflow: 'hidden', background: 'var(--bg-invert)',
-          borderTop: '1.5px solid var(--border)', marginTop: 48,
-        }}
+        style={{ overflow: 'hidden', background: 'var(--bg-invert)', borderTop: '1.5px solid var(--border)', marginTop: 48 }}
       >
         <div className="ticker-inner" style={{ padding: '12px 0' }}>
           {[TICKER_ITEMS, TICKER_ITEMS].map((txt, i) => (

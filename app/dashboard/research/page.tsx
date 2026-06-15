@@ -3,56 +3,84 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BookOpen, Brain, Clock, Heart, Users, Calendar, Sparkles, TrendingUp, CircleAlert } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-const performanceLevels = [
-  { value: 5, label: 'Excellent',     color: '#2DD4BF' },
-  { value: 4, label: 'Good',          color: '#4ADE80' },
-  { value: 3, label: 'Average',       color: '#EAB308' },
-  { value: 2, label: 'Below Average', color: '#F97316' },
-  { value: 1, label: 'Poor',          color: '#EF4444' },
+const PERFORMANCE = [
+  { value: 5, label: 'EXCELLENT' },
+  { value: 4, label: 'GOOD' },
+  { value: 3, label: 'AVERAGE' },
+  { value: 2, label: 'BELOW AVERAGE' },
+  { value: 1, label: 'POOR' },
 ]
 
-const stressLevels = [
-  { value: 5, label: 'Extremely Stressed', color: '#EF4444' },
-  { value: 4, label: 'Very Stressed',      color: '#F97316' },
-  { value: 3, label: 'Moderately Stressed',color: '#EAB308' },
-  { value: 2, label: 'Slightly Stressed',  color: '#4ADE80' },
-  { value: 1, label: 'Not Stressed',       color: '#2DD4BF' },
+const STRESS = [
+  { value: 5, label: 'EXTREMELY STRESSED' },
+  { value: 4, label: 'VERY STRESSED' },
+  { value: 3, label: 'MODERATELY STRESSED' },
+  { value: 2, label: 'SLIGHTLY STRESSED' },
+  { value: 1, label: 'NOT STRESSED' },
 ]
 
-const yesNoOptions = [
-  { value: 'yes',      label: 'Yes',           color: '#4ADE80' },
-  { value: 'no',       label: 'No',            color: '#EF4444' },
-  { value: 'planning', label: 'Planning to',   color: '#F97316' },
+const YES_NO = [
+  { value: 'yes',      label: 'YES' },
+  { value: 'no',       label: 'NO' },
+  { value: 'planning', label: 'PLANNING TO' },
 ]
 
-const impactOptions = [
-  { value: 'yes',      label: 'Yes',           color: '#F97316' },
-  { value: 'no',       label: 'No',            color: '#4ADE80' },
-  { value: 'somewhat', label: 'Somewhat',      color: '#EAB308' },
+const IMPACT = [
+  { value: 'yes',      label: 'YES' },
+  { value: 'no',       label: 'NO' },
+  { value: 'somewhat', label: 'SOMEWHAT' },
 ]
 
-function OptionButton({ value, label, color, selected, onClick }: {
-  value: string; label: string; color: string; selected: boolean; onClick: () => void
+function OptionRow({ label, value, selected, onClick }: {
+  label: string; value?: string; selected: boolean; onClick: () => void
 }) {
   return (
     <button
       onClick={onClick}
-      className="w-full p-3.5 rounded-xl text-left flex items-center justify-between transition-all"
       style={{
-        background: selected ? `${color}10` : '#1C2030',
-        border: selected ? `1px solid ${color}40` : '1px solid rgba(255,255,255,0.04)',
-        color: selected ? color : '#94A3B8',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        width: '100%', padding: '11px 14px', textAlign: 'left',
+        background: selected ? 'var(--bg-invert)' : 'var(--bg)',
+        color: selected ? 'var(--ink-invert)' : 'var(--ink)',
+        border: 'none', borderBottom: '1px solid var(--border-2)',
+        fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
+        letterSpacing: '0.06em', cursor: 'pointer',
+        transition: 'background 80ms, color 80ms',
       }}
+      onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)' }}
+      onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'var(--bg)' }}
     >
-      <div className="flex items-center gap-3">
-        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color, opacity: selected ? 1 : 0.35 }} />
-        <span className="text-sm font-medium">{label}</span>
-      </div>
-      {value.match(/^\d+$/) && <span className="text-xs" style={{ color: selected ? color : '#475569' }}>{value}/5</span>}
+      <span>{label}</span>
+      {value && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, opacity: 0.45 }}>{value}</span>}
     </button>
+  )
+}
+
+function TripleButton({ options, value, onChange }: {
+  options: typeof YES_NO; value: string | null; onChange: (v: string) => void
+}) {
+  return (
+    <div style={{ display: 'flex', border: '1.5px solid var(--border)', overflow: 'hidden' }}>
+      {options.map(({ value: v, label }, i) => (
+        <button
+          key={v}
+          onClick={() => onChange(v)}
+          style={{
+            flex: 1, padding: '11px 8px',
+            background: value === v ? 'var(--bg-invert)' : 'var(--bg)',
+            color: value === v ? 'var(--ink-invert)' : 'var(--ink)',
+            border: 'none', borderRight: i < options.length - 1 ? '1px solid var(--border-2)' : 'none',
+            fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
+            letterSpacing: '0.06em', cursor: 'pointer',
+            transition: 'background 80ms, color 80ms',
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -68,32 +96,27 @@ export default function AcademicStressPage() {
   const [loading, setLoading]   = useState(false)
   const [success, setSuccess]   = useState(false)
   const [alreadyLogged, setAlreadyLogged] = useState(false)
-  const [todayEntry, setTodayEntry] = useState<any>(null)
+  const [todayEntry, setTodayEntry]       = useState<any>(null)
 
-  useEffect(() => {
-    checkTodayEntry()
-    fetchRecentEntries()
-  }, [])
+  useEffect(() => { checkTodayEntry(); fetchRecentEntries() }, [])
 
   const checkTodayEntry = async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const today = new Date().toISOString().split('T')[0]
-      const { data } = await supabase
-        .from('academic_stress').select('*').eq('user_id', user.id)
-        .gte('created_at', today).order('created_at', { ascending: false }).limit(1).single()
-      if (data) { setAlreadyLogged(true); setTodayEntry(data) }
-    }
+    if (!user) return
+    const today = new Date().toISOString().split('T')[0]
+    const { data } = await supabase
+      .from('academic_stress').select('*').eq('user_id', user.id)
+      .gte('created_at', today).order('created_at', { ascending: false }).limit(1).single()
+    if (data) { setAlreadyLogged(true); setTodayEntry(data) }
   }
 
   const fetchRecentEntries = async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data } = await supabase
-        .from('academic_stress').select('*').eq('user_id', user.id)
-        .order('created_at', { ascending: false }).limit(7)
-      setRecentEntries(data || [])
-    }
+    if (!user) return
+    const { data } = await supabase
+      .from('academic_stress').select('*').eq('user_id', user.id)
+      .order('created_at', { ascending: false }).limit(7)
+    setRecentEntries(data || [])
   }
 
   const handleSubmit = async () => {
@@ -114,303 +137,188 @@ export default function AcademicStressPage() {
         setPerformance(null); setStressLevel(null); setSelfStudy(null)
         setMoodImpact(null); setLifeImpact(null); setLifeImpactExample('')
         checkTodayEntry(); fetchRecentEntries()
-        setTimeout(() => setSuccess(false), 3000)
+        setTimeout(() => setSuccess(false), 4000)
       }
     }
     setLoading(false)
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div>
+
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
-            <BookOpen className="w-5 h-5" style={{ color: '#EF4444' }} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}>
-              Academic Stress Tracker
-            </h1>
-            <p className="text-xs" style={{ color: '#475569' }}>Track your daily academic performance and stress</p>
-          </div>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 8, paddingRight: 64 }}>
+        <h1 style={{
+          fontFamily: 'var(--font-display)', fontWeight: 800,
+          fontSize: 'clamp(36px,5vw,56px)', color: 'var(--ink)',
+          letterSpacing: '-0.03em', lineHeight: 1,
+        }}>
+          ACADEMIC STRESS
+        </h1>
         <button
           onClick={() => router.push('/dashboard/research/insights')}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80"
-          style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)', color: '#94A3B8' }}
+          className="br-btn"
+          style={{ padding: '8px 16px', fontSize: 11, letterSpacing: '0.06em', marginBottom: 4, cursor: 'pointer' }}
         >
-          <TrendingUp className="w-4 h-4" />
-          <span className="hidden sm:inline">View Insights</span>
+          INSIGHTS →
         </button>
-      </motion.div>
+      </div>
+      <div style={{ borderTop: '1.5px solid var(--border)', marginBottom: 24 }} />
 
-      {/* Success banner */}
+      {/* Success strip */}
       <AnimatePresence>
         {success && (
           <motion.div
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            className="mb-4 p-3.5 rounded-2xl flex items-center gap-3"
-            style={{ background: 'rgba(45,212,191,0.08)', border: '1px solid rgba(45,212,191,0.2)' }}
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            style={{
+              fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.1em',
+              color: 'var(--ink-invert)', background: 'var(--bg-invert)',
+              padding: '10px 14px', marginBottom: 16,
+            }}
           >
-            <Sparkles className="w-4 h-4 shrink-0" style={{ color: '#2DD4BF' }} />
-            <span className="text-sm font-medium" style={{ color: '#F1F5F9' }}>Entry logged successfully!</span>
+            LOGGED. ENTRY SAVED  ·  {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Already logged today */}
+      {/* Already logged */}
       {alreadyLogged && todayEntry && (
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-4 p-4 rounded-2xl flex items-start gap-3"
-          style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(94,234,212,0.12)' }}>
-            <Clock className="w-4 h-4" style={{ color: '#2DD4BF' }} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold mb-0.5" style={{ color: '#F1F5F9' }}>You&apos;ve already logged your academic stress today!</p>
-            <p className="text-xs" style={{ color: '#94A3B8' }}>
-              Performance: <strong style={{ color: '#F1F5F9' }}>{todayEntry.performance_rating}/5</strong>{' '}
-              · Stress: <strong style={{ color: '#F1F5F9' }}>{todayEntry.stress_level}/5</strong>
-            </p>
-            <p className="text-xs mt-1" style={{ color: '#475569' }}>Come back tomorrow to track again!</p>
-          </div>
-        </motion.div>
+        <div style={{
+          border: '1.5px solid var(--border)', padding: '10px 14px', marginBottom: 24,
+          background: 'var(--bg-card)',
+          fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', letterSpacing: '0.06em',
+        }}>
+          ALREADY LOGGED TODAY  ·  PERFORMANCE: {todayEntry.performance_rating}/5  ·  STRESS: {todayEntry.stress_level}/5  ·  COME BACK TOMORROW
+        </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-5">
-        {/* Main form */}
-        <div className={`lg:col-span-2 ${alreadyLogged ? 'opacity-50 pointer-events-none' : ''}`}>
-          <div className="rounded-2xl p-5 space-y-6" style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: 24 }}>
 
-            {/* Q1: Performance */}
-            <div>
-              <div className="flex items-center gap-2.5 mb-3">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(45,212,191,0.12)' }}>
-                  <Brain className="w-4 h-4" style={{ color: '#2DD4BF' }} />
-                </div>
-                <h2 className="text-base font-semibold" style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}>
-                  How was your academic performance today?
-                </h2>
-              </div>
-              <div className="space-y-2">
-                {performanceLevels.map(level => (
-                  <OptionButton
-                    key={level.value}
-                    value={String(level.value)}
-                    label={level.label}
-                    color={level.color}
-                    selected={performance === level.value}
-                    onClick={() => !alreadyLogged && setPerformance(level.value)}
-                  />
-                ))}
-              </div>
+        {/* Form */}
+        <div style={{ opacity: alreadyLogged ? 0.4 : 1, pointerEvents: alreadyLogged ? 'none' : 'auto' }}>
+
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
+              01  HOW WAS YOUR ACADEMIC PERFORMANCE TODAY?
             </div>
+            <div style={{ border: '1.5px solid var(--border)', overflow: 'hidden' }}>
+              {PERFORMANCE.map(({ value, label }) => (
+                <OptionRow key={value} label={label} value={`${value}/5`} selected={performance === value} onClick={() => setPerformance(value)} />
+              ))}
+            </div>
+          </div>
 
-            {/* Q2: Stress */}
-            <AnimatePresence>
-              {performance !== null && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
-                      <CircleAlert className="w-4 h-4" style={{ color: '#EF4444' }} />
-                    </div>
-                    <h2 className="text-base font-semibold" style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}>
-                      How stressed were you today?
-                    </h2>
-                  </div>
-                  <div className="space-y-2">
-                    {stressLevels.map(level => (
-                      <OptionButton
-                        key={level.value}
-                        value={String(level.value)}
-                        label={level.label}
-                        color={level.color}
-                        selected={stressLevel === level.value}
-                        onClick={() => setStressLevel(level.value)}
-                      />
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <AnimatePresence>
+            {performance !== null && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginBottom: 20, overflow: 'hidden' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
+                  02  HOW STRESSED WERE YOU TODAY?
+                </div>
+                <div style={{ border: '1.5px solid var(--border)', overflow: 'hidden' }}>
+                  {STRESS.map(({ value, label }) => (
+                    <OptionRow key={value} label={label} value={`${value}/5`} selected={stressLevel === value} onClick={() => setStressLevel(value)} />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-            {/* Q3: Self study */}
-            <AnimatePresence>
-              {stressLevel !== null && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(129,140,248,0.12)' }}>
-                      <BookOpen className="w-4 h-4" style={{ color: '#818CF8' }} />
-                    </div>
-                    <h2 className="text-base font-semibold" style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}>
-                      Did you self-study at home today?
-                    </h2>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {yesNoOptions.map(opt => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setSelfStudy(opt.value)}
-                        className="py-2.5 rounded-xl text-sm font-semibold transition-all"
-                        style={{
-                          background: selfStudy === opt.value ? `${opt.color}15` : '#1C2030',
-                          border: selfStudy === opt.value ? `1px solid ${opt.color}40` : '1px solid rgba(255,255,255,0.04)',
-                          color: selfStudy === opt.value ? opt.color : '#94A3B8',
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <AnimatePresence>
+            {stressLevel !== null && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginBottom: 20, overflow: 'hidden' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
+                  03  DID YOU SELF-STUDY AT HOME TODAY?
+                </div>
+                <TripleButton options={YES_NO} value={selfStudy} onChange={setSelfStudy} />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-            {/* Q4: Mood impact */}
-            <AnimatePresence>
-              {selfStudy !== null && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(249,115,22,0.12)' }}>
-                      <Heart className="w-4 h-4" style={{ color: '#F97316' }} />
-                    </div>
-                    <h2 className="text-base font-semibold" style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}>
-                      Did academic performance impact your mood?
-                    </h2>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {impactOptions.map(opt => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setMoodImpact(opt.value)}
-                        className="py-2.5 rounded-xl text-sm font-semibold transition-all"
-                        style={{
-                          background: moodImpact === opt.value ? `${opt.color}15` : '#1C2030',
-                          border: moodImpact === opt.value ? `1px solid ${opt.color}40` : '1px solid rgba(255,255,255,0.04)',
-                          color: moodImpact === opt.value ? opt.color : '#94A3B8',
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <AnimatePresence>
+            {selfStudy !== null && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginBottom: 20, overflow: 'hidden' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
+                  04  DID ACADEMIC PERFORMANCE IMPACT YOUR MOOD?
+                </div>
+                <TripleButton options={IMPACT} value={moodImpact} onChange={setMoodImpact} />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-            {/* Q5: Life impact */}
-            <AnimatePresence>
-              {moodImpact !== null && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(74,222,128,0.12)' }}>
-                      <Users className="w-4 h-4" style={{ color: '#4ADE80' }} />
-                    </div>
-                    <h2 className="text-base font-semibold" style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}>
-                      Did it impact your day-to-day life?
-                    </h2>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    {impactOptions.map(opt => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setLifeImpact(opt.value)}
-                        className="py-2.5 rounded-xl text-sm font-semibold transition-all"
-                        style={{
-                          background: lifeImpact === opt.value ? `${opt.color}15` : '#1C2030',
-                          border: lifeImpact === opt.value ? `1px solid ${opt.color}40` : '1px solid rgba(255,255,255,0.04)',
-                          color: lifeImpact === opt.value ? opt.color : '#94A3B8',
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  {lifeImpact === 'yes' && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                      <label className="block text-xs font-medium mb-2" style={{ color: '#94A3B8' }}>
-                        Example (e.g., &ldquo;Couldn&apos;t play football because of studying&rdquo;)
-                      </label>
-                      <input
-                        type="text"
-                        value={lifeImpactExample}
-                        onChange={e => setLifeImpactExample(e.target.value)}
-                        placeholder="What did you miss out on?"
-                        className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
-                        style={{ background: '#222638', border: '1px solid rgba(255,255,255,0.08)', color: '#F1F5F9' }}
-                      />
-                    </motion.div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <AnimatePresence>
+            {moodImpact !== null && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginBottom: 20, overflow: 'hidden' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
+                  05  DID IT IMPACT YOUR DAY-TO-DAY LIFE?
+                </div>
+                <TripleButton options={IMPACT} value={lifeImpact} onChange={setLifeImpact} />
+                {lifeImpact === 'yes' && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginTop: 8 }}>
+                    <input
+                      type="text"
+                      value={lifeImpactExample}
+                      onChange={e => setLifeImpactExample(e.target.value)}
+                      placeholder="WHAT DID YOU MISS OUT ON?"
+                      style={{
+                        width: '100%', padding: '11px 14px', boxSizing: 'border-box',
+                        fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em',
+                        color: 'var(--ink)', background: 'var(--bg)',
+                        border: '1.5px solid var(--border)', outline: 'none',
+                      }}
+                    />
+                  </motion.div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-            {/* Submit */}
-            <AnimatePresence>
-              {lifeImpact !== null && (
-                <motion.button
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  whileHover={{ scale: alreadyLogged ? 1 : 1.02 }}
-                  whileTap={{ scale: alreadyLogged ? 1 : 0.98 }}
+          <AnimatePresence>
+            {lifeImpact !== null && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <button
                   onClick={handleSubmit}
                   disabled={!performance || !stressLevel || loading || alreadyLogged}
-                  className="w-full py-3.5 rounded-xl text-white font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ background: loading || alreadyLogged ? '#1C2030' : '#14B8A6', color: loading || alreadyLogged ? '#475569' : '#fff' }}
+                  className="br-btn br-btn-inv"
+                  style={{
+                    width: '100%', padding: '13px', fontSize: 12, letterSpacing: '0.08em',
+                    opacity: alreadyLogged || loading ? 0.45 : 1,
+                    cursor: alreadyLogged || loading ? 'not-allowed' : 'pointer',
+                  }}
                 >
-                  {alreadyLogged ? 'Already Logged Today' : loading ? 'Submitting…' : 'Submit Entry'}
-                </motion.button>
-              )}
-            </AnimatePresence>
-          </div>
+                  {alreadyLogged ? 'ALREADY LOGGED TODAY' : loading ? 'SAVING…' : 'LOG ENTRY →'}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* Recent entries sidebar */}
+        {/* Recent entries */}
         <div>
-          <div className="rounded-2xl p-4 sticky top-6" style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: '#F1F5F9' }}>
-              <Calendar className="w-4 h-4" style={{ color: '#2DD4BF' }} />
-              Recent Entries
-            </h2>
-
+          <div style={{ border: '1.5px solid var(--border)', position: 'sticky', top: 24 }}>
+            <div style={{
+              fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em',
+              padding: '9px 12px', borderBottom: '1.5px solid var(--border)',
+            }}>
+              RECENT ENTRIES
+            </div>
             {recentEntries.length === 0 ? (
-              <div className="text-center py-8">
-                <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-20" style={{ color: '#F1F5F9' }} />
-                <p className="text-sm" style={{ color: '#475569' }}>No entries yet</p>
+              <div style={{ padding: '20px 12px', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.06em' }}>
+                NO ENTRIES YET.
               </div>
             ) : (
-              <div className="space-y-2">
-                {recentEntries.map((entry, i) => (
-                  <motion.div
-                    key={entry.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="p-3 rounded-xl"
-                    style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.04)' }}
-                  >
-                    <p className="text-[10px] mb-1.5" style={{ color: '#475569' }}>
-                      {new Date(entry.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </p>
-                    <div className="grid grid-cols-2 gap-1 text-xs">
-                      <div>
-                        <span style={{ color: '#475569' }}>Performance </span>
-                        <span style={{ color: '#F1F5F9', fontFamily: 'var(--font-jetbrains), monospace' }}>{entry.performance_rating}/5</span>
-                      </div>
-                      <div>
-                        <span style={{ color: '#475569' }}>Stress </span>
-                        <span style={{ color: '#F1F5F9', fontFamily: 'var(--font-jetbrains), monospace' }}>{entry.stress_level}/5</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+              recentEntries.map((entry, i) => (
+                <div
+                  key={entry.id}
+                  style={{ padding: '9px 12px', borderBottom: i < recentEntries.length - 1 ? '1px solid var(--border-2)' : 'none' }}
+                >
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.08em', marginBottom: 4 }}>
+                    {new Date(entry.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()}
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink)', letterSpacing: '0.04em' }}>
+                    P: {entry.performance_rating}/5  ·  S: {entry.stress_level}/5
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>
