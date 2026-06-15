@@ -226,28 +226,6 @@ export default function SettingsPage() {
         <SettingsRow label="CLEAR JOURNALS" desc="Remove journal entries" onClick={() => { setResetType('journals'); setShowReset(true) }} />
       </Section>
 
-      {/* Appearance */}
-      <Section title="APPEARANCE">
-        <div style={{ display: 'flex', padding: 0 }}>
-          {['LIGHT', 'DARK', 'SYSTEM'].map((m, i) => (
-            <button
-              key={m}
-              style={{
-                flex: 1, padding: '14px 0', textAlign: 'center',
-                background: m === 'LIGHT' ? 'var(--bg-invert)' : 'var(--bg)',
-                color: m === 'LIGHT' ? 'var(--ink-invert)' : 'var(--ink-2)',
-                border: 'none', borderRight: i < 2 ? '1.5px solid var(--border)' : 'none',
-                fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
-                letterSpacing: '0.06em', cursor: 'pointer',
-                transition: 'background 80ms, color 80ms',
-              }}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-      </Section>
-
       {/* App info */}
       <Section title="APP INFO">
         {[{ label: 'VERSION', value: '2.0.0' }, { label: 'DEVELOPER', value: 'SAAD NIZAMI' }].map(r => (

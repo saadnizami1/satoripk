@@ -44,28 +44,6 @@ export default function CreatorPage() {
 
       <div style={{ borderTop: '1px solid rgba(244,242,238,0.14)', margin: '28px 0' }} />
 
-      {/* Role grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, maxWidth: 640 }}>
-        <div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'rgba(244,242,238,0.38)', letterSpacing: '0.14em', marginBottom: 8 }}>
-            ROLE
-          </div>
-          <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(244,242,238,0.8)', lineHeight: 1.65 }}>
-            Deputy President of Computer Science<br />ISL Ring Road
-          </div>
-        </div>
-        <div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'rgba(244,242,238,0.38)', letterSpacing: '0.14em', marginBottom: 8 }}>
-            AT INGENIUM
-          </div>
-          <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(244,242,238,0.8)', lineHeight: 1.65 }}>
-            CS Category Host<br />August 2026
-          </div>
-        </div>
-      </div>
-
-      <div style={{ borderTop: '1px solid rgba(244,242,238,0.14)', margin: '28px 0' }} />
-
       {/* About — short */}
       <div style={{ maxWidth: 520 }}>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'rgba(244,242,238,0.38)', letterSpacing: '0.14em', marginBottom: 14 }}>
