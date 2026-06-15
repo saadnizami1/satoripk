@@ -275,7 +275,7 @@ export default function LandingPage() {
               fontFamily: 'var(--font-mono)', fontSize: 9,
               letterSpacing: '0.22em', color: 'var(--ink-3)',
             }}>
-              SCROLL
+              
             </span>
             <svg
               className="pulse-down"
