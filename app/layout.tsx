@@ -23,8 +23,29 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Satori — Mental Wellness',
-  description: 'Your private companion for mental wellness — mood tracking, AI support, journaling, and breathwork.',
+  title: 'Satori',
+  description: 'Your private companion for mental wellness',
+  openGraph: {
+    title: 'Satori',
+    description: 'Your private companion for mental wellness',
+    url: 'https://satoripk.vercel.app',
+    siteName: 'Satori',
+    images: [
+      {
+        url: 'https://satoripk.vercel.app/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Satori',
+      },
+    ],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Satori ',
+    description: 'Your private companion for mental wellness — mood tracking, AI support, journaling, and breathwork.',
+    images: ['https://satoripk.vercel.app/og-image.png'],
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
