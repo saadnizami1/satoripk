@@ -1,12 +1,45 @@
 'use client'
 
-import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
-import { motion, useInView } from 'framer-motion'
+import { useState, useEffect, useRef, type ReactNode, type CSSProperties } from 'react'
+import { motion, useInView, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
 
-// ── Reusable animation primitives ────────────────────────────────
+/* ────────────────────────────────────────────────────────────────
+   Satori — landing page
+   Concept: a research dossier, typeset like a printed document.
+   Swiss grid, masked type reveals, index rows instead of cards.
+──────────────────────────────────────────────────────────────── */
 
-function FadeUp({
+const EASE = [0.25, 0, 0, 1] as const
+
+/* ── Masked line reveal — text slides up from behind a crop ── */
+function Reveal({
+  children,
+  delay = 0,
+  once = true,
+}: {
+  children: ReactNode
+  delay?: number
+  once?: boolean
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const inView = useInView(ref, { once, margin: '-10% 0px' })
+  const reduce = useReducedMotion()
+  return (
+    <div ref={ref} style={{ overflow: 'hidden' }}>
+      <motion.div
+        initial={{ y: reduce ? 0 : '110%' }}
+        animate={inView ? { y: 0 } : { y: reduce ? 0 : '110%' }}
+        transition={{ duration: 0.9, delay, ease: EASE }}
+      >
+        {children}
+      </motion.div>
+    </div>
+  )
+}
+
+/* ── Fade-in for secondary content ── */
+function Fade({
   children,
   delay = 0,
   style,
@@ -16,64 +49,113 @@ function FadeUp({
   style?: CSSProperties
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, margin: '-60px' })
+  const inView = useInView(ref, { once: true, margin: '-8% 0px' })
+  const reduce = useReducedMotion()
   return (
     <motion.div
       ref={ref}
       style={style}
-      initial={{ opacity: 0, y: 36 }}
-      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 36 }}
-      transition={{ duration: 0.72, delay, ease: [0.25, 0, 0, 1] }}
+      initial={{ opacity: 0, y: reduce ? 0 : 20 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.8, delay, ease: EASE }}
     >
       {children}
     </motion.div>
   )
 }
 
-function DrawLine({ color = 'var(--border)', delay = 0 }: { color?: string; delay?: number }) {
+/* ── Horizontal rule that draws itself in ── */
+function Rule({ delay = 0, color = 'var(--border)' }: { delay?: number; color?: string }) {
   const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true })
+  const inView = useInView(ref, { once: true, margin: '-5% 0px' })
+  const reduce = useReducedMotion()
   return (
-    <motion.div
-      ref={ref}
-      initial={{ scaleX: 0 }}
-      animate={inView ? { scaleX: 1 } : { scaleX: 0 }}
-      transition={{ duration: 0.9, delay, ease: [0.25, 0, 0, 1] }}
-      style={{ height: 1.5, background: color, transformOrigin: 'left', width: '100%' }}
-    />
+    <div ref={ref}>
+      <motion.div
+        initial={{ scaleX: reduce ? 1 : 0 }}
+        animate={inView ? { scaleX: 1 } : {}}
+        transition={{ duration: 1.1, delay, ease: EASE }}
+        style={{ height: 1.5, background: color, transformOrigin: 'left' }}
+      />
+    </div>
   )
 }
 
+/* ── Count-up numeral ── */
 function Counter({ end, suffix = '' }: { end: number; suffix?: string }) {
-  const [count, setCount] = useState(0)
+  const [n, setN] = useState(0)
   const ref = useRef<HTMLSpanElement>(null)
-  const inView = useInView(ref, { once: true, margin: '-80px' })
+  const inView = useInView(ref, { once: true, margin: '-15% 0px' })
   useEffect(() => {
     if (!inView) return
-    const dur = 1800
-    const t0 = Date.now()
-    const tick = () => {
-      const elapsed = Date.now() - t0
-      const p = Math.min(elapsed / dur, 1)
-      setCount(Math.round((1 - Math.pow(1 - p, 3)) * end))
-      if (p < 1) requestAnimationFrame(tick)
+    const t0 = performance.now()
+    const dur = 1600
+    let raf = 0
+    const tick = (t: number) => {
+      const p = Math.min((t - t0) / dur, 1)
+      setN(Math.round((1 - Math.pow(1 - p, 3)) * end))
+      if (p < 1) raf = requestAnimationFrame(tick)
     }
-    requestAnimationFrame(tick)
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
   }, [inView, end])
-  return <span ref={ref}>{count}{suffix}</span>
+  return <span ref={ref}>{n}{suffix}</span>
 }
 
-// ── Data ─────────────────────────────────────────────────────────
+/* ── Live Lahore clock — renders after mount to avoid hydration drift ── */
+function LahoreClock() {
+  const [time, setTime] = useState<string | null>(null)
+  useEffect(() => {
+    const fmt = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Karachi',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    })
+    const tick = () => setTime(fmt.format(new Date()))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+      LHE {time ?? '--:--:--'}
+    </span>
+  )
+}
+
+/* ── Section folio label ── */
+function Folio({ n, title }: { n: string; title: string }) {
+  return (
+    <Fade>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+        <span style={{
+          fontFamily: 'var(--font-mono)', fontSize: 10,
+          letterSpacing: '0.2em', color: 'var(--ink)',
+        }}>
+          §{n}
+        </span>
+        <span style={{
+          fontFamily: 'var(--font-mono)', fontSize: 10,
+          letterSpacing: '0.2em', color: 'var(--ink-3)',
+        }}>
+          {title}
+        </span>
+      </div>
+    </Fade>
+  )
+}
+
+/* ── Data ─────────────────────────────────────────────────────── */
 
 const TOOLS = [
-  { n: '01', label: 'AI COMPANION',     desc: 'An AI that listens without judgment. Trained on what students in Pakistan actually face.' },
-  { n: '02', label: 'MOOD TRACKING',    desc: 'Log how you feel each day. Patterns emerge when you look back.' },
-  { n: '03', label: 'PRIVATE JOURNAL',  desc: 'Write freely. Entries stay on your device unless you decide otherwise.' },
-  { n: '04', label: 'FOCUS TIMER',      desc: '25 minutes of work. 5 minutes to breathe. Deceptively effective.' },
-  { n: '05', label: 'BREATHING GUIDES', desc: 'Four science-backed techniques. Under five minutes. Anywhere.' },
-  { n: '06', label: 'STRESS TRACKER',   desc: 'Academic pressure acknowledged, not ignored. Track it to manage it.' },
-  { n: '07', label: 'MOOD INSIGHTS',    desc: 'Visualise your emotional patterns across weeks and months.' },
-  { n: '08', label: 'CRISIS HELPLINES', desc: 'Real humans. 24/7 availability. Pakistan-specific contact numbers.' },
+  { n: '01', name: 'AI COMPANION',    desc: 'Listens without judgment. Trained on what students here actually face.' },
+  { n: '02', name: 'MOOD TRACKING',   desc: 'Log the day in seconds. Patterns emerge when you look back.' },
+  { n: '03', name: 'PRIVATE JOURNAL', desc: 'Write freely. Entries stay yours unless you decide otherwise.' },
+  { n: '04', name: 'FOCUS TIMER',     desc: 'Twenty-five minutes of work, five to breathe. Deceptively effective.' },
+  { n: '05', name: 'BREATHING GUIDES',desc: 'Four science-backed techniques. Under five minutes, anywhere.' },
+  { n: '06', name: 'STRESS TRACKER',  desc: 'Academic pressure, acknowledged — tracked so it can be managed.' },
+  { n: '07', name: 'MOOD INSIGHTS',   desc: 'Your emotional patterns, visualised across weeks and months.' },
+  { n: '08', name: 'CRISIS HELPLINES',desc: 'Real humans, 24/7. Pakistan-specific numbers, one tap away.' },
 ]
 
 const SCHOOLS = [
@@ -86,720 +168,635 @@ const SCHOOLS = [
   'KABUL INTERNATIONAL MODEL SCHOOL',
 ]
 
-// ── Page ─────────────────────────────────────────────────────────
+const TICKER = TOOLS.map(t => t.name)
+
+/* ── Page ─────────────────────────────────────────────────────── */
 
 export default function LandingPage() {
-  const [mounted, setMounted]       = useState(false)
-  const [headerSolid, setHeader]    = useState(false)
-  const [scrollPct, setScrollPct]   = useState(0)
-
-  // Tools grid stagger
-  const gridRef   = useRef<HTMLDivElement>(null)
-  const gridInView = useInView(gridRef, { once: true, margin: '-80px' })
+  const [mounted, setMounted] = useState(false)
+  const [headerSolid, setHeaderSolid] = useState(false)
+  const [scrollPct, setScrollPct] = useState(0)
+  const reduce = useReducedMotion()
 
   useEffect(() => {
     setMounted(true)
     const onScroll = () => {
       const max = document.documentElement.scrollHeight - window.innerHeight
       setScrollPct(max > 0 ? window.scrollY / max : 0)
-      setHeader(window.scrollY > 72)
+      setHeaderSolid(window.scrollY > 60)
     }
+    onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const PX = 'clamp(20px,5vw,72px)'
+  const PX = 'clamp(20px, 5vw, 80px)'
 
   return (
-    <div style={{ background: 'var(--bg)', color: 'var(--ink)', overflowX: 'hidden' }}>
+    <div style={{ background: 'var(--bg)', color: 'var(--ink)', overflowX: 'clip' }}>
 
-      {/* Injected CSS */}
       <style>{`
-        @keyframes marq-fwd {
-          from { transform: translateX(0) }
-          to   { transform: translateX(-50%) }
+        @keyframes tk { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+        .tk-row { animation: tk 36s linear infinite; }
+        .tk-wrap:hover .tk-row { animation-play-state: paused; }
+
+        @keyframes dot-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.25 } }
+        .dot-pulse { animation: dot-pulse 1.8s ease-in-out infinite; }
+
+        /* Index rows — full invert on hover */
+        .idx-row {
+          display: grid;
+          grid-template-columns: clamp(40px,6vw,80px) 1fr minmax(0, 42%);
+          align-items: baseline;
+          gap: clamp(12px, 2.5vw, 32px);
+          padding: clamp(18px, 3vw, 28px) clamp(20px, 5vw, 80px);
+          border-bottom: 1.5px solid var(--border);
+          background: transparent;
+          transition: background 160ms cubic-bezier(0.25,0,0,1);
+          position: relative;
         }
-        @keyframes marq-rev {
-          from { transform: translateX(-50%) }
-          to   { transform: translateX(0) }
+        .idx-row:hover { background: var(--ink); }
+        .idx-num  { transition: color 160ms; }
+        .idx-name { transition: color 160ms, transform 240ms cubic-bezier(0.25,0,0,1); }
+        .idx-desc { transition: color 160ms; }
+        .idx-row:hover .idx-num  { color: var(--bg) !important; opacity: 0.5; }
+        .idx-row:hover .idx-name { color: var(--bg) !important; transform: translateX(10px); }
+        .idx-row:hover .idx-desc { color: var(--bg) !important; opacity: 0.75; }
+        @media (max-width: 720px) {
+          .idx-row { grid-template-columns: clamp(40px,6vw,80px) 1fr; }
+          .idx-desc { grid-column: 2; }
+          .idx-row:hover .idx-name { transform: none; }
         }
-        .marq-fwd { animation: marq-fwd 40s linear infinite; }
-        .marq-rev { animation: marq-rev 40s linear infinite; }
-        @keyframes pulse-down {
-          0%,100% { opacity: 1; transform: translateY(0) }
-          55%     { opacity: 0.3; transform: translateY(10px) }
+
+        /* Ledger rows */
+        .ledger-row {
+          display: flex; align-items: baseline; gap: 20px;
+          padding: 16px clamp(20px, 5vw, 80px);
+          border-bottom: 1px solid var(--border-2);
+          transition: background 140ms;
         }
-        .pulse-down { animation: pulse-down 2.2s ease-in-out infinite; }
-        @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: 0 } }
-        .blink { animation: blink 1.1s step-end infinite; }
+        .ledger-row:hover { background: var(--bg-card); }
+
+        /* CTA buttons */
+        .cta-main {
+          display: inline-flex; align-items: center; gap: 12px;
+          font-family: var(--font-display); font-weight: 800; font-size: 13px;
+          letter-spacing: 0.06em; text-decoration: none;
+          color: var(--ink-invert); background: var(--bg-invert);
+          border: 1.5px solid var(--border); padding: 18px 34px;
+          transition: box-shadow 120ms cubic-bezier(0.25,0,0,1), transform 120ms cubic-bezier(0.25,0,0,1);
+          cursor: pointer;
+        }
+        .cta-main:hover { box-shadow: 5px 5px 0 var(--border); transform: translate(-3px,-3px); }
+        .cta-ghost {
+          display: inline-flex; align-items: center;
+          font-family: var(--font-display); font-weight: 700; font-size: 13px;
+          letter-spacing: 0.06em; text-decoration: none;
+          color: var(--ink-2); border: 1.5px solid var(--border-2);
+          padding: 18px 26px;
+          transition: border-color 140ms, color 140ms;
+          cursor: pointer;
+        }
+        .cta-ghost:hover { border-color: var(--border); color: var(--ink); }
+
+        .quiet-link {
+          font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em;
+          color: var(--ink-3); text-decoration: none; transition: color 140ms;
+        }
+        .quiet-link:hover { color: var(--ink); }
+
+        /* Footer watermark — outlined, cropped at the page edge */
+        .watermark {
+          font-family: var(--font-display); font-weight: 800;
+          font-size: clamp(110px, 21vw, 340px);
+          line-height: 0.76; letter-spacing: -0.04em;
+          color: transparent;
+          -webkit-text-stroke: 1.5px var(--ink);
+          user-select: none;
+          transform: translateY(0.14em);
+        }
+
+        /* Hero vertical hairlines — Swiss column guides */
+        .hair-v { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-2); opacity: 0.45; }
+        @media (max-width: 720px) { .hair-v { display: none } }
+
+        /* Abstract — sticky folio beside copy, stacked on phones */
+        .abs-grid {
+          display: grid;
+          grid-template-columns: minmax(140px, 1fr) minmax(0, 3fr);
+          gap: clamp(24px, 4vw, 64px);
+          align-items: start;
+        }
+        @media (max-width: 720px) {
+          .abs-grid { grid-template-columns: 1fr; }
+          .abs-grid .abs-folio { position: static !important; }
+        }
       `}</style>
 
-      {/* ── Scroll progress bar ── */}
-      <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, height: 2, zIndex: 300,
-      }}>
+      {/* ── Scroll progress ── */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, zIndex: 300 }}>
         <div style={{
           height: '100%', background: 'var(--ink)',
           width: `${scrollPct * 100}%`, transition: 'width 40ms linear',
         }} />
       </div>
 
-      {/* ── Sticky header ── */}
+      {/* ── Header ── */}
       <header style={{
         position: 'fixed', top: 2, left: 0, right: 0, zIndex: 200,
-        padding: `14px ${PX}`,
+        padding: `16px ${PX}`,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: headerSolid ? 'rgba(244,242,238,0.94)' : 'transparent',
-        backdropFilter: headerSolid ? 'blur(18px)' : 'none',
-        WebkitBackdropFilter: headerSolid ? 'blur(18px)' : 'none',
-        borderBottom: headerSolid ? '1.5px solid var(--border)' : '1.5px solid transparent',
-        transition: 'background 300ms ease, border-color 300ms ease, backdrop-filter 300ms ease',
+        background: headerSolid ? 'rgba(244,242,238,0.92)' : 'transparent',
+        backdropFilter: headerSolid ? 'blur(16px)' : 'none',
+        WebkitBackdropFilter: headerSolid ? 'blur(16px)' : 'none',
+        borderBottom: `1.5px solid ${headerSolid ? 'var(--border)' : 'transparent'}`,
+        transition: 'background 300ms ease, border-color 300ms ease',
       }}>
         <span style={{
           fontFamily: 'var(--font-display)', fontWeight: 800,
-          fontSize: 16, letterSpacing: '-0.02em', color: 'var(--ink)',
+          fontSize: 15, letterSpacing: '-0.02em',
         }}>
           SATORI.
         </span>
-        {/* intentionally empty — sign-in is scroll-gated to the bottom */}
+        <span style={{
+          fontFamily: 'var(--font-mono)', fontSize: 10,
+          letterSpacing: '0.14em', color: 'var(--ink-3)',
+        }}>
+          <LahoreClock />
+        </span>
       </header>
 
       {/* ══════════════════════════════════════════════
-          SECTION 1 — HERO
+          HERO — masthead
       ══════════════════════════════════════════════ */}
       <section style={{
         minHeight: '100dvh',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: `clamp(100px,18vh,180px) ${PX} clamp(80px,12vh,120px)`,
-        textAlign: 'center', position: 'relative',
+        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+        position: 'relative',
+        padding: `clamp(96px,14vh,160px) 0 0`,
       }}>
+        {/* Column guides */}
+        <div className="hair-v" style={{ left: '33.33%' }} />
+        <div className="hair-v" style={{ left: '66.66%' }} />
 
-        {/* Badge */}
-        {mounted && (
-          <motion.div
-            initial={{ opacity: 0, y: -14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            style={{ marginBottom: 40 }}
-          >
-            <span style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10,
-              letterSpacing: '0.18em', color: 'var(--ink-3)',
-              border: '1px solid var(--border-2)', padding: '7px 18px',
-              display: 'inline-block',
-            }}>
-              MENTAL WELLNESS RESEARCH · PAKISTAN · 2026
-            </span>
-          </motion.div>
-        )}
-
-        {/* Wordmark — letter-by-letter */}
-        {mounted && (
-          <motion.h1
-            initial="hidden"
-            animate="visible"
-            variants={{
-              hidden: {},
-              visible: { transition: { staggerChildren: 0.072, delayChildren: 0.35 } },
-            }}
-            style={{
-              fontFamily: 'var(--font-display)', fontWeight: 800,
-              fontSize: 'clamp(76px,15vw,176px)', lineHeight: 0.88,
-              letterSpacing: '-0.04em', color: 'var(--ink)',
-              margin: 0, perspective: 800,
-            }}
-          >
-            {'SATORI.'.split('').map((ch, i) => (
-              <motion.span
-                key={i}
-                style={{ display: 'inline-block' }}
-                variants={{
-                  hidden: { opacity: 0, y: 64, rotateX: -55 },
-                  visible: {
-                    opacity: 1, y: 0, rotateX: 0,
-                    transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] },
-                  },
-                }}
-              >
-                {ch}
-              </motion.span>
-            ))}
-          </motion.h1>
-        )}
-
-        {/* Full-width ruled line draws in */}
-        {mounted && (
-          <motion.div
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            transition={{ duration: 1, delay: 1.05, ease: [0.25, 0, 0, 1] }}
-            style={{
-              width: '100%', maxWidth: 680, height: 1.5,
-              background: 'var(--border)', margin: '28px auto 32px',
-              transformOrigin: 'left',
-            }}
-          />
-        )}
-
-        {/* Subtitle */}
-        {mounted && (
-          <motion.p
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 1.3 }}
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: 'clamp(16px,2.2vw,22px)',
-              color: 'var(--ink-2)', lineHeight: 1.55,
-              maxWidth: 460, margin: '0 auto',
-            }}
-          >
-            A wellness platform for students navigating academic pressure in Pakistan.
-          </motion.p>
-        )}
-
-        {/* Scroll cue */}
+        {/* Top-right dateline */}
         {mounted && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 2.2, duration: 0.8 }}
+            transition={{ delay: 1.4, duration: 0.8 }}
             style={{
-              position: 'absolute', bottom: 36, left: '50%',
-              transform: 'translateX(-50%)',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+              position: 'absolute', top: 'clamp(84px,12vh,140px)', right: PX,
+              textAlign: 'right',
+              fontFamily: 'var(--font-mono)', fontSize: 10, lineHeight: 2,
+              letterSpacing: '0.14em', color: 'var(--ink-3)',
             }}
           >
-            <span style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9,
-              letterSpacing: '0.22em', color: 'var(--ink-3)',
-            }}>
-              
-            </span>
-            <svg
-              className="pulse-down"
-              width="14" height="22" viewBox="0 0 14 22"
-              fill="none" style={{ color: 'var(--ink-3)' }}
-            >
-              <line x1="7" y1="1" x2="7" y2="21" stroke="currentColor" strokeWidth="1.5"/>
-              <polyline points="2,16 7,21 12,16" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-            </svg>
+            FIELD STUDY · VOL. 01<br />
+            31.5204° N, 74.3587° E
           </motion.div>
         )}
+
+        {/* Wordmark — one masked reveal, cropped tight to the rule */}
+        <div style={{ padding: `0 ${PX}`, position: 'relative', zIndex: 1 }}>
+          <div style={{ overflow: 'hidden' }}>
+            <motion.h1
+              initial={{ y: reduce ? 0 : '105%' }}
+              animate={mounted ? { y: 0 } : {}}
+              transition={{ duration: 1.1, delay: 0.15, ease: EASE }}
+              style={{
+                fontFamily: 'var(--font-display)', fontWeight: 800,
+                fontSize: 'clamp(72px, 16.5vw, 250px)',
+                lineHeight: 0.94, letterSpacing: '-0.045em',
+                margin: 0, whiteSpace: 'nowrap',
+              }}
+            >
+              SATORI<span style={{ color: 'var(--accent)' }}>.</span>
+            </motion.h1>
+          </div>
+        </div>
+
+        {/* Masthead rule */}
+        <div style={{ margin: `clamp(20px,3vh,36px) 0 0` }}>
+          <Rule delay={0.9} />
+        </div>
+
+        {/* Metadata strip — three mono columns */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          borderBottom: '1.5px solid var(--border)',
+        }}>
+          {[
+            {
+              k: 'THE STUDY',
+              v: 'Mood, stress and focus infrastructure for students navigating academic pressure in Pakistan.',
+              delay: 1.15,
+            },
+            {
+              k: 'INSTITUTION',
+              v: 'Lahore Garrison University. Principal investigator: Saad Nizami.',
+              delay: 1.3,
+            },
+            {
+              k: 'STATUS',
+              v: 'Recruiting participants — free for students.',
+              delay: 1.45,
+              live: true,
+            },
+          ].map(({ k, v, delay, live }, i) => (
+            <motion.div
+              key={k}
+              initial={{ opacity: 0 }}
+              animate={mounted ? { opacity: 1 } : {}}
+              transition={{ delay, duration: 0.7 }}
+              style={{
+                padding: `clamp(20px,3vh,30px) clamp(20px,3vw,36px)`,
+                borderLeft: i > 0 ? '1px solid var(--border-2)' : 'none',
+              }}
+            >
+              <div style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9,
+                letterSpacing: '0.2em', color: 'var(--ink-3)',
+                marginBottom: 12,
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                {live && (
+                  <span className="dot-pulse" style={{
+                    width: 6, height: 6, background: 'var(--accent)',
+                    display: 'inline-block', flexShrink: 0,
+                  }} />
+                )}
+                {k}
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-body)', fontSize: 13.5,
+                lineHeight: 1.6, color: 'var(--ink-2)', maxWidth: 340,
+              }}>
+                {v}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Ticker — the eight instruments, single pass */}
+        <div className="tk-wrap" style={{
+          overflow: 'hidden',
+          borderBottom: '1.5px solid var(--border)',
+          padding: '13px 0',
+        }}>
+          <div className="tk-row" style={{ display: 'flex', width: 'max-content', whiteSpace: 'nowrap' }}>
+            {[...TICKER, ...TICKER].map((t, i) => (
+              <span key={i} style={{
+                fontFamily: 'var(--font-mono)', fontSize: 11,
+                letterSpacing: '0.16em', color: 'var(--ink-3)',
+                padding: '0 34px',
+              }}>
+                {t}
+                <span style={{ marginLeft: 34, color: 'var(--border-2)' }}>/</span>
+              </span>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* ══════════════════════════════════════════════
-          SECTION 2 — MANIFESTO
+          §01 — ABSTRACT
       ══════════════════════════════════════════════ */}
-      <section style={{
-        borderTop: '1.5px solid var(--border)',
-        padding: `clamp(64px,11vh,128px) ${PX}`,
-      }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-          {[
-            { text: 'Academic pressure is real.', muted: false, delay: 0 },
-            { text: 'We built tools to help you navigate it —', muted: false, delay: 0.1 },
-            { text: 'not a replacement for care, a daily practice.', muted: true, delay: 0.2 },
-          ].map(({ text, muted, delay }, i) => (
-            <FadeUp key={i} delay={delay}>
+      <section style={{ padding: `clamp(72px,12vh,140px) ${PX}` }}>
+        <div className="abs-grid">
+          <div className="abs-folio" style={{ position: 'sticky', top: 90 }}>
+            <Folio n="01" title="ABSTRACT" />
+          </div>
+
+          <div>
+            {[
+              { t: 'Academic pressure is real.', mute: false },
+              { t: 'Satori is a daily practice for the students living it —', mute: false },
+              { t: 'not a replacement for care.', mute: true },
+            ].map(({ t, mute }, i) => (
+              <Reveal key={i} delay={i * 0.12}>
+                <p style={{
+                  fontFamily: 'var(--font-display)', fontWeight: 800,
+                  fontSize: 'clamp(26px, 4.6vw, 62px)',
+                  lineHeight: 1.08, letterSpacing: '-0.03em',
+                  color: mute ? 'var(--ink-3)' : 'var(--ink)',
+                  margin: '0 0 8px',
+                }}>
+                  {t}
+                </p>
+              </Reveal>
+            ))}
+
+            <Fade delay={0.4} style={{ marginTop: 36 }}>
               <p style={{
-                fontFamily: 'var(--font-display)', fontWeight: 800,
-                fontSize: 'clamp(24px,4.5vw,58px)',
-                lineHeight: 1.12, letterSpacing: '-0.025em',
-                color: muted ? 'var(--ink-3)' : 'var(--ink)',
-                marginBottom: 6,
+                fontFamily: 'var(--font-body)', fontSize: 'clamp(14px,1.7vw,17px)',
+                lineHeight: 1.75, color: 'var(--ink-2)', maxWidth: 520,
               }}>
-                {text}
+                Eight instruments in one place — built alongside more than 150 students
+                in seven cities, and studied with the rigour of a university research
+                programme. Free to use. Private by default. No ads, no data sold.
               </p>
-            </FadeUp>
+            </Fade>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════
+          §02 — THE TOOLKIT (index rows)
+      ══════════════════════════════════════════════ */}
+      <section style={{ paddingBottom: 'clamp(72px,12vh,140px)' }}>
+        <div style={{ padding: `0 ${PX}`, marginBottom: 'clamp(32px,5vh,56px)' }}>
+          <Folio n="02" title="THE TOOLKIT" />
+          <div style={{ height: 20 }} />
+          <Reveal>
+            <h2 style={{
+              fontFamily: 'var(--font-display)', fontWeight: 800,
+              fontSize: 'clamp(34px,6vw,80px)', letterSpacing: '-0.035em',
+              lineHeight: 0.98, margin: 0,
+            }}>
+              EIGHT INSTRUMENTS.
+            </h2>
+          </Reveal>
+        </div>
+
+        <Rule />
+        <div>
+          {TOOLS.map((t, i) => (
+            <Fade key={t.n} delay={Math.min(i * 0.04, 0.24)}>
+              <div className="idx-row">
+                <span className="idx-num" style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)',
+                }}>
+                  {t.n}
+                </span>
+                <span className="idx-name" style={{
+                  fontFamily: 'var(--font-display)', fontWeight: 800,
+                  fontSize: 'clamp(18px, 3vw, 38px)', letterSpacing: '-0.02em',
+                  color: 'var(--ink)', display: 'inline-block',
+                }}>
+                  {t.name}
+                </span>
+                <span className="idx-desc" style={{
+                  fontFamily: 'var(--font-body)', fontSize: 13.5,
+                  lineHeight: 1.6, color: 'var(--ink-2)',
+                }}>
+                  {t.desc}
+                </span>
+              </div>
+            </Fade>
           ))}
         </div>
       </section>
 
       {/* ══════════════════════════════════════════════
-          SECTION 3 — TOOLS GRID
-      ══════════════════════════════════════════════ */}
-      <section style={{
-        borderTop: '1.5px solid var(--border)',
-        padding: `clamp(56px,10vh,100px) ${PX}`,
-      }}>
-        <div style={{ maxWidth: 1160, margin: '0 auto' }}>
-
-          <FadeUp style={{ marginBottom: 48 }}>
-            <span style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10,
-              letterSpacing: '0.2em', color: 'var(--ink-3)', display: 'block', marginBottom: 16,
-            }}>
-              WHAT WE BUILD
-            </span>
-            <h2 style={{
-              fontFamily: 'var(--font-display)', fontWeight: 800,
-              fontSize: 'clamp(30px,5vw,60px)', letterSpacing: '-0.03em',
-              lineHeight: 1, color: 'var(--ink)', margin: 0,
-            }}>
-              EVERYTHING IN ONE PLACE.
-            </h2>
-          </FadeUp>
-
-          <motion.div
-            ref={gridRef}
-            initial="hidden"
-            animate={gridInView ? 'visible' : 'hidden'}
-            variants={{ visible: { transition: { staggerChildren: 0.055 } } }}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(220px,28vw,290px), 1fr))',
-              borderTop: '1.5px solid var(--border)',
-              borderLeft: '1.5px solid var(--border)',
-            }}
-          >
-            {TOOLS.map(t => (
-              <motion.div
-                key={t.n}
-                variants={{
-                  hidden: { opacity: 0, y: 28 },
-                  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.25, 0, 0, 1] } },
-                }}
-                style={{
-                  padding: 'clamp(18px,3vw,30px)',
-                  borderRight: '1.5px solid var(--border)',
-                  borderBottom: '1.5px solid var(--border)',
-                  cursor: 'default',
-                  transition: 'background 140ms ease',
-                }}
-                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = 'var(--bg-card)')}
-                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
-              >
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between',
-                  alignItems: 'baseline', marginBottom: 14,
-                }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
-                    {t.n}
-                  </span>
-                  <span style={{
-                    fontFamily: 'var(--font-display)', fontWeight: 800,
-                    fontSize: 11, letterSpacing: '0.09em', color: 'var(--ink)',
-                  }}>
-                    {t.label}
-                  </span>
-                </div>
-                <p style={{
-                  fontFamily: 'var(--font-body)', fontSize: 13,
-                  color: 'var(--ink-2)', lineHeight: 1.65,
-                }}>
-                  {t.desc}
-                </p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════
-          SECTION 4 — RESEARCH  (inverted)
+          §03 — THE RESEARCH (inverted)
       ══════════════════════════════════════════════ */}
       <section style={{
         background: 'var(--bg-invert)', color: 'var(--ink-invert)',
-        borderTop: '1.5px solid var(--border)',
-        padding: `clamp(64px,11vh,128px) ${PX}`,
+        padding: `clamp(72px,12vh,140px) ${PX}`,
       }}>
-        <div style={{ maxWidth: 1160, margin: '0 auto' }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 'clamp(48px,7vw,96px)',
-            alignItems: 'start',
-          }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 'clamp(36px,6vh,64px)' }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em' }}>§03</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em', color: 'rgba(244,242,238,0.4)' }}>
+            THE RESEARCH
+          </span>
+        </div>
 
-            {/* Left — copy */}
-            <FadeUp>
-              <span style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10,
-                letterSpacing: '0.2em', color: 'rgba(244,242,238,0.45)',
-                display: 'block', marginBottom: 24,
-              }}>
-                THE RESEARCH
-              </span>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: 'clamp(48px,7vw,110px)',
+          alignItems: 'start',
+        }}>
+          <div>
+            <Reveal>
               <h2 style={{
                 fontFamily: 'var(--font-display)', fontWeight: 800,
-                fontSize: 'clamp(32px,5vw,64px)', lineHeight: 1.05,
-                letterSpacing: '-0.03em', color: 'var(--ink-invert)',
-                marginBottom: 28,
+                fontSize: 'clamp(34px,5.2vw,72px)', lineHeight: 1.02,
+                letterSpacing: '-0.03em', margin: '0 0 28px',
               }}>
-                THIS IS MORE<br />THAN AN APP.
+                MORE THAN<br />AN APP.
               </h2>
+            </Reveal>
+            <Fade delay={0.15}>
               <p style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: 'clamp(14px,1.8vw,17px)',
+                fontFamily: 'var(--font-body)', fontSize: 'clamp(14px,1.7vw,17px)',
                 color: 'rgba(244,242,238,0.65)', lineHeight: 1.75,
-                maxWidth: 460, marginBottom: 36,
+                maxWidth: 440, margin: 0,
               }}>
-                Every session contributes to an active psychological study on student mental health across Pakistan. The goal is research that shapes policy, not just fills a database.
+                Every session contributes to an active psychological study on student
+                mental health across Pakistan. The goal is research that shapes
+                policy — not research that fills a database.
               </p>
-
-              <div style={{
-                borderTop: '1px solid rgba(244,242,238,0.15)',
-                paddingTop: 28,
-                display: 'flex', flexDirection: 'column', gap: 10,
-              }}>
-                <div style={{
-                  fontFamily: 'var(--font-display)', fontWeight: 800,
-                  fontSize: 13, letterSpacing: '0.08em',
-                  color: 'rgba(244,242,238,0.9)',
-                }}>
-                  LAHORE GARRISON UNIVERSITY
-                </div>
-                <div style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 11,
-                  letterSpacing: '0.1em', color: 'rgba(244,242,238,0.45)',
-                }}>
-                  Principal Investigator: Saad Nizami
-                </div>
-              </div>
-            </FadeUp>
-
-            {/* Right — stats */}
-            <FadeUp delay={0.18}>
-              <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr',
-                gap: 1, background: 'rgba(244,242,238,0.12)',
-              }}>
-                {([
-                  { end: 30,  suffix: '+', label: 'SCHOOLS PILOTED' },
-                  { end: 150, suffix: '+', label: 'STUDENT PARTICIPANTS' },
-                  { end: 7,   suffix: '',  label: 'CITIES ACROSS PAKISTAN' },
-                  { end: 1,   suffix: '',  label: 'UNIVERSITY PARTNER' },
-                ] as const).map((s, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      background: 'var(--bg-invert)',
-                      padding: 'clamp(24px,4vw,40px) clamp(20px,3vw,32px)',
-                    }}
-                  >
-                    <div style={{
-                      fontFamily: 'var(--font-display)', fontWeight: 800,
-                      fontSize: 'clamp(40px,6vw,72px)', lineHeight: 1,
-                      letterSpacing: '-0.04em', color: 'var(--ink-invert)',
-                      marginBottom: 10,
-                    }}>
-                      <Counter end={s.end} suffix={s.suffix} />
-                    </div>
-                    <div style={{
-                      fontFamily: 'var(--font-mono)', fontSize: 10,
-                      letterSpacing: '0.14em', color: 'rgba(244,242,238,0.4)',
-                    }}>
-                      {s.label}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </FadeUp>
+            </Fade>
           </div>
+
+          {/* Stats — hairline table */}
+          <Fade delay={0.2}>
+            <div style={{ borderTop: '1px solid rgba(244,242,238,0.25)' }}>
+              {([
+                { end: 30,  suffix: '+', label: 'SCHOOLS PILOTED' },
+                { end: 150, suffix: '+', label: 'STUDENT PARTICIPANTS' },
+                { end: 7,   suffix: '',  label: 'CITIES' },
+                { end: 1,   suffix: '',  label: 'UNIVERSITY PARTNER' },
+              ] as const).map((s, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                  gap: 24, padding: 'clamp(18px,2.6vh,26px) 0',
+                  borderBottom: '1px solid rgba(244,242,238,0.25)',
+                }}>
+                  <span style={{
+                    fontFamily: 'var(--font-display)', fontWeight: 800,
+                    fontSize: 'clamp(40px,5.5vw,68px)', lineHeight: 1,
+                    letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums',
+                  }}>
+                    <Counter end={s.end} suffix={s.suffix} />
+                  </span>
+                  <span style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 10,
+                    letterSpacing: '0.16em', color: 'rgba(244,242,238,0.45)',
+                    textAlign: 'right',
+                  }}>
+                    {s.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Fade>
         </div>
       </section>
 
       {/* ══════════════════════════════════════════════
-          SECTION 5 — SCHOOLS MARQUEE
+          §04 — PARTICIPATING SCHOOLS (ledger)
       ══════════════════════════════════════════════ */}
-      <section style={{
-        borderTop: '1.5px solid var(--border)',
-        padding: `clamp(56px,9vh,96px) 0`,
-        overflow: 'hidden',
-      }}>
-        <FadeUp style={{ textAlign: 'center', marginBottom: 36, padding: `0 ${PX}` }}>
+      <section style={{ padding: `clamp(72px,12vh,140px) 0 0` }}>
+        <div style={{ padding: `0 ${PX}`, marginBottom: 'clamp(28px,4vh,44px)' }}>
+          <Folio n="04" title="PARTICIPATING SCHOOLS" />
+        </div>
+
+        <Rule />
+        {SCHOOLS.map((s, i) => (
+          <Fade key={s} delay={Math.min(i * 0.03, 0.18)}>
+            <div className="ledger-row">
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: 10,
+                color: 'var(--ink-3)', width: 28, flexShrink: 0,
+              }}>
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <span style={{
+                fontFamily: 'var(--font-display)', fontWeight: 700,
+                fontSize: 'clamp(13px,1.8vw,17px)', letterSpacing: '0.04em',
+                flex: 1, minWidth: 0,
+              }}>
+                {s}
+              </span>
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9,
+                letterSpacing: '0.18em', color: 'var(--ink-3)', flexShrink: 0,
+              }}>
+                ACTIVE
+              </span>
+            </div>
+          </Fade>
+        ))}
+        <div style={{
+          padding: `16px ${PX}`,
+          borderBottom: '1.5px solid var(--border)',
+        }}>
           <span style={{
             fontFamily: 'var(--font-mono)', fontSize: 10,
-            letterSpacing: '0.2em', color: 'var(--ink-3)',
-          }}>
-            PARTICIPATING SCHOOLS — 30+ ACROSS PAKISTAN
-          </span>
-        </FadeUp>
-
-        {/* Row 1 */}
-        <div style={{
-          borderTop: '1.5px solid var(--border)',
-          borderBottom: '1px solid var(--border-2)',
-          padding: '15px 0', overflow: 'hidden',
-        }}>
-          <div className="marq-fwd" style={{ display: 'flex', width: 'max-content', whiteSpace: 'nowrap' }}>
-            {[...SCHOOLS, ...SCHOOLS].map((s, i) => (
-              <span key={i} style={{
-                fontFamily: 'var(--font-display)', fontWeight: 700,
-                fontSize: 12, letterSpacing: '0.1em', color: 'var(--ink)',
-                padding: '0 48px',
-              }}>
-                {s}
-                <span style={{ marginLeft: 48, color: 'var(--border-2)' }}>·</span>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Row 2 (reverse) */}
-        <div style={{
-          borderBottom: '1.5px solid var(--border)',
-          padding: '15px 0', overflow: 'hidden',
-        }}>
-          <div className="marq-rev" style={{ display: 'flex', width: 'max-content', whiteSpace: 'nowrap' }}>
-            {[...[...SCHOOLS].reverse(), ...[...SCHOOLS].reverse()].map((s, i) => (
-              <span key={i} style={{
-                fontFamily: 'var(--font-mono)', fontSize: 11,
-                letterSpacing: '0.08em', color: 'var(--ink-3)',
-                padding: '0 48px',
-              }}>
-                {s}
-                <span style={{ marginLeft: 48, color: 'var(--border-2)' }}>·</span>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ textAlign: 'center', marginTop: 20, padding: `0 ${PX}` }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9,
             letterSpacing: '0.16em', color: 'var(--ink-3)',
           }}>
-            + 23 MORE SCHOOLS PARTICIPATING
+            + 23 MORE ACROSS PAKISTAN
           </span>
         </div>
       </section>
 
       {/* ══════════════════════════════════════════════
-          SECTION 6 — FOR ADMINISTRATORS
+          §05 — FOR ADMINISTRATORS
       ══════════════════════════════════════════════ */}
-      <section style={{
-        borderTop: '1.5px solid var(--border)',
-        padding: `clamp(64px,11vh,120px) ${PX}`,
-      }}>
-        <div style={{ maxWidth: 1160, margin: '0 auto' }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 'clamp(40px,6vw,80px)',
-            alignItems: 'end',
-          }}>
-
-            <FadeUp>
-              <span style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10,
-                letterSpacing: '0.2em', color: 'var(--ink-3)',
-                display: 'block', marginBottom: 20,
-              }}>
-                FOR ADMINISTRATORS
-              </span>
+      <section style={{ padding: `clamp(72px,12vh,140px) ${PX}` }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: 'clamp(40px,6vw,90px)',
+          alignItems: 'end',
+        }}>
+          <div>
+            <Folio n="05" title="FOR ADMINISTRATORS" />
+            <div style={{ height: 20 }} />
+            <Reveal>
               <h2 style={{
                 fontFamily: 'var(--font-display)', fontWeight: 800,
-                fontSize: 'clamp(30px,4.5vw,56px)', lineHeight: 1.08,
-                letterSpacing: '-0.025em', color: 'var(--ink)', marginBottom: 20,
+                fontSize: 'clamp(30px,4.6vw,60px)', lineHeight: 1.04,
+                letterSpacing: '-0.028em', margin: '0 0 22px',
               }}>
                 RUNNING A SCHOOL?
               </h2>
+            </Reveal>
+            <Fade delay={0.15}>
               <p style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: 'clamp(14px,1.8vw,17px)',
-                color: 'var(--ink-2)', lineHeight: 1.72, maxWidth: 400,
+                fontFamily: 'var(--font-body)', fontSize: 'clamp(14px,1.7vw,17px)',
+                color: 'var(--ink-2)', lineHeight: 1.72, maxWidth: 420, margin: 0,
               }}>
-                If you&apos;re a school administrator and would like your institution to participate in our research, or explore Satori for your students, we&apos;d love to connect.
+                If you&apos;d like your institution to take part in the research — or
+                simply want Satori for your students — we&apos;d like to hear from you.
               </p>
-            </FadeUp>
-
-            <FadeUp delay={0.14}>
-              <div style={{
-                border: '1.5px solid var(--border)',
-                padding: 'clamp(28px,4vw,44px)',
-              }}>
-                <span style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 10,
-                  letterSpacing: '0.16em', color: 'var(--ink-3)',
-                  display: 'block', marginBottom: 20,
-                }}>
-                  RESEARCH COLLABORATION
-                </span>
-                <p style={{
-                  fontFamily: 'var(--font-body)', fontSize: 14,
-                  color: 'var(--ink-2)', lineHeight: 1.7, marginBottom: 28,
-                }}>
-                  We are actively expanding to more schools as part of our ongoing psychological study at Lahore Garrison University, conducted by Saad Nizami.
-                </p>
-                <a
-                  href="mailto:saadnizami@icloud.com"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 10,
-                    fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 12,
-                    letterSpacing: '0.08em', color: 'var(--ink-invert)',
-                    background: 'var(--bg-invert)', border: '1.5px solid var(--border)',
-                    padding: '14px 24px', textDecoration: 'none',
-                    transition: 'box-shadow 100ms, transform 100ms',
-                  }}
-                  onMouseEnter={e => {
-                    const el = e.currentTarget as HTMLAnchorElement
-                    el.style.boxShadow = 'var(--shadow-sm)'
-                    el.style.transform = 'translate(-2px,-2px)'
-                  }}
-                  onMouseLeave={e => {
-                    const el = e.currentTarget as HTMLAnchorElement
-                    el.style.boxShadow = 'none'
-                    el.style.transform = 'none'
-                  }}
-                >
-                  CONTACT US →
-                </a>
-              </div>
-            </FadeUp>
+            </Fade>
           </div>
+
+          <Fade delay={0.2}>
+            <div style={{ border: '1.5px solid var(--border)', padding: 'clamp(28px,4vw,44px)' }}>
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: 10,
+                letterSpacing: '0.16em', color: 'var(--ink-3)',
+                display: 'block', marginBottom: 18,
+              }}>
+                RESEARCH COLLABORATION
+              </span>
+              <p style={{
+                fontFamily: 'var(--font-body)', fontSize: 14,
+                color: 'var(--ink-2)', lineHeight: 1.7, margin: '0 0 28px',
+              }}>
+                We are actively expanding to more schools as part of the ongoing
+                study at Lahore Garrison University.
+              </p>
+              <a href="mailto:saadnizami@icloud.com" className="cta-main">
+                CONTACT US <span aria-hidden>→</span>
+              </a>
+            </div>
+          </Fade>
         </div>
       </section>
 
       {/* ══════════════════════════════════════════════
-          SECTION 7 — FINAL CTA  (only sign-up on the page)
+          §06 — BEGIN (the only sign-up on the page)
       ══════════════════════════════════════════════ */}
-      <section style={{
-        borderTop: '1.5px solid var(--border)',
-        padding: `clamp(64px,11vh,120px) ${PX}`,
-      }}>
-        <div style={{ maxWidth: 1160, margin: '0 auto' }}>
-          <FadeUp>
-            <div style={{
-              border: '1.5px solid var(--border)',
-              padding: 'clamp(40px,7vw,88px) clamp(28px,5vw,72px)',
-            }}>
+      <section style={{ borderTop: '1.5px solid var(--border)', padding: `clamp(80px,14vh,160px) ${PX}` }}>
+        <Folio n="06" title="GET STARTED — FREE" />
+        <div style={{ height: 'clamp(28px,4vh,44px)' }} />
 
-              <DrawLine delay={0.2} />
-              <div style={{ height: 40 }} />
+        <Reveal>
+          <h2 style={{
+            fontFamily: 'var(--font-display)', fontWeight: 800,
+            fontSize: 'clamp(64px,13vw,190px)', lineHeight: 0.9,
+            letterSpacing: '-0.045em', margin: '0 0 40px',
+          }}>
+            BEGIN<span style={{ color: 'var(--accent)' }}>.</span>
+          </h2>
+        </Reveal>
 
-              <span style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10,
-                letterSpacing: '0.2em', color: 'var(--ink-3)',
-                display: 'block', marginBottom: 28,
-              }}>
-                GET STARTED — FREE
-              </span>
+        <Fade delay={0.15}>
+          <p style={{
+            fontFamily: 'var(--font-body)', fontSize: 'clamp(14px,1.7vw,17px)',
+            color: 'var(--ink-2)', lineHeight: 1.7,
+            maxWidth: 420, margin: '0 0 44px',
+          }}>
+            Join more than 150 students already part of the study.
+            Free to use. Private. No ads. No data sold.
+          </p>
+        </Fade>
 
-              <h2 style={{
-                fontFamily: 'var(--font-display)', fontWeight: 800,
-                fontSize: 'clamp(42px,8vw,112px)', lineHeight: 0.92,
-                letterSpacing: '-0.04em', color: 'var(--ink)',
-                marginBottom: 36,
-              }}>
-                BEGIN YOUR<br />PRACTICE.
-              </h2>
-
-              <p style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: 'clamp(14px,1.8vw,17px)',
-                color: 'var(--ink-2)', lineHeight: 1.7,
-                maxWidth: 400, marginBottom: 44,
-              }}>
-                Join over 150 students already part of the journey. Free to use. Private. No ads. No data sold.
-              </p>
-
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Link
-                  href="/auth"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 10,
-                    fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13,
-                    letterSpacing: '0.06em', color: 'var(--ink-invert)',
-                    background: 'var(--bg-invert)', border: '1.5px solid var(--border)',
-                    padding: '17px 32px', textDecoration: 'none',
-                    transition: 'box-shadow 100ms, transform 100ms',
-                  }}
-                  onMouseEnter={e => {
-                    const el = e.currentTarget as HTMLAnchorElement
-                    el.style.boxShadow = 'var(--shadow-md)'
-                    el.style.transform = 'translate(-4px,-4px)'
-                  }}
-                  onMouseLeave={e => {
-                    const el = e.currentTarget as HTMLAnchorElement
-                    el.style.boxShadow = 'none'
-                    el.style.transform = 'none'
-                  }}
-                >
-                  CREATE FREE ACCOUNT →
-                </Link>
-                <Link
-                  href="/auth"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center',
-                    fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13,
-                    letterSpacing: '0.06em', color: 'var(--ink-2)',
-                    border: '1.5px solid var(--border-2)',
-                    padding: '17px 24px', textDecoration: 'none',
-                    transition: 'border-color 120ms, color 120ms',
-                  }}
-                  onMouseEnter={e => {
-                    const el = e.currentTarget as HTMLAnchorElement
-                    el.style.borderColor = 'var(--border)'
-                    el.style.color = 'var(--ink)'
-                  }}
-                  onMouseLeave={e => {
-                    const el = e.currentTarget as HTMLAnchorElement
-                    el.style.borderColor = 'var(--border-2)'
-                    el.style.color = 'var(--ink-2)'
-                  }}
-                >
-                  SIGN IN
-                </Link>
-              </div>
-
-              <div style={{ height: 40 }} />
-              <DrawLine delay={0.1} />
-            </div>
-          </FadeUp>
-        </div>
+        <Fade delay={0.25}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Link href="/auth" className="cta-main">
+              CREATE FREE ACCOUNT <span aria-hidden>→</span>
+            </Link>
+            <Link href="/auth" className="cta-ghost">
+              SIGN IN
+            </Link>
+          </div>
+        </Fade>
       </section>
 
       {/* ── Footer ── */}
-      <footer style={{
-        borderTop: '1.5px solid var(--border)',
-        padding: `clamp(16px,3vw,24px) ${PX}`,
-        display: 'flex', flexWrap: 'wrap', gap: 16,
-        justifyContent: 'space-between', alignItems: 'center',
-      }}>
-        <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{
-            fontFamily: 'var(--font-display)', fontWeight: 800,
-            fontSize: 14, letterSpacing: '-0.01em', color: 'var(--ink)',
-          }}>
-            SATORI.
-          </span>
+      <footer style={{ borderTop: '1.5px solid var(--border)' }}>
+        <div style={{
+          padding: `clamp(20px,3vw,28px) ${PX}`,
+          display: 'flex', flexWrap: 'wrap', gap: 18,
+          justifyContent: 'space-between', alignItems: 'center',
+        }}>
           <span style={{
             fontFamily: 'var(--font-mono)', fontSize: 10,
-            color: 'var(--ink-3)', letterSpacing: '0.08em',
+            letterSpacing: '0.1em', color: 'var(--ink-3)',
           }}>
-            2026 · LAHORE GARRISON UNIVERSITY RESEARCH
+            © 2026 · LAHORE GARRISON UNIVERSITY RESEARCH
           </span>
+          <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
+            <a href="mailto:saadnizami@icloud.com" className="quiet-link" style={{ fontSize: 10 }}>
+              CONTACT
+            </a>
+            <Link href="/auth" className="quiet-link" style={{ fontSize: 10 }}>
+              SIGN IN
+            </Link>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
-          <a
-            href="mailto:saadnizami@icloud.com"
-            style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10,
-              color: 'var(--ink-3)', letterSpacing: '0.1em',
-              textDecoration: 'none',
-              transition: 'color 120ms',
-            }}
-            onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.color = 'var(--ink)')}
-            onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.color = 'var(--ink-3)')}
-          >
-            CONTACT
-          </a>
-          <Link
-            href="/auth"
-            style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10,
-              color: 'var(--ink-3)', letterSpacing: '0.1em',
-              textDecoration: 'none',
-              transition: 'color 120ms',
-            }}
-            onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.color = 'var(--ink)')}
-            onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.color = 'var(--ink-3)')}
-          >
-            SIGN IN
-          </Link>
+
+        {/* Cropped outline watermark */}
+        <div style={{ overflow: 'hidden', padding: `0 ${PX}` }} aria-hidden>
+          <div className="watermark">SATORI</div>
         </div>
       </footer>
     </div>

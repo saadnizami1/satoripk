@@ -6,6 +6,15 @@ const PROTECTED_ROUTES = ['/dashboard', '/onboarding']
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  const isProtected = PROTECTED_ROUTES.some(r => pathname.startsWith(r))
+  const isAuthPage = pathname === '/auth'
+
+  // Public routes (landing page, API, static) never need a Supabase
+  // round-trip — skip it so they render even if Supabase is unreachable.
+  if (!isProtected && !isAuthPage) {
+    return NextResponse.next({ request: { headers: request.headers } })
+  }
+
   let response = NextResponse.next({
     request: { headers: request.headers },
   })
@@ -31,11 +40,16 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session — keeps auth cookies up to date
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const isProtected = PROTECTED_ROUTES.some(r => pathname.startsWith(r))
-  const isAuthPage = pathname === '/auth'
+  // Refresh session — keeps auth cookies up to date. If Supabase is
+  // unreachable, treat the visitor as signed out instead of hanging
+  // the request until the middleware invocation times out.
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    user = null
+  }
 
   // Unauthenticated user trying to reach a protected route → /auth
   if (!user && isProtected) {
