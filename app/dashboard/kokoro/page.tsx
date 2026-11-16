@@ -80,7 +80,10 @@ export default function KokoroPage() {
     if (!sessionId) return
     // Keep the stored transcript bounded — it is rewritten on every reply.
     await supabase.from('chat_sessions')
-      .update({ messages: msgs.slice(-MAX_STORED_MESSAGES), updated_at: new Date().toISOString() })
+      .update({
+        messages: msgs.slice(-MAX_STORED_MESSAGES).map(m => ({ ...m, timestamp: m.timestamp.toISOString() })),
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', sessionId)
   }, [sessionId])
 

@@ -4,20 +4,9 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 import { avatarUrl, migrateLegacyAvatar, uploadAvatar } from '@/lib/avatar'
+import type { Database } from '@/lib/database.types'
 
-interface ProfileData {
-  id: string
-  name: string
-  email: string
-  age: number
-  gender: string
-  education_level: string
-  location: string
-  religion: string
-  family_status: string
-  avatar_path: string | null
-  created_at: string
-}
+type ProfileData = Database['public']['Tables']['profiles']['Row'] & { email: string }
 
 interface Stats {
   totalMoods: number
@@ -128,8 +117,12 @@ export default function ProfilePage() {
   useEffect(() => { load() }, [])
 
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
-    if (data) setProfile(data)
+    const [{ data }, { data: { session } }] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', userId).single(),
+      supabase.auth.getSession(),
+    ])
+    // Email lives on the auth user, not the profile row.
+    if (data) setProfile({ ...data, email: session?.user.email ?? '' })
     return data
   }
 
@@ -142,7 +135,7 @@ export default function ProfilePage() {
       fetchProfile(userId),
       supabase.from('moods').select('id', head).eq('user_id', userId),
       supabase.from('academic_stress').select('id', head).eq('user_id', userId),
-      supabase.from('journals').select('id', head).eq('user_id', userId),
+      supabase.from('journal_entries').select('id', head).eq('user_id', userId),
     ])
     setStats({
       totalMoods:      moodsCount || 0,
@@ -210,6 +203,7 @@ export default function ProfilePage() {
       age:             editData.age ? ageNum : null,
       gender:          editData.gender || null,
       location:        editData.location || null,
+      city:            editData.location || null,
       religion:        editData.religion || null,
       family_status:   editData.family_status || null,
       education_level: editData.education_level || null,
@@ -228,12 +222,12 @@ export default function ProfilePage() {
   const set = (key: keyof EditData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setEditData(prev => ({ ...prev, [key]: e.target.value }))
 
-  const fmt = (v: string | undefined) => {
+  const fmt = (v: string | null | undefined) => {
     if (!v) return 'NOT SET'
     return v.replace(/-/g, ' ').toUpperCase()
   }
 
-  const getEduLabel = (v: string) => {
+  const getEduLabel = (v: string | null) => {
     const found = EDUCATION_LEVELS.find(l => l.value === v)
     return found ? found.label.toUpperCase() : fmt(v)
   }
@@ -338,7 +332,7 @@ export default function ProfilePage() {
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(16px,3vw,24px)', color: 'var(--ink)', letterSpacing: '-0.01em', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {profile.name.toUpperCase()}
+            {(profile.name ?? '').toUpperCase()}
           </div>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', letterSpacing: '0.06em', marginBottom: 2 }}>
             {profile.email}
@@ -398,7 +392,7 @@ export default function ProfilePage() {
               </>
             ) : (
               <>
-                <InfoRow label="NAME"       value={profile.name.toUpperCase()} />
+                <InfoRow label="NAME"       value={(profile.name ?? '').toUpperCase()} />
                 <InfoRow label="AGE"        value={profile.age ? `${profile.age} YEARS` : 'NOT SET'} />
                 <InfoRow label="GENDER"     value={fmt(profile.gender)} />
                 <InfoRow label="LOCATION"   value={fmt(profile.location)} />
@@ -451,7 +445,7 @@ export default function ProfilePage() {
             </div>
             <div style={{ border: '1.5px solid var(--border)', padding: '14px' }}>
               <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.65 }}>
-                Your personal information is kept confidential and used only for research purposes. All data is anonymised before use.
+                Your personal information is kept confidential, is only accessible to the research team, and is used only for research. Published findings never identify individuals.
               </p>
             </div>
           </div>

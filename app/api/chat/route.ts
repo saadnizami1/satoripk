@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-const MODEL = 'llama-3.3-70b-versatile'
+// Groq retired llama-3.3-70b-versatile; gpt-oss-120b is a reasoning model,
+// so keep reasoning effort low (latency) and out of the streamed reply.
+const MODEL = 'openai/gpt-oss-120b'
 const MAX_HISTORY = 6          // messages of context sent to the model
 const MAX_MESSAGE_CHARS = 2000 // per message
-const RATE_LIMIT = { max_requests: 30, window_seconds: 600 }
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
   const [{ data: allowed, error: rateError }, { data: profile }, { data: moods }, { data: stress }] = await Promise.all([
-    supabase.rpc('check_chat_rate_limit', RATE_LIMIT),
+    supabase.rpc('check_chat_rate_limit'),
     supabase.from('profiles').select('name, age, education_level, location').eq('id', userId).maybeSingle(),
     supabase.from('moods').select('mood_score').eq('user_id', userId).gte('created_at', sevenDaysAgo),
     supabase.from('academic_stress').select('stress_level').eq('user_id', userId).gte('created_at', sevenDaysAgo),
@@ -72,8 +73,10 @@ export async function POST(request: NextRequest) {
         model: MODEL,
         messages: [{ role: 'system', content: system }, ...messages],
         temperature: 0.8,
-        max_tokens: 500,
         top_p: 0.9,
+        max_completion_tokens: 800,
+        reasoning_effort: 'low',
+        include_reasoning: false,
         stream: true,
       }),
       signal: AbortSignal.timeout(30_000),

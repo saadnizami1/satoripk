@@ -81,6 +81,17 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
   )
 }
 
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 32 }}>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 6 }}>
+        {title}
+      </div>
+      <div style={{ border: '1.5px solid var(--border)' }}>{children}</div>
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const [toast, setToast]                   = useState('')
@@ -126,7 +137,7 @@ export default function SettingsPage() {
   async function handlePasswordChange() {
     if (!currentPw || !newPw || !confirmPw) return alert('Fill in all fields')
     if (newPw !== confirmPw) return alert('Passwords do not match')
-    if (newPw.length < 6) return alert('Password must be at least 6 characters')
+    if (newPw.length < 8) return alert('Password must be at least 8 characters')
     const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: currentPw })
     if (signInErr) return alert('Current password is incorrect')
     const { error } = await supabase.auth.updateUser({ password: newPw })
@@ -150,7 +161,7 @@ export default function SettingsPage() {
   async function handleReset() {
     if (resetType === 'journals') {
       if (!userId) return
-      const { error } = await supabase.from('journals').delete().eq('user_id', userId)
+      const { error } = await supabase.from('journal_entries').delete().eq('user_id', userId)
       if (error) { showToast('COULD NOT DELETE JOURNALS'); return }
     } else if (resetType === 'all') {
       // Auth lives in cookies, so clearing browser storage keeps the session.
@@ -169,7 +180,7 @@ export default function SettingsPage() {
       supabase.from('profiles').select('*').eq('id', session.user.id).single(),
       supabase.from('moods').select('*').eq('user_id', session.user.id),
       supabase.from('academic_stress').select('*').eq('user_id', session.user.id),
-      supabase.from('journals').select('title, content, mood, created_at, updated_at').eq('user_id', session.user.id),
+      supabase.from('journal_entries').select('title, content, mood, created_at, updated_at').eq('user_id', session.user.id),
       supabase.from('chat_sessions').select('messages, created_at, updated_at').eq('user_id', session.user.id),
     ])
     const blob = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), profile, moods, academic_stress: stress, journals, chat_sessions: chats }, null, 2)], { type: 'application/json' })
@@ -178,17 +189,6 @@ export default function SettingsPage() {
     a.download = `satori-${new Date().toISOString().split('T')[0]}.json`
     a.click()
     showToast('DATA EXPORTED')
-  }
-
-  function Section({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-      <div style={{ marginBottom: 32 }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 6 }}>
-          {title}
-        </div>
-        <div style={{ border: '1.5px solid var(--border)' }}>{children}</div>
-      </div>
-    )
   }
 
   return (
@@ -234,7 +234,7 @@ export default function SettingsPage() {
       <Section title="PRIVACY & DATA">
         <SettingsRow
           label="RESEARCH DATA SHARING"
-          desc="Include your anonymised mood and stress logs in the research dataset"
+          desc="Include your mood and stress logs in the confidential research dataset"
           onClick={toggleResearchConsent}
           rightEl={<AngularToggle on={anonData} onChange={toggleResearchConsent} />}
         />

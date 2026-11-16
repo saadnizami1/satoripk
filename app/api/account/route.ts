@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-const USER_TABLES = ['journals', 'chat_sessions', 'moods', 'academic_stress'] as const
+const USER_TABLES = ['journal_entries', 'chat_sessions', 'moods', 'academic_stress'] as const
 
 // Permanently deletes the signed-in user's account and all their data.
 export async function DELETE() {

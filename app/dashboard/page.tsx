@@ -20,7 +20,7 @@ const CARDS = [
   { num: '08', label: 'GET HELP',        desc: 'Helplines. Real humans. 24/7.',             href: '/dashboard/helpline' },
 ]
 
-const TICKER_ITEMS = 'DATA COLLECTED IS ANONYMISED AND USED FOR RESEARCH PURPOSES ONLY  ·  '
+const TICKER_ITEMS = 'YOUR DATA IS CONFIDENTIAL AND USED FOR RESEARCH PURPOSES ONLY  ·  '
 
 function getGreeting() {
   const h = new Date().getHours()

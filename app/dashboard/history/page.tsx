@@ -23,7 +23,7 @@ interface MoodEntry {
   id: string
   created_at: string
   mood_score: number
-  note?: string
+  note: string | null
 }
 
 interface StressEntry {

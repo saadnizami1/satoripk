@@ -34,7 +34,7 @@ function migrateLocalEntries(userId: string) {
     let local: any[] = []
     try { local = JSON.parse(localStorage.getItem(LEGACY_KEY) || '[]') } catch { return }
     if (!Array.isArray(local) || local.length === 0) return
-    const { error } = await supabase.from('journals').upsert(
+    const { error } = await supabase.from('journal_entries').upsert(
       local.map(e => ({
         user_id: userId,
         legacy_id: String(e.id),
@@ -115,7 +115,7 @@ export default function JournalPage() {
     if (!session) { setLoading(false); return }
     setUserId(session.user.id)
     await migrateLocalEntries(session.user.id)
-    const { data } = await supabase.from('journals').select(COLUMNS).order('created_at', { ascending: false })
+    const { data } = await supabase.from('journal_entries').select(COLUMNS).order('created_at', { ascending: false })
     setEntries((data ?? []).map(fromRow))
     setLoading(false)
   }
@@ -152,9 +152,9 @@ export default function JournalPage() {
     saveChain.current = saveChain.current.then(async () => {
       const current = session.entry
       const { data, error } = current
-        ? await supabase.from('journals').update({ ...fields, updated_at: new Date().toISOString() })
+        ? await supabase.from('journal_entries').update({ ...fields, updated_at: new Date().toISOString() })
             .eq('id', current.id).select(COLUMNS).single()
-        : await supabase.from('journals').insert({ ...fields, user_id: userId }).select(COLUMNS).single()
+        : await supabase.from('journal_entries').insert({ ...fields, user_id: userId }).select(COLUMNS).single()
       if (error || !data) { setSaveError(true); return }
       const saved = fromRow(data)
       session.entry = saved
@@ -175,7 +175,7 @@ export default function JournalPage() {
   async function deleteEntry(id: string, e?: React.MouseEvent) {
     e?.stopPropagation()
     if (!confirm('Delete this entry?')) return
-    const { error } = await supabase.from('journals').delete().eq('id', id)
+    const { error } = await supabase.from('journal_entries').delete().eq('id', id)
     if (error) { alert('Could not delete the entry. Please try again.'); return }
     setEntries(prev => prev.filter(entry => entry.id !== id))
   }

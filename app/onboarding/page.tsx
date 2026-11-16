@@ -361,7 +361,7 @@ function ResearchStep({ agreed, onAgree, nextStep, prevStep }: any) {
       <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 20, paddingRight: 8 }}>
         {[
           { title: 'Purpose of Research', body: 'This research aims to understand the relationship between academic stress and mental wellness among students in Pakistan. Your participation will contribute to developing better support systems for student mental health.' },
-          { title: 'How Your Data Will Be Used', body: 'Your personal data will be anonymized before being used in research studies. We will analyze trends in mood, academic stress, and study habits. Research findings will directly improve Kokoro\'s ability to provide personalized mental health support.' },
+          { title: 'How Your Data Will Be Used', body: 'Your data is kept confidential and is only accessible to the research team. Published findings are anonymised and never identify individuals. We will analyze trends in mood, academic stress, and study habits. Research findings will directly improve Kokoro\'s ability to provide personalized mental health support.' },
           { title: 'Your Rights as a Research Participant', body: 'Participation is completely voluntary. You can withdraw from the research at any time without affecting your access to Satori. You can request that your data be excluded from research while still using the service.' },
           { title: 'Questions or Concerns?', body: 'If you have any questions about the research or wish to exercise any of your rights, please contact us at saadnizami114@gmail.com' },
         ].map(s => (
@@ -970,7 +970,7 @@ function SuccessStep({ router }: { router: any }) {
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[
-              'Your responses have been securely saved and anonymized',
+              'Your responses have been securely and confidentially saved',
               'Kokoro is now personalized to support your unique needs',
               'You\'ll be redirected to your dashboard momentarily',
             ].map(item => (

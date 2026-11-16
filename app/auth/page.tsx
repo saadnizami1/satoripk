@@ -209,7 +209,7 @@ function AuthPageContent() {
                 <label style={LABEL}>PASSWORD</label>
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Min. 6 characters"
+                  placeholder="Min. 8 characters"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
