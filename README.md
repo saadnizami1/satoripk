@@ -34,7 +34,7 @@ That said, anyone can use it.
 
 ## Running it locally
 
-You'll need a Supabase project and a Groq API key.
+You'll need Node 22+, a Supabase project and a Groq API key.
 
 ```bash
 npm install
@@ -44,15 +44,21 @@ Create a `.env.local` file:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_publishable_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_secret_key
 GROQ_API_KEY=your_groq_api_key
+RESEARCH_DATA_PASSWORD=choose_a_password
+CRON_SECRET=random_string
 ```
 
-Then:
+Apply the schema in `supabase/migrations/` to your project, then:
 
 ```bash
 npm run dev
 ```
+
+Architecture, database, design system and the deploy workflow are documented in
+[CLAUDE.md](CLAUDE.md).
 
 ---
 

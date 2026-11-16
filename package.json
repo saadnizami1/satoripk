@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:22": "npx -y node@22 node_modules/next/dist/bin/next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "ops": "node scripts/ops.mjs",
+    "e2e": "npx -y node@22 scripts/e2e.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
