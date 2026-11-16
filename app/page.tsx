@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, type ReactNode, type CSSProperties } from 'react'
-import { motion, useInView, useReducedMotion } from 'framer-motion'
+import { motion, useInView, useReducedMotion, useScroll, useMotionValueEvent } from 'framer-motion'
 import Link from 'next/link'
 
 /* ────────────────────────────────────────────────────────────────
@@ -175,19 +175,15 @@ const TICKER = TOOLS.map(t => t.name)
 export default function LandingPage() {
   const [mounted, setMounted] = useState(false)
   const [headerSolid, setHeaderSolid] = useState(false)
-  const [scrollPct, setScrollPct] = useState(0)
-  const reduce = useReducedMotion()
+  // Scroll progress is a motion value bound straight to the DOM, so
+  // scrolling never re-renders the page; the header only re-renders when
+  // it crosses the threshold.
+  const { scrollY, scrollYProgress } = useScroll()
+  useMotionValueEvent(scrollY, 'change', y => setHeaderSolid(y > 60))
 
   useEffect(() => {
     setMounted(true)
-    const onScroll = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight
-      setScrollPct(max > 0 ? window.scrollY / max : 0)
-      setHeaderSolid(window.scrollY > 60)
-    }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    setHeaderSolid(window.scrollY > 60)
   }, [])
 
   const PX = 'clamp(20px, 5vw, 80px)'
@@ -199,6 +195,14 @@ export default function LandingPage() {
         @keyframes tk { from { transform: translateX(0) } to { transform: translateX(-50%) } }
         .tk-row { animation: tk 36s linear infinite; }
         .tk-wrap:hover .tk-row { animation-play-state: paused; }
+
+        @keyframes hero-rise { from { transform: translateY(105%) } to { transform: translateY(0) } }
+        @keyframes hero-fade { from { opacity: 0 } to { opacity: 1 } }
+        .hero-rise { animation: hero-rise 1.1s cubic-bezier(0.25,0,0,1) 0.15s both; }
+        .hero-fade { animation: hero-fade 0.7s ease both; }
+        @media (prefers-reduced-motion: reduce) {
+          .hero-rise, .hero-fade { animation: none; }
+        }
 
         @keyframes dot-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.25 } }
         .dot-pulse { animation: dot-pulse 1.8s ease-in-out infinite; }
@@ -295,9 +299,9 @@ export default function LandingPage() {
 
       {/* ── Scroll progress ── */}
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, zIndex: 300 }}>
-        <div style={{
+        <motion.div style={{
           height: '100%', background: 'var(--ink)',
-          width: `${scrollPct * 100}%`, transition: 'width 40ms linear',
+          scaleX: scrollYProgress, transformOrigin: 'left',
         }} />
       </div>
 
@@ -360,10 +364,10 @@ export default function LandingPage() {
         {/* Wordmark — one masked reveal, cropped tight to the rule */}
         <div style={{ padding: `0 ${PX}`, position: 'relative', zIndex: 1 }}>
           <div style={{ overflow: 'hidden' }}>
-            <motion.h1
-              initial={{ y: reduce ? 0 : '105%' }}
-              animate={mounted ? { y: 0 } : {}}
-              transition={{ duration: 1.1, delay: 0.15, ease: EASE }}
+            {/* CSS animation, not JS: the wordmark is the LCP element and
+                must paint before hydration. */}
+            <h1
+              className="hero-rise"
               style={{
                 fontFamily: 'var(--font-display)', fontWeight: 800,
                 fontSize: 'clamp(72px, 16.5vw, 250px)',
@@ -372,7 +376,7 @@ export default function LandingPage() {
               }}
             >
               SATORI<span style={{ color: 'var(--accent)' }}>.</span>
-            </motion.h1>
+            </h1>
           </div>
         </div>
 
@@ -405,12 +409,11 @@ export default function LandingPage() {
               live: true,
             },
           ].map(({ k, v, delay, live }, i) => (
-            <motion.div
+            <div
               key={k}
-              initial={{ opacity: 0 }}
-              animate={mounted ? { opacity: 1 } : {}}
-              transition={{ delay, duration: 0.7 }}
+              className="hero-fade"
               style={{
+                animationDelay: `${delay}s`,
                 padding: `clamp(20px,3vh,30px) clamp(20px,3vw,36px)`,
                 borderLeft: i > 0 ? '1px solid var(--border-2)' : 'none',
               }}
@@ -435,7 +438,7 @@ export default function LandingPage() {
               }}>
                 {v}
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
 

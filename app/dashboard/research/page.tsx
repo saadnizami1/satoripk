@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
+import { notifyCheckin, startOfToday } from '@/lib/dates'
 import { useRouter } from 'next/navigation'
 
 const PERFORMANCE = [
@@ -98,31 +99,26 @@ export default function AcademicStressPage() {
   const [alreadyLogged, setAlreadyLogged] = useState(false)
   const [todayEntry, setTodayEntry]       = useState<any>(null)
 
-  useEffect(() => { checkTodayEntry(); fetchRecentEntries() }, [])
+  useEffect(() => { loadEntries() }, [])
 
-  const checkTodayEntry = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const today = new Date().toISOString().split('T')[0]
+  // One query covers both "already logged today?" and the recent list.
+  const loadEntries = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
     const { data } = await supabase
-      .from('academic_stress').select('*').eq('user_id', user.id)
-      .gte('created_at', today).order('created_at', { ascending: false }).limit(1).single()
-    if (data) { setAlreadyLogged(true); setTodayEntry(data) }
-  }
-
-  const fetchRecentEntries = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data } = await supabase
-      .from('academic_stress').select('*').eq('user_id', user.id)
+      .from('academic_stress').select('*').eq('user_id', session.user.id)
       .order('created_at', { ascending: false }).limit(7)
-    setRecentEntries(data || [])
+    const entries = data || []
+    setRecentEntries(entries)
+    const latest = entries[0]
+    if (latest && new Date(latest.created_at) >= new Date(startOfToday())) { setAlreadyLogged(true); setTodayEntry(latest) }
   }
 
   const handleSubmit = async () => {
     if (!performance || !stressLevel || alreadyLogged) return
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (user) {
       const responses = { selfStudy, moodImpact, lifeImpact, lifeImpactExample: lifeImpact === 'yes' ? lifeImpactExample : null }
       const { error } = await supabase.from('academic_stress').insert({
@@ -136,7 +132,8 @@ export default function AcademicStressPage() {
         setAlreadyLogged(true)
         setPerformance(null); setStressLevel(null); setSelfStudy(null)
         setMoodImpact(null); setLifeImpact(null); setLifeImpactExample('')
-        checkTodayEntry(); fetchRecentEntries()
+        loadEntries()
+        notifyCheckin()
         setTimeout(() => setSuccess(false), 4000)
       }
     }

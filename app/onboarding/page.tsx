@@ -77,18 +77,11 @@ export default function OnboardingPage() {
   })
   const [loading, setLoading] = useState(false)
 
+  // The proxy only lets signed-in users reach this page; this just handles
+  // a sign-out that happens while it is open.
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        await new Promise(resolve => setTimeout(resolve, 500))
-        const { data: { session: retry } } = await supabase.auth.getSession()
-        if (!retry) router.push('/auth')
-      }
-    }
-    checkAuth()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session) => {
-      if (!session) router.push('/auth')
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent) => {
+      if (event === 'SIGNED_OUT') router.push('/auth')
     })
     return () => subscription.unsubscribe()
   }, [router])
@@ -105,7 +98,8 @@ export default function OnboardingPage() {
   const handleSubmit = async () => {
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
       if (!user) throw new Error('No user found')
 
       const { error } = await supabase.from('profiles').upsert({
@@ -132,33 +126,33 @@ export default function OnboardingPage() {
         has_tutoring: userData.has_tutoring,
         has_cheated: userData.has_cheated,
         previous_research: userData.previous_research,
+        research_consent: userData.agreedToResearch,
         onboarding_completed: true,
         language: 'en',
         updated_at: new Date().toISOString(),
       })
       if (error) throw error
 
-      // Link onboarding mood to the moods tracking table
-      if (userData.recent_mood > 0) {
-        await supabase.from('moods').insert({
+      // Seed the tracking tables with the onboarding baseline, and refresh
+      // the session so the new token carries onboarding_completed (set by a
+      // DB trigger) — the proxy reads it from there.
+      const perfMap: Record<string, number> = {
+        'excellent': 5, 'very-good': 4, 'good': 3,
+        'satisfactory': 2, 'needs-improvement': 1, 'varies': 3,
+      }
+      await Promise.all([
+        userData.recent_mood > 0 && supabase.from('moods').insert({
           user_id: user.id,
           mood_score: userData.recent_mood,
           note: 'Onboarding baseline',
-        })
-      }
-
-      // Link onboarding stress to the academic_stress tracking table
-      if (userData.academic_stress > 0) {
-        const perfMap: Record<string, number> = {
-          'excellent': 5, 'very-good': 4, 'good': 3,
-          'satisfactory': 2, 'needs-improvement': 1, 'varies': 3,
-        }
-        await supabase.from('academic_stress').insert({
+        }),
+        userData.academic_stress > 0 && supabase.from('academic_stress').insert({
           user_id: user.id,
           stress_level: userData.academic_stress,
           performance_rating: perfMap[userData.report_card_average] ?? 3,
-        })
-      }
+        }),
+        supabase.auth.refreshSession(),
+      ])
 
       nextStep()
     } catch (err) {
@@ -169,7 +163,10 @@ export default function OnboardingPage() {
     }
   }
 
-  const update = (key: string, value: any) => setUserData(prev => ({ ...prev, [key]: value }))
+  type UserData = typeof userData
+  const update = <K extends keyof UserData>(key: K, value: UserData[K]) =>
+    setUserData(prev => ({ ...prev, [key]: value }))
+  const set = <K extends keyof UserData>(key: K) => (value: UserData[K]) => update(key, value)
   const step = ONBOARDING_STEPS[currentStep]
   const total = ONBOARDING_STEPS.length
 
@@ -217,27 +214,27 @@ export default function OnboardingPage() {
             style={{ width: '100%', maxWidth: 600 }}
           >
             {step === 'welcome' && <WelcomeStep nextStep={nextStep} />}
-            {step === 'privacy' && <PrivacyStep agreed={userData.agreedToPolicies} onAgree={v => update('agreedToPolicies', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'research' && <ResearchStep agreed={userData.agreedToResearch} onAgree={v => update('agreedToResearch', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'name' && <NameStep value={userData.name} onChange={v => update('name', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'age' && <AgeStep value={userData.age} onChange={v => update('age', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'religion' && <ReligionStep value={userData.religion} onChange={v => update('religion', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'city' && <CityStep value={userData.city} onChange={v => update('city', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'school-type' && <SchoolTypeStep value={userData.school_type} onChange={v => update('school_type', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'school-name' && <SchoolNameStep value={userData.school_name} onChange={v => update('school_name', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'education-level' && <EducationLevelStep boardValue={userData.education_board} levelValue={userData.education_level} onBoardChange={v => update('education_board', v)} onLevelChange={v => update('education_level', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'hobbies' && <HobbiesStep value={userData.hobbies} onChange={v => update('hobbies', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'personality' && <PersonalityStep value={userData.personality_traits} onChange={v => update('personality_traits', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'recent-mood' && <RecentMoodStep value={userData.recent_mood} onChange={v => update('recent_mood', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'academic-stress' && <AcademicStressStep value={userData.academic_stress} moodValue={userData.recent_mood} stressIsAcademic={userData.stress_is_academic} onChange={v => update('academic_stress', v)} onStressChange={v => update('stress_is_academic', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'fav-subject' && <FavoriteSubjectStep value={userData.favorite_subject} onChange={v => update('favorite_subject', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'fav-why' && <SubjectWhyStep type="favorite" subject={userData.favorite_subject} value={userData.favorite_subject_why} onChange={v => update('favorite_subject_why', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'worst-subject' && <WorstSubjectStep value={userData.worst_subject} onChange={v => update('worst_subject', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'worst-why' && <SubjectWhyStep type="worst" subject={userData.worst_subject} value={userData.worst_subject_why} onChange={v => update('worst_subject_why', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'report-card' && <ReportCardStep value={userData.report_card_average} onChange={v => update('report_card_average', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'tutoring' && <TutoringStep value={userData.has_tutoring} onChange={v => update('has_tutoring', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'cheating' && <CheatingStep value={userData.has_cheated} onChange={v => update('has_cheated', v)} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'research-participation' && <ResearchParticipationStep value={userData.previous_research} onChange={v => update('previous_research', v)} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'privacy' && <PrivacyStep agreed={userData.agreedToPolicies} onAgree={set('agreedToPolicies')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'research' && <ResearchStep agreed={userData.agreedToResearch} onAgree={set('agreedToResearch')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'name' && <NameStep value={userData.name} onChange={set('name')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'age' && <AgeStep value={userData.age} onChange={set('age')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'religion' && <ReligionStep value={userData.religion} onChange={set('religion')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'city' && <CityStep value={userData.city} onChange={set('city')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'school-type' && <SchoolTypeStep value={userData.school_type} onChange={set('school_type')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'school-name' && <SchoolNameStep value={userData.school_name} onChange={set('school_name')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'education-level' && <EducationLevelStep boardValue={userData.education_board} levelValue={userData.education_level} onBoardChange={set('education_board')} onLevelChange={set('education_level')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'hobbies' && <HobbiesStep value={userData.hobbies} onChange={set('hobbies')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'personality' && <PersonalityStep value={userData.personality_traits} onChange={set('personality_traits')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'recent-mood' && <RecentMoodStep value={userData.recent_mood} onChange={set('recent_mood')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'academic-stress' && <AcademicStressStep value={userData.academic_stress} moodValue={userData.recent_mood} stressIsAcademic={userData.stress_is_academic} onChange={set('academic_stress')} onStressChange={set('stress_is_academic')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'fav-subject' && <FavoriteSubjectStep value={userData.favorite_subject} onChange={set('favorite_subject')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'fav-why' && <SubjectWhyStep type="favorite" subject={userData.favorite_subject} value={userData.favorite_subject_why} onChange={set('favorite_subject_why')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'worst-subject' && <WorstSubjectStep value={userData.worst_subject} onChange={set('worst_subject')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'worst-why' && <SubjectWhyStep type="worst" subject={userData.worst_subject} value={userData.worst_subject_why} onChange={set('worst_subject_why')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'report-card' && <ReportCardStep value={userData.report_card_average} onChange={set('report_card_average')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'tutoring' && <TutoringStep value={userData.has_tutoring} onChange={set('has_tutoring')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'cheating' && <CheatingStep value={userData.has_cheated} onChange={set('has_cheated')} nextStep={nextStep} prevStep={prevStep} />}
+            {step === 'research-participation' && <ResearchParticipationStep value={userData.previous_research} onChange={set('previous_research')} nextStep={nextStep} prevStep={prevStep} />}
             {step === 'intermission' && <IntermissionStep nextStep={nextStep} prevStep={prevStep} />}
             {step === 'kokoro' && <KokoroStep onFinish={handleSubmit} prevStep={prevStep} loading={loading} />}
             {step === 'success' && <SuccessStep router={router} />}

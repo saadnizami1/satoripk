@@ -1,22 +1,35 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
+
+// The password is checked and the data exported entirely server-side
+// (/api/research-export); nothing sensitive ships in this bundle.
+async function exportRequest(password: string, type: 'verify' | 'mood' | 'stress') {
+  return fetch('/api/research-export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password, type }),
+  })
+}
 
 export default function ResearchDataPage() {
   const [password, setPassword]       = useState('')
   const [isUnlocked, setIsUnlocked]   = useState(false)
+  const [checking, setChecking]       = useState(false)
   const [error, setError]             = useState('')
   const [downloading, setDownloading] = useState<'mood' | 'stress' | null>(null)
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password === 'YALEONEDAY') {
+    setChecking(true)
+    const res = await exportRequest(password, 'verify').catch(() => null)
+    setChecking(false)
+    if (res?.ok) {
       setIsUnlocked(true)
       setError('')
     } else {
-      setError('INCORRECT PASSWORD. ACCESS DENIED.')
+      setError(res?.status === 403 ? 'INCORRECT PASSWORD. ACCESS DENIED.' : 'SOMETHING WENT WRONG. TRY AGAIN.')
       setPassword('')
     }
   }
@@ -24,27 +37,13 @@ export default function ResearchDataPage() {
   const downloadCSV = async (type: 'mood' | 'stress') => {
     setDownloading(type)
     try {
-      const viewName = type === 'mood' ? 'research_mood_complete' : 'research_stress_complete'
-      const { data, error } = await supabase.from(viewName).select('*').order('date_logged', { ascending: false })
-      if (error) throw error
-      if (!data || data.length === 0) { alert('No data available yet.'); setDownloading(null); return }
-      const headers = Object.keys(data[0])
-      const csvContent = [
-        headers.join(','),
-        ...data.map(row =>
-          headers.map(h => {
-            const val = row[h]
-            if (val === null || val === undefined) return ''
-            if (typeof val === 'object') return `"${JSON.stringify(val).replace(/"/g, '""')}"`
-            if (typeof val === 'string' && (val.includes(',') || val.includes('"') || val.includes('\n'))) return `"${val.replace(/"/g, '""')}"`
-            return val
-          }).join(',')
-        )
-      ].join('\n')
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const res = await exportRequest(password, type)
+      if (res.status === 404) { alert('No data available yet.'); return }
+      if (!res.ok) throw new Error(`Export failed (${res.status})`)
+      const blob = await res.blob()
       const link = document.createElement('a')
       link.setAttribute('href', URL.createObjectURL(blob))
-      link.setAttribute('download', type === 'mood' ? 'satori_mood_data_2026.csv' : 'satori_stress_data_2026.csv')
+      link.setAttribute('download', type === 'mood' ? 'satori_mood_data.csv' : 'satori_stress_data.csv')
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
@@ -135,10 +134,11 @@ export default function ResearchDataPage() {
             </AnimatePresence>
             <button
               type="submit"
+              disabled={checking}
               className="br-btn br-btn-inv"
-              style={{ width: '100%', padding: '12px', fontSize: 12, letterSpacing: '0.08em', cursor: 'pointer' }}
+              style={{ width: '100%', padding: '12px', fontSize: 12, letterSpacing: '0.08em', cursor: checking ? 'wait' : 'pointer', opacity: checking ? 0.6 : 1 }}
             >
-              UNLOCK ACCESS →
+              {checking ? 'CHECKING…' : 'UNLOCK ACCESS →'}
             </button>
           </form>
         </div>
@@ -149,13 +149,13 @@ export default function ResearchDataPage() {
               type: 'mood' as const,
               title: 'MOOD TRACKING DATA',
               desc: 'Daily mood assessments, participant demographics, academic context, and baseline psychological measures.',
-              file: 'satori_mood_data_2026.csv',
+              file: 'satori_mood_data.csv',
             },
             {
               type: 'stress' as const,
               title: 'ACADEMIC STRESS DATA',
               desc: 'Stress level indicators, study patterns, performance metrics, and associated demographic variables.',
-              file: 'satori_stress_data_2026.csv',
+              file: 'satori_stress_data.csv',
             },
           ].map(({ type, title, desc, file }) => (
             <div key={type} style={{ border: '1.5px solid var(--border)', padding: '20px' }}>

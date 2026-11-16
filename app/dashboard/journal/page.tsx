@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { supabase } from '@/lib/supabase'
 
 interface JournalEntry {
   id: string
@@ -10,6 +11,45 @@ interface JournalEntry {
   mood?: string
   createdAt: string
   updatedAt: string
+}
+
+const COLUMNS = 'id, title, content, mood, created_at, updated_at'
+const LEGACY_KEY = 'journal_entries'
+
+type JournalRow = {
+  id: string; title: string; content: string | null; mood: string | null
+  created_at: string; updated_at: string
+}
+
+const fromRow = (r: JournalRow): JournalEntry => ({
+  id: r.id, title: r.title, content: r.content ?? '', mood: r.mood ?? undefined,
+  createdAt: r.created_at, updatedAt: r.updated_at,
+})
+
+// Journals used to live only in localStorage. Upload any found on this
+// device once; legacy_id makes the upload idempotent if it is retried.
+let migration: Promise<void> | null = null
+function migrateLocalEntries(userId: string) {
+  migration ??= (async () => {
+    let local: any[] = []
+    try { local = JSON.parse(localStorage.getItem(LEGACY_KEY) || '[]') } catch { return }
+    if (!Array.isArray(local) || local.length === 0) return
+    const { error } = await supabase.from('journals').upsert(
+      local.map(e => ({
+        user_id: userId,
+        legacy_id: String(e.id),
+        title: String(e.title || 'Untitled'),
+        content: String(e.content || ''),
+        mood: e.mood || null,
+        created_at: e.createdAt,
+        updated_at: e.updatedAt || e.createdAt,
+      })),
+      { onConflict: 'user_id,legacy_id', ignoreDuplicates: true },
+    )
+    if (error) { console.error('Journal migration failed:', error.message); migration = null; return }
+    localStorage.removeItem(LEGACY_KEY)
+  })()
+  return migration
 }
 
 const MOODS = [
@@ -43,12 +83,18 @@ export default function JournalPage() {
   const [tempTitle, setTempTitle]         = useState('')
   const [tempMood, setTempMood]           = useState('')
   const [showEditor, setShowEditor]       = useState(false)
-  const [editingEntry, setEditingEntry]   = useState<JournalEntry | null>(null)
   const [editorTitle, setEditorTitle]     = useState('')
   const [editorContent, setEditorContent] = useState('')
   const [editorMood, setEditorMood]       = useState('')
   const [lastSaved, setLastSaved]         = useState<Date | null>(null)
   const [isSaving, setIsSaving]           = useState(false)
+  const [saveError, setSaveError]         = useState(false)
+  const [loading, setLoading]             = useState(true)
+  const [userId, setUserId]               = useState<string | null>(null)
+  // The entry the open editor writes to. A fresh object per editor session,
+  // so a save that finishes after the editor closes can't leak into the next.
+  const target    = useRef<{ entry: JournalEntry | null }>({ entry: null })
+  const saveChain = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => { loadEntries() }, [])
 
@@ -64,14 +110,14 @@ export default function JournalPage() {
     return () => clearTimeout(t)
   }, [editorTitle, editorContent, editorMood, showEditor])
 
-  function loadEntries() {
-    const raw = localStorage.getItem('journal_entries')
-    if (raw) setEntries(JSON.parse(raw))
-  }
-
-  function saveEntries(updated: JournalEntry[]) {
-    localStorage.setItem('journal_entries', JSON.stringify(updated))
-    setEntries(updated)
+  async function loadEntries() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { setLoading(false); return }
+    setUserId(session.user.id)
+    await migrateLocalEntries(session.user.id)
+    const { data } = await supabase.from('journals').select(COLUMNS).order('created_at', { ascending: false })
+    setEntries((data ?? []).map(fromRow))
+    setLoading(false)
   }
 
   function startNew() {
@@ -80,50 +126,58 @@ export default function JournalPage() {
 
   function proceedToEditor() {
     if (!tempTitle.trim()) return
+    target.current = { entry: null }
     setEditorTitle(tempTitle); setEditorMood(tempMood); setEditorContent('')
-    setEditingEntry(null); setShowNewModal(false); setShowEditor(true)
+    setSaveError(false); setShowNewModal(false); setShowEditor(true)
   }
 
   function openEntry(entry: JournalEntry) {
-    setEditingEntry(entry); setEditorTitle(entry.title)
+    target.current = { entry }
+    setEditorTitle(entry.title)
     setEditorContent(entry.content); setEditorMood(entry.mood || '')
-    setShowEditor(true)
+    setSaveError(false); setShowEditor(true)
   }
 
+  // Saves are queued so an autosave and a close never insert the same
+  // new entry twice.
   function autoSave() {
-    if (!editorTitle.trim()) return
+    if (!editorTitle.trim() || !userId) return
+    const session = target.current
+    const fields = { title: editorTitle, content: editorContent, mood: editorMood || null }
+    const existing = session.entry
+    if (existing && existing.title === fields.title && existing.content === fields.content
+      && (existing.mood ?? null) === fields.mood) return
+
     setIsSaving(true)
-    if (editingEntry) {
-      const updated = entries.map(e =>
-        e.id === editingEntry.id
-          ? { ...e, title: editorTitle, content: editorContent, mood: editorMood, updatedAt: new Date().toISOString() }
-          : e
-      )
-      saveEntries(updated)
-      setEditingEntry(updated.find(e => e.id === editingEntry.id) || null)
-    } else {
-      const newEntry: JournalEntry = {
-        id: Date.now().toString(), title: editorTitle, content: editorContent,
-        mood: editorMood, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      }
-      saveEntries([newEntry, ...entries])
-      setEditingEntry(newEntry)
-    }
-    setLastSaved(new Date())
-    setTimeout(() => setIsSaving(false), 500)
+    saveChain.current = saveChain.current.then(async () => {
+      const current = session.entry
+      const { data, error } = current
+        ? await supabase.from('journals').update({ ...fields, updated_at: new Date().toISOString() })
+            .eq('id', current.id).select(COLUMNS).single()
+        : await supabase.from('journals').insert({ ...fields, user_id: userId }).select(COLUMNS).single()
+      if (error || !data) { setSaveError(true); return }
+      const saved = fromRow(data)
+      session.entry = saved
+      setEntries(prev => current
+        ? prev.map(e => (e.id === saved.id ? saved : e))
+        : [saved, ...prev])
+      if (target.current === session) { setLastSaved(new Date()); setSaveError(false) }
+    }).catch(() => setSaveError(true)).finally(() => setIsSaving(false))
   }
 
   function closeEditor() {
     if (editorTitle.trim()) autoSave()
-    setShowEditor(false); setEditingEntry(null)
+    target.current = { entry: null }
+    setShowEditor(false)
     setEditorTitle(''); setEditorContent(''); setEditorMood(''); setLastSaved(null)
   }
 
-  function deleteEntry(id: string, e?: React.MouseEvent) {
+  async function deleteEntry(id: string, e?: React.MouseEvent) {
     e?.stopPropagation()
     if (!confirm('Delete this entry?')) return
-    saveEntries(entries.filter(entry => entry.id !== id))
-    if (editingEntry?.id === id) closeEditor()
+    const { error } = await supabase.from('journals').delete().eq('id', id)
+    if (error) { alert('Could not delete the entry. Please try again.'); return }
+    setEntries(prev => prev.filter(entry => entry.id !== id))
   }
 
   const todayCount = entries.filter(e => new Date(e.createdAt).toDateString() === new Date().toDateString()).length
@@ -163,7 +217,11 @@ export default function JournalPage() {
       </div>
 
       {/* Entry grid */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', padding: '60px 0' }}>
+          {[120, 80, 48].map((w, i) => <div key={i} className="skeleton" style={{ width: w, height: 14 }} />)}
+        </div>
+      ) : filtered.length === 0 ? (
         <div style={{ border: '1.5px solid var(--border)', padding: '60px 32px', textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--ink-3)', marginBottom: 12 }}>
             {query ? 'NO ENTRIES FOUND.' : 'YOUR THOUGHTS LIVE HERE.'}
@@ -323,6 +381,8 @@ export default function JournalPage() {
                 </button>
                 {isSaving ? (
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em' }}>SAVING...</span>
+                ) : saveError ? (
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', letterSpacing: '0.08em' }}>NOT SAVED — CHECK CONNECTION</span>
                 ) : lastSaved ? (
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em' }}>SAVED {lastSaved.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                 ) : null}

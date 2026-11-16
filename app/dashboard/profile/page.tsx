@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
+import { avatarUrl, migrateLegacyAvatar, uploadAvatar } from '@/lib/avatar'
 
 interface ProfileData {
   id: string
@@ -14,6 +15,7 @@ interface ProfileData {
   location: string
   religion: string
   family_status: string
+  avatar_path: string | null
   created_at: string
 }
 
@@ -123,47 +125,55 @@ export default function ProfilePage() {
   const [saveError, setSaveError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { fetchProfile(); fetchStats(); loadPicture() }, [])
+  useEffect(() => { load() }, [])
 
-  const fetchProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-      if (data) setProfile(data)
-    }
-    setLoading(false)
+  const fetchProfile = async (userId: string) => {
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+    if (data) setProfile(data)
+    return data
   }
 
-  const fetchStats = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { count: moodsCount }  = await supabase.from('moods').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
-    const { count: stressCount } = await supabase.from('academic_stress').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
-    const journals  = localStorage.getItem('journal_entries')
-    const pomodoros = localStorage.getItem('pomodoro_total') || '0'
+  const load = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { setLoading(false); return }
+    const userId = session.user.id
+    const head = { count: 'exact' as const, head: true }
+    const [prof, { count: moodsCount }, { count: stressCount }, { count: journalCount }] = await Promise.all([
+      fetchProfile(userId),
+      supabase.from('moods').select('id', head).eq('user_id', userId),
+      supabase.from('academic_stress').select('id', head).eq('user_id', userId),
+      supabase.from('journals').select('id', head).eq('user_id', userId),
+    ])
     setStats({
       totalMoods:      moodsCount || 0,
-      totalJournals:   journals ? JSON.parse(journals).length : 0,
+      totalJournals:   journalCount || 0,
       totalStressLogs: stressCount || 0,
-      totalPomodoros:  parseInt(pomodoros),
+      totalPomodoros:  parseInt(localStorage.getItem('pomodoro_total') || '0') || 0,
     })
+    setLoading(false)
+
+    const path = prof?.avatar_path ?? await migrateLegacyAvatar(userId)
+    if (path) setPicture(await avatarUrl(path))
   }
 
-  const loadPicture = () => {
-    const saved = localStorage.getItem('profile_picture')
-    if (saved) setPicture(saved)
-  }
-
-  const handlePictureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file || !file.type.startsWith('image/')) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const url = ev.target?.result as string
-      setPicture(url)
-      localStorage.setItem('profile_picture', url)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    const preview = URL.createObjectURL(file)
+    setPicture(preview)
+    try {
+      const path = await uploadAvatar(session.user.id, file)
+      setPicture(await avatarUrl(path))
+    } catch (err) {
+      console.error('Avatar upload failed:', err)
+      setSaveError('Could not upload picture. Please try again.')
+      setPicture(null)
+    } finally {
+      URL.revokeObjectURL(preview)
     }
-    reader.readAsDataURL(file)
   }
 
   const enterEditMode = () => {
@@ -192,7 +202,8 @@ export default function ProfilePage() {
     if (editData.age && (isNaN(ageNum) || ageNum < 3 || ageNum > 99)) { setSaveError('Age must be between 3 and 99.'); return }
     setSaving(true)
     setSaveError('')
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) { setSaving(false); return }
     const { error } = await supabase.from('profiles').update({
       name:            editData.name.trim(),
@@ -206,7 +217,7 @@ export default function ProfilePage() {
     if (error) {
       setSaveError('Failed to save. Please try again.')
     } else {
-      await fetchProfile()
+      await fetchProfile(user.id)
       setEditMode(false)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 2500)

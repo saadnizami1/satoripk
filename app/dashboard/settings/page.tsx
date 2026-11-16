@@ -89,16 +89,34 @@ export default function SettingsPage() {
   const [showPasswordModal, setShowPassword] = useState(false)
   const [resetType, setResetType]            = useState<'all' | 'journals' | 'pomodoros'>('all')
   const [email, setEmail]                    = useState('')
+  const [userId, setUserId]                  = useState<string | null>(null)
   const [currentPw, setCurrentPw]           = useState('')
   const [newPw, setNewPw]                   = useState('')
   const [confirmPw, setConfirmPw]           = useState('')
   const [anonData, setAnonData]             = useState(true)
+  const [deleting, setDeleting]             = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) setEmail(session.user.email || '')
-    })
+    const load = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return
+      setEmail(session.user.email || '')
+      setUserId(session.user.id)
+      const { data } = await supabase.from('profiles').select('research_consent').eq('id', session.user.id).single()
+      if (data) setAnonData(data.research_consent !== false)
+    }
+    load()
   }, [])
+
+  // Withdrawing consent removes the user's rows from the research views.
+  async function toggleResearchConsent() {
+    if (!userId) return
+    const next = !anonData
+    setAnonData(next)
+    const { error } = await supabase.from('profiles').update({ research_consent: next }).eq('id', userId)
+    if (error) { setAnonData(!next); showToast('COULD NOT UPDATE — TRY AGAIN'); return }
+    showToast(next ? 'RESEARCH SHARING ON' : 'RESEARCH SHARING OFF')
+  }
 
   function showToast(msg: string) {
     setToast(msg)
@@ -118,19 +136,25 @@ export default function SettingsPage() {
   }
 
   async function handleDeleteAccount() {
-    const { error } = await supabase.rpc('delete_user')
-    if (error) return alert('Failed to delete account: ' + error.message)
+    setDeleting(true)
+    const res = await fetch('/api/account', { method: 'DELETE' }).catch(() => null)
+    if (!res?.ok) {
+      setDeleting(false)
+      return alert('Failed to delete account. Please try again.')
+    }
+    await supabase.auth.signOut().catch(() => {})
     localStorage.clear(); sessionStorage.clear()
     window.location.href = '/'
   }
 
-  function handleReset() {
-    if (resetType === 'all') {
-      const tok = localStorage.getItem('supabase.auth.token')
+  async function handleReset() {
+    if (resetType === 'journals') {
+      if (!userId) return
+      const { error } = await supabase.from('journals').delete().eq('user_id', userId)
+      if (error) { showToast('COULD NOT DELETE JOURNALS'); return }
+    } else if (resetType === 'all') {
+      // Auth lives in cookies, so clearing browser storage keeps the session.
       localStorage.clear()
-      if (tok) localStorage.setItem('supabase.auth.token', tok)
-    } else if (resetType === 'journals') {
-      localStorage.removeItem('journal_entries')
     } else {
       localStorage.removeItem('pomodoro_total')
     }
@@ -141,12 +165,14 @@ export default function SettingsPage() {
   async function handleExport() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
-    const [{ data: profile }, { data: moods }, { data: stress }] = await Promise.all([
+    const [{ data: profile }, { data: moods }, { data: stress }, { data: journals }, { data: chats }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', session.user.id).single(),
       supabase.from('moods').select('*').eq('user_id', session.user.id),
       supabase.from('academic_stress').select('*').eq('user_id', session.user.id),
+      supabase.from('journals').select('title, content, mood, created_at, updated_at').eq('user_id', session.user.id),
+      supabase.from('chat_sessions').select('messages, created_at, updated_at').eq('user_id', session.user.id),
     ])
-    const blob = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), profile, moods, academic_stress: stress, journals: JSON.parse(localStorage.getItem('journal_entries') || '[]') }, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), profile, moods, academic_stress: stress, journals, chat_sessions: chats }, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = `satori-${new Date().toISOString().split('T')[0]}.json`
@@ -207,14 +233,14 @@ export default function SettingsPage() {
       {/* Privacy */}
       <Section title="PRIVACY & DATA">
         <SettingsRow
-          label="ANONYMOUS DATA SHARING"
-          desc="Share anonymised insights to improve the platform"
-          onClick={() => { setAnonData(a => !a); showToast('PRIVACY SETTINGS UPDATED') }}
-          rightEl={<AngularToggle on={anonData} onChange={() => { setAnonData(a => !a); showToast('PRIVACY SETTINGS UPDATED') }} />}
+          label="RESEARCH DATA SHARING"
+          desc="Include your anonymised mood and stress logs in the research dataset"
+          onClick={toggleResearchConsent}
+          rightEl={<AngularToggle on={anonData} onChange={toggleResearchConsent} />}
         />
         <div style={{ padding: '12px 16px', background: 'var(--bg-card)', borderTop: '1px solid var(--border-2)' }}>
           <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.6 }}>
-            Your data contributes to mental health research in Pakistan. All data is anonymised and used ethically.
+            Your data contributes to mental health research in Pakistan. Turn this off at any time to withdraw — your entries are excluded from all future exports.
           </p>
         </div>
       </Section>
@@ -222,8 +248,8 @@ export default function SettingsPage() {
       {/* Data management */}
       <Section title="DATA MANAGEMENT">
         <SettingsRow label="EXPORT MY DATA" desc="Download all your data as JSON" onClick={handleExport} />
-        <SettingsRow label="CLEAR ALL LOCAL DATA" desc="Remove locally stored data" onClick={() => { setResetType('all'); setShowReset(true) }} danger />
-        <SettingsRow label="CLEAR JOURNALS" desc="Remove journal entries" onClick={() => { setResetType('journals'); setShowReset(true) }} />
+        <SettingsRow label="CLEAR LOCAL DATA" desc="Remove data stored on this device (pomodoro stats)" onClick={() => { setResetType('all'); setShowReset(true) }} />
+        <SettingsRow label="DELETE ALL JOURNALS" desc="Permanently delete every journal entry" onClick={() => { setResetType('journals'); setShowReset(true) }} danger />
       </Section>
 
       {/* App info */}
@@ -282,14 +308,14 @@ export default function SettingsPage() {
         <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--accent)', marginBottom: 16, letterSpacing: '-0.01em' }}>DELETE ACCOUNT?</h2>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink)', marginBottom: 8, fontWeight: 600 }}>This action is permanent and cannot be undone.</p>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-2)', marginBottom: 20 }}>
-          Everything — profile, moods, stress logs, chat sessions — will be deleted from the database.
+          Everything — profile, moods, stress logs, journals, chat sessions, profile picture — will be deleted from the database.
         </p>
         <div style={{ padding: '10px 14px', background: 'var(--accent-bg)', border: '1.5px solid var(--accent)', marginBottom: 20 }}>
           <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent)', letterSpacing: '0.04em' }}>YOU WILL BE IMMEDIATELY LOGGED OUT AND CANNOT RECOVER THIS ACCOUNT.</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={handleDeleteAccount} style={{ flex: 1, padding: '12px', background: 'var(--accent)', color: 'var(--ink-invert)', border: '1.5px solid var(--accent)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', cursor: 'pointer' }}>
-            YES, DELETE EVERYTHING
+          <button onClick={handleDeleteAccount} disabled={deleting} style={{ flex: 1, padding: '12px', background: 'var(--accent)', color: 'var(--ink-invert)', border: '1.5px solid var(--accent)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', cursor: deleting ? 'wait' : 'pointer', opacity: deleting ? 0.6 : 1 }}>
+            {deleting ? 'DELETING…' : 'YES, DELETE EVERYTHING'}
           </button>
           <button onClick={() => setShowDelete(false)} className="br-btn" style={{ padding: '12px 16px' }}>CANCEL</button>
         </div>
@@ -299,9 +325,11 @@ export default function SettingsPage() {
       <Modal open={showResetModal} onClose={() => setShowReset(false)}>
         <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--ink)', marginBottom: 16, letterSpacing: '-0.01em' }}>CLEAR DATA?</h2>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-2)', marginBottom: 20 }}>
-          {resetType === 'all'
-            ? 'This will clear all locally stored data including journal entries and pomodoro stats.'
-            : `This will clear your ${resetType} data from local storage.`}
+          {resetType === 'journals'
+            ? 'This permanently deletes every journal entry from your account. It cannot be undone.'
+            : resetType === 'all'
+              ? 'This clears data stored on this device, such as pomodoro stats. Your account data is not affected.'
+              : 'This clears your pomodoro stats from this device.'}
         </p>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={handleReset} className="br-btn br-btn-inv" style={{ flex: 1, padding: '12px' }}>YES, CLEAR DATA</button>

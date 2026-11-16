@@ -13,6 +13,7 @@ interface Message {
 }
 
 const QUICK_CHIPS = ['I NEED TO VENT', 'EXAM STRESS', 'BREATHING HELP']
+const MAX_STORED_MESSAGES = 200
 
 function TypingIndicator() {
   return (
@@ -36,7 +37,6 @@ export default function KokoroPage() {
   const [input, setInput]         = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [userCtx, setUserCtx]     = useState('')
   const [helpOpen, setHelpOpen]   = useState(false)
   const endRef   = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -48,34 +48,22 @@ export default function KokoroPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
 
-      const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
-      const [{ data: profile }, { data: moods }, { data: stress }] = await Promise.all([
-        supabase.from('profiles').select('name, age, education_level, location').eq('id', session.user.id).single(),
-        supabase.from('moods').select('mood_score').eq('user_id', session.user.id).gte('created_at', sevenDaysAgo),
-        supabase.from('academic_stress').select('stress_level').eq('user_id', session.user.id).gte('created_at', sevenDaysAgo),
+      // The mood / stress context for the model is built server-side in /api/chat.
+      const [{ data: profile }, { data: sessions }] = await Promise.all([
+        supabase.from('profiles').select('name').eq('id', session.user.id).single(),
+        supabase.from('chat_sessions').select('*').eq('user_id', session.user.id)
+          .order('updated_at', { ascending: false }).limit(1),
       ])
-
-      let ctx = ''
-      if (profile) {
-        ctx = `User: ${profile.name || 'Student'}, ${profile.age || ''}yo, ${profile.education_level || ''} student in ${profile.location || 'Pakistan'}.`
-        if (moods?.length) ctx += ` Avg mood 7d: ${(moods.reduce((s, m) => s + (m.mood_score || 0), 0) / moods.length).toFixed(1)}/5.`
-        if (stress?.length) ctx += ` Avg stress 7d: ${(stress.reduce((s, m) => s + (m.stress_level || 0), 0) / stress.length).toFixed(1)}/5.`
-      }
-      setUserCtx(ctx)
-
-      const { data: sessions } = await supabase
-        .from('chat_sessions').select('*').eq('user_id', session.user.id)
-        .order('updated_at', { ascending: false }).limit(1)
 
       if (sessions?.length) {
         setSessionId(sessions[0].id)
         const loaded = (sessions[0].messages as any[]).map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }))
         setMessages(loaded)
-        if (!loaded.length) greet(profile?.name)
+        if (!loaded.length) greet(profile?.name ?? undefined)
       } else {
         const { data: newSess } = await supabase.from('chat_sessions')
           .insert({ user_id: session.user.id, messages: [] }).select().single()
-        if (newSess) { setSessionId(newSess.id); greet(profile?.name) }
+        if (newSess) { setSessionId(newSess.id); greet(profile?.name ?? undefined) }
       }
     }
     init()
@@ -90,7 +78,10 @@ export default function KokoroPage() {
 
   const save = useCallback(async (msgs: Message[]) => {
     if (!sessionId) return
-    await supabase.from('chat_sessions').update({ messages: msgs, updated_at: new Date().toISOString() }).eq('id', sessionId)
+    // Keep the stored transcript bounded — it is rewritten on every reply.
+    await supabase.from('chat_sessions')
+      .update({ messages: msgs.slice(-MAX_STORED_MESSAGES), updated_at: new Date().toISOString() })
+      .eq('id', sessionId)
   }, [sessionId])
 
   const send = async (text?: string) => {
@@ -98,39 +89,43 @@ export default function KokoroPage() {
     if (!content || isLoading) return
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content, timestamp: new Date() }
     const updated = [...messages, userMsg]
+    const aiId = (Date.now() + 1).toString()
     setMessages(updated)
     setInput('')
     setIsLoading(true)
 
+    const showReply = (reply: string) =>
+      setMessages([...updated, { id: aiId, role: 'assistant', content: reply, timestamp: new Date() }])
+
+    let reply = ''
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [
-            {
-              role: 'system',
-              content: `You are Kokoro (心), a direct but warm mental wellness companion for students in Pakistan. Be honest, concise, non-judgmental. Keep responses to 2-4 sentences. For serious concerns (self-harm, suicidal thoughts): show empathy, encourage professional help, mention: Emergency 1122, Umang 0311-778-6264. ${userCtx}`,
-            },
-            ...updated.slice(-6).map(m => ({ role: m.role, content: m.content })),
-          ],
+          messages: updated.slice(-6).map(m => ({ role: m.role, content: m.content })),
         }),
       })
-      const { message } = await res.json()
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(), role: 'assistant',
-        content: message || "Connection issue. Try again.",
-        timestamp: new Date(),
+      if (!res.ok || !res.body) {
+        const { error } = await res.json().catch(() => ({ error: '' }))
+        reply = error || 'Connection issue. Try again.'
+        showReply(reply)
+        return
       }
-      const final = [...updated, aiMsg]
-      setMessages(final)
-      await save(final)
+      // Render tokens as they stream in.
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      setIsLoading(false)
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        reply += decoder.decode(value, { stream: true })
+        showReply(reply)
+      }
+      if (!reply) { reply = 'Connection issue. Try again.'; showReply(reply) }
+      else await save([...updated, { id: aiId, role: 'assistant', content: reply, timestamp: new Date() }])
     } catch {
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(), role: 'assistant',
-        content: "Connection issue. Try again.",
-        timestamp: new Date(),
-      }])
+      showReply(reply || 'Connection issue. Try again.')
     } finally {
       setIsLoading(false)
     }
@@ -296,7 +291,7 @@ export default function KokoroPage() {
           }}
         >
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', letterSpacing: '0.06em', flex: 1 }}>
-            EMERGENCY: 1122  ·  UMANG HELPLINE: 0311-778-6264
+            EMERGENCY: 1122  ·  UMANG HELPLINE: 0317-4288665
           </span>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>
             {helpOpen ? '▲' : '▼'}
@@ -312,6 +307,7 @@ export default function KokoroPage() {
                 {[
                   ['Rescue / Emergency', '1122'],
                   ['Umang Helpline', '0317-4288665'],
+                  ['Umang WhatsApp', '0311-7786264'],
                   ['Rozan Counselling', '051-2890505'],
                   ['Edhi Foundation', '115'],
                 ].map(([label, num]) => (

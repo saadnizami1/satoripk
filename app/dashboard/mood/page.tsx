@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
+import { notifyCheckin, startOfToday } from '@/lib/dates'
 
 const MOODS = [
   { score: 1, label: 'TERRIBLE' },
@@ -36,10 +37,9 @@ export default function MoodPage() {
       if (!session) return
       setUserId(session.user.id)
 
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
       const [{ data: today }, { data: hist }] = await Promise.all([
         supabase.from('moods').select('*').eq('user_id', session.user.id)
-          .gte('created_at', todayStart.toISOString()).order('created_at', { ascending: false }).limit(1),
+          .gte('created_at', startOfToday()).order('created_at', { ascending: false }).limit(1),
         supabase.from('moods').select('*').eq('user_id', session.user.id)
           .order('created_at', { ascending: false }).limit(7),
       ])
@@ -52,11 +52,12 @@ export default function MoodPage() {
   const handleSave = async () => {
     if (selected === null || !userId) return
     setSaving(true)
-    const { error } = await supabase.from('moods').insert({
+    const { data: inserted, error } = await supabase.from('moods').insert({
       user_id: userId, mood_score: selected,
       note: note || (stressAnswer ? `Academic stress: ${stressAnswer}` : null),
-    })
+    }).select().single()
     if (!error) {
+      notifyCheckin()
       const label = MOODS.find(m => m.score === selected)!.label
       const now = new Date()
       const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
@@ -64,10 +65,8 @@ export default function MoodPage() {
       setConfirm(`LOGGED. ${label} · ${dateStr} · ${timeStr}`)
       setTimeout(() => setConfirm(''), 4000)
       setLogged(true)
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-      const { data } = await supabase.from('moods').select('*').eq('user_id', userId)
-        .gte('created_at', todayStart.toISOString()).limit(1)
-      setTodayMood(data?.[0])
+      setTodayMood(inserted)
+      setHistory(h => [inserted, ...h].slice(0, 7))
     }
     setSaving(false)
   }

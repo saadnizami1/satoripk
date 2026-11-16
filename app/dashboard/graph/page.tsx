@@ -6,6 +6,7 @@ import {
   ResponsiveContainer, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
+import { localDateKey } from '@/lib/dates'
 
 const MOOD_WORDS = ['', 'TERRIBLE', 'BAD', 'OKAY', 'GOOD', 'GREAT']
 const TREND_UP   = '↑'
@@ -38,13 +39,13 @@ export default function MoodGraphPage() {
   const fetchMoods = async () => {
     setLoading(true)
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
+    if (!session) { setLoading(false); return }
 
     const from = new Date()
     from.setDate(from.getDate() - parseInt(range))
 
     const { data } = await supabase
-      .from('moods').select('*').eq('user_id', session.user.id)
+      .from('moods').select('created_at, mood_score').eq('user_id', session.user.id)
       .gte('created_at', from.toISOString())
       .order('created_at', { ascending: true })
 
@@ -53,12 +54,13 @@ export default function MoodGraphPage() {
       const avg    = scores.reduce((a, b) => a + b, 0) / scores.length
       const best   = MOOD_WORDS[Math.max(...scores)] ?? '—'
 
+      // Consecutive local calendar days with at least one entry, ending today.
+      const loggedDays = new Set(data.map(m => localDateKey(m.created_at)))
       const today = new Date()
       let streak = 0
       for (let i = 0; i < 90; i++) {
         const d = new Date(today); d.setDate(d.getDate() - i)
-        const ds = d.toISOString().split('T')[0]
-        if (data.some(m => m.created_at.startsWith(ds))) streak++
+        if (loggedDays.has(localDateKey(d))) streak++
         else break
       }
 

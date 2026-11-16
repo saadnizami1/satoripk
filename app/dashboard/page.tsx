@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
+import { startOfToday } from '@/lib/dates'
 
 const MOOD_LABELS = ['TERRIBLE', 'BAD', 'OKAY', 'GOOD', 'GREAT']
 
@@ -30,17 +31,20 @@ function getGreeting() {
   return 'GOOD NIGHT,'
 }
 
-function useLiveClock() {
+// Isolated so the minute tick re-renders only this text, not the page.
+function LiveClock() {
   const [time, setTime] = useState('')
   useEffect(() => {
     const update = () => setTime(
       new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
     )
     update()
-    const id = setInterval(update, 1000)
-    return () => clearInterval(id)
+    let id: ReturnType<typeof setInterval> | undefined
+    // Align to the next minute boundary, then tick once a minute.
+    const align = setTimeout(() => { update(); id = setInterval(update, 60_000) }, 60_000 - (Date.now() % 60_000))
+    return () => { clearTimeout(align); if (id) clearInterval(id) }
   }, [])
-  return time
+  return <>{time}</>
 }
 
 function useScramble(finalText: string) {
@@ -137,7 +141,6 @@ export default function DashboardHome() {
   const [todayMood, setTodayMood]  = useState<any>(null)
   const [hasMoodToday, setHasMood] = useState(false)
   const [loading, setLoading]      = useState(true)
-  const time    = useLiveClock()
   const isTouch = useIsCoarsePointer()
   const name    = profile?.name?.toUpperCase() || 'WELCOME'
   const { display: scrambledName, scramble } = useScramble(name)
@@ -146,11 +149,10 @@ export default function DashboardHome() {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
       const [{ data: prof }, { data: moods }] = await Promise.all([
         supabase.from('profiles').select('name').eq('id', session.user.id).single(),
         supabase.from('moods').select('mood_score').eq('user_id', session.user.id)
-          .gte('created_at', todayStart.toISOString()).order('created_at', { ascending: false }).limit(1),
+          .gte('created_at', startOfToday()).order('created_at', { ascending: false }).limit(1),
       ])
       setProfile(prof)
       setTodayMood(moods?.[0] ?? null)
@@ -175,7 +177,7 @@ export default function DashboardHome() {
         borderBottom: '1.5px solid var(--border)', paddingBottom: 10, marginBottom: 40,
       }}>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', letterSpacing: '0.06em' }}>
-          <span className="hidden sm:inline">{dateStr}  ·  {time}  ·  LAHORE, PK</span>
+          <span className="hidden sm:inline">{dateStr}  ·  <LiveClock />  ·  LAHORE, PK</span>
           <span className="sm:hidden">{dateStr}</span>
         </span>
         <span className="hidden sm:inline" style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.1em', color: 'var(--ink)' }}>

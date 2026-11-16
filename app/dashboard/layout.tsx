@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
+import { CHECKIN_EVENT, startOfToday } from '@/lib/dates'
 
 const NAV_ITEMS: ({ label: string; href: string; badge?: true } | null)[] = [
   { label: 'HOME',          href: '/dashboard' },
@@ -38,15 +39,13 @@ const MOBILE_TABS = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter()
   const pathname = usePathname()
-  const [authReady, setAuthReady]     = useState(false)
   const [menuOpen, setMenuOpen]       = useState(false)
   const [todayPending, setTodayPending] = useState(false)
 
   const refreshTodayStatus = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-    const todayStr = todayStart.toISOString()
+    const todayStr = startOfToday()
     const [{ data: md }, { data: sd }] = await Promise.all([
       supabase.from('moods').select('id').eq('user_id', session.user.id)
         .gte('created_at', todayStr).limit(1),
@@ -56,40 +55,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setTodayPending(!((md?.length ?? 0) > 0 && (sd?.length ?? 0) > 0))
   }, [])
 
+  // Auth and onboarding are enforced by the proxy before this renders, so
+  // the layout no longer blocks on a profile query. It only reacts to a
+  // sign-out (e.g. from another tab).
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, session: Session | null) => {
-        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-          if (!session) { router.replace('/auth'); return }
-          const { data: profile } = await supabase.from('profiles')
-            .select('onboarding_completed').eq('id', session.user.id).single()
-          if (!profile?.onboarding_completed) { router.replace('/onboarding'); return }
-          setAuthReady(true)
-          refreshTodayStatus()
-        } else if (event === 'TOKEN_REFRESHED') {
-          if (!session) { router.replace('/auth'); return }
-          setAuthReady(true)
-          refreshTodayStatus()
-        } else if (event === 'SIGNED_OUT') {
+      (event: AuthChangeEvent, session: Session | null) => {
+        if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
           router.replace('/auth')
         }
       }
     )
     return () => subscription.unsubscribe()
-  }, [router, refreshTodayStatus])
+  }, [router])
+
+  // Re-check the badge on mount and whenever a page records a check-in.
+  useEffect(() => {
+    refreshTodayStatus()
+    window.addEventListener(CHECKIN_EVENT, refreshTodayStatus)
+    return () => window.removeEventListener(CHECKIN_EVENT, refreshTodayStatus)
+  }, [refreshTodayStatus])
 
   useEffect(() => { setMenuOpen(false) }, [pathname])
-  useEffect(() => { refreshTodayStatus() }, [pathname, refreshTodayStatus])
-
-  if (!authReady) {
-    return (
-      <div className="min-h-screen flex flex-col gap-3 items-center justify-center" style={{ background: 'var(--bg)' }}>
-        {[120, 80, 48].map((w, i) => (
-          <div key={i} className="skeleton" style={{ width: w, height: 14 }} />
-        ))}
-      </div>
-    )
-  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -233,7 +220,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {/* Sign out */}
               <div style={{ borderTop: '1px solid rgba(12,12,12,0.1)', padding: '4px 0 4px' }}>
                 <button
-                  onClick={async () => { await supabase.auth.signOut(); router.replace('/') }}
+                  onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }}
                   style={{
                     display: 'block', width: '100%', padding: '8px 18px', textAlign: 'left',
                     fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,

@@ -9,6 +9,7 @@ import {
   CheckCircle, XCircle, HelpCircle
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { localDateKey } from '@/lib/dates'
 
 const performanceColors: Record<number, string> = { 5: '#2DD4BF', 4: '#4ADE80', 3: '#EAB308', 2: '#F97316', 1: '#EF4444' }
 const stressColors: Record<number, string>      = { 5: '#EF4444', 4: '#F97316', 3: '#EAB308', 2: '#4ADE80', 1: '#2DD4BF' }
@@ -41,7 +42,8 @@ export default function StressInsightsPage() {
   useEffect(() => { fetchEntries() }, [timeRange])
 
   const fetchEntries = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (user) {
       const daysAgo = new Date()
       daysAgo.setDate(daysAgo.getDate() - parseInt(timeRange))
@@ -72,11 +74,12 @@ export default function StressInsightsPage() {
       } catch {}
     })
 
+    const loggedDays = new Set(data.map(e => localDateKey(e.created_at)))
     const today = new Date()
     let streak = 0
     for (let i = 0; i < 90; i++) {
       const d = new Date(today); d.setDate(d.getDate() - i)
-      if (data.some(e => e.created_at.startsWith(d.toISOString().split('T')[0]))) streak++
+      if (loggedDays.has(localDateKey(d))) streak++
       else break
     }
 

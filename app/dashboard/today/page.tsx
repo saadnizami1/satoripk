@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
+import { notifyCheckin, startOfToday } from '@/lib/dates'
 
 const MOODS = [
   { value: 1, label: 'TERRIBLE' },
@@ -103,8 +104,7 @@ export default function TodayPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
       setUserId(session.user.id)
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-      const todayStr = todayStart.toISOString()
+      const todayStr = startOfToday()
       const [{ data: md }, { data: sd }] = await Promise.all([
         supabase.from('moods').select('*').eq('user_id', session.user.id)
           .gte('created_at', todayStr).order('created_at', { ascending: false }).limit(1),
@@ -121,16 +121,14 @@ export default function TodayPage() {
   const saveMood = async () => {
     if (selMood === null || !userId) return
     setSavingMood(true)
-    const { error } = await supabase.from('moods').insert({
+    const { data, error } = await supabase.from('moods').insert({
       user_id: userId, mood_score: selMood,
       note: moodNote.trim() || null,
-    })
+    }).select().single()
     if (!error) {
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-      const { data } = await supabase.from('moods').select('*')
-        .eq('user_id', userId).gte('created_at', todayStart.toISOString()).limit(1)
-      setTodayMood(data?.[0] ?? null)
+      setTodayMood(data)
       setMoodDone(true)
+      notifyCheckin()
     }
     setSavingMood(false)
   }
@@ -138,17 +136,15 @@ export default function TodayPage() {
   const saveStress = async () => {
     if (selPerf === null || selStress === null || !userId) return
     setSavingStress(true)
-    const { error } = await supabase.from('academic_stress').insert({
+    const { data, error } = await supabase.from('academic_stress').insert({
       user_id: userId,
       performance_rating: selPerf,
       stress_level: selStress,
-    })
+    }).select().single()
     if (!error) {
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-      const { data } = await supabase.from('academic_stress').select('*')
-        .eq('user_id', userId).gte('created_at', todayStart.toISOString()).limit(1)
-      setTodayStress(data?.[0] ?? null)
+      setTodayStress(data)
       setStressDone(true)
+      notifyCheckin()
     }
     setSavingStress(false)
   }

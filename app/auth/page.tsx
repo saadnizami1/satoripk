@@ -1,51 +1,63 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Eye, EyeOff } from 'lucide-react'
 
+const AUTH_ERRORS: Record<string, string> = {
+  oauth: 'Google sign-in failed. Please try again.',
+}
+
+// Only allow same-site relative paths as post-login destinations.
+function safeNext(next: string | null) {
+  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
+}
+
 function AuthPageContent() {
+  const searchParams = useSearchParams()
+  const urlError     = searchParams.get('error')
   const [isLogin, setIsLogin]           = useState(true)
   const [email, setEmail]               = useState('')
   const [password, setPassword]         = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading]           = useState(false)
-  const [error, setError]               = useState('')
-  const router       = useRouter()
-  const searchParams = useSearchParams()
+  const [error, setError]               = useState(urlError ? (AUTH_ERRORS[urlError] ?? urlError) : '')
+  const [notice, setNotice]             = useState('')
+  const router = useRouter()
+  const next   = safeNext(searchParams.get('next'))
 
   const getRedirectUrl = () =>
-    typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : ''
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+      : ''
 
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-      const { data: profile } = await supabase
-        .from('profiles').select('onboarding_completed').eq('id', session.user.id).single()
-      const next = searchParams.get('next') || '/dashboard'
-      router.replace(profile?.onboarding_completed ? next : '/onboarding')
-    }
-    checkSession()
-  }, [router, searchParams])
-
+  // Signed-in visitors never reach this page — the proxy redirects them.
+  // After signing in, navigate to `next`; the proxy sends anyone who hasn't
+  // finished onboarding to /onboarding instead.
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setNotice('')
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        const { data: profile } = await supabase
-          .from('profiles').select('onboarding_completed').eq('id', data.user.id).single()
-        const next = searchParams.get('next') || '/dashboard'
-        router.replace(profile?.onboarding_completed ? next : '/onboarding')
+        router.replace(next)
       } else {
-        const { data, error } = await supabase.auth.signUp({ email, password })
+        const { data, error } = await supabase.auth.signUp({
+          email, password,
+          options: { emailRedirectTo: getRedirectUrl() },
+        })
         if (error) throw error
-        if (data.user) router.replace('/onboarding')
+        if (data.session) {
+          router.replace('/onboarding')
+        } else if (data.user && data.user.identities?.length === 0) {
+          setError('An account with this email already exists. Sign in instead.')
+        } else {
+          setNotice('Check your email for a confirmation link to finish signing up.')
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.')
@@ -62,7 +74,7 @@ function AuthPageContent() {
         provider: 'google',
         options: {
           redirectTo: getRedirectUrl(),
-          queryParams: { access_type: 'offline', prompt: 'consent' },
+          queryParams: { prompt: 'select_account' },
         },
       })
       if (error) throw error
@@ -229,6 +241,20 @@ function AuthPageContent() {
                   letterSpacing: '0.06em',
                 }}>
                   {error}
+                </div>
+              )}
+
+              {notice && (
+                <div style={{
+                  marginBottom: 14,
+                  padding: '10px 14px',
+                  border: '1.5px solid var(--border)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  color: 'var(--ink)',
+                  letterSpacing: '0.06em',
+                }}>
+                  {notice}
                 </div>
               )}
 
