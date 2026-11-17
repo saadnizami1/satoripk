@@ -92,7 +92,7 @@ export function LandingHeader({ home = true }: { home?: boolean }) {
         .lp-header[data-solid="true"] { background: rgba(15,30,46,0.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 1px 0 var(--line-dark); }
         .lp-links { display: flex; gap: 2px; }
         .lp-menu-btn { display: none !important; }
-        .lp-strip { display: block; text-align: center; padding: 8px 16px; font-size: 14px; font-weight: 500; color: var(--ink); background: var(--marigold); text-decoration: none; }
+        .lp-strip { display: block; text-align: center; padding: 12px 16px; min-height: 44px; font-size: 14px; font-weight: 500; color: var(--ink); background: var(--marigold); text-decoration: none; }
         .lp-strip:hover { text-decoration: underline; }
         .lp-header[data-solid="true"] .lp-strip { display: none; }
         @media (max-width: 900px) {

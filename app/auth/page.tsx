@@ -154,7 +154,7 @@ function AuthPageContent() {
           <p className="t-body muted" style={{ marginTop: 22, textAlign: 'center' }}>
             {isLogin ? 'New here?' : 'Already have an account?'}{' '}
             <button type="button" className="link" onClick={() => switchMode(!isLogin)}
-              style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', font: 'inherit', fontWeight: 600, color: 'var(--ink)' }}>
+              style={{ background: 'none', border: 0, padding: '12px 4px', minHeight: 44, cursor: 'pointer', font: 'inherit', fontWeight: 600, color: 'var(--ink)' }}>
               {isLogin ? 'Make your space' : 'Log in'}
             </button>
           </p>
