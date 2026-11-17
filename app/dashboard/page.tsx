@@ -14,6 +14,7 @@ import { Pill, Polaroid, Scene, TapeHeading, TornPaper } from '@/components/ui/k
 import { Sticker, type StickerName } from '@/components/ui/stickers'
 import { MoodPicker } from '@/components/ui/controls'
 import { MoodGlyph } from '@/components/ui/MoodGlyph'
+import { Washi, HandNote } from '@/components/ui/doodles'
 
 interface Tool { id: string; title: string; line: string; href: string; sticker: StickerName; bg: string }
 
@@ -211,7 +212,8 @@ export default function DashboardHome() {
 
       {/* ── Row 2: numbers on torn paper ── */}
       <section aria-label="Your numbers" className="home__row home__notes">
-        <TornPaper color="var(--paper)" tilt={-1.4} seed={4}>
+        <TornPaper color="var(--paper)" tilt={-1.4} seed={4} style={{ position: 'relative' }}>
+          <Washi at="tc" tone="sky" />
           <h2 className="t-h4">this week</h2>
           <ol className="home__week" aria-label="Moods this week">
             {week.map(d => {
@@ -225,10 +227,12 @@ export default function DashboardHome() {
             })}
           </ol>
         </TornPaper>
-        <TornPaper color="var(--marigold)" tilt={1.2} seed={8}>
+        <TornPaper color="var(--marigold)" tilt={1.2} seed={8} style={{ position: 'relative' }}>
+          <Washi at="tr" tone="rose" />
           <h2 className="t-h4">streak</h2>
           <p className="t-num" style={{ marginTop: 6 }}>{moods ? streak.n : '–'}</p>
           <p className="t-small">{streak.n === 1 ? 'day in a row' : 'days in a row'}</p>
+          {streak.n >= 3 && <HandNote style={{ marginTop: 6, transform: 'rotate(-3deg)' }}>look at you go</HandNote>}
         </TornPaper>
         <TornPaper color="var(--mint)" tilt={-0.8} seed={12}>
           <h2 className="t-h4">focus today</h2>
@@ -264,7 +268,8 @@ export default function DashboardHome() {
         ) : (
           <ul className="home__grid">
             {tools.map((t, i) => (
-              <li key={t.id} className={t.id === 'kokoro' ? 'home__grid-wide' : ''}>
+              <li key={t.id} className={t.id === 'kokoro' ? 'home__grid-wide' : ''} style={{ position: 'relative' }}>
+                <Washi at={i % 3 === 0 ? 'tl' : i % 3 === 1 ? 'tc' : 'tr'} tone={(['rose', 'mint', 'sky', undefined] as const)[i % 4]} />
                 <Polaroid href={t.href} tilt={TILTS[i]} frameStyle={{ background: t.bg, aspectRatio: t.id === 'kokoro' ? '2.1 / 1' : '4 / 3', display: 'grid', placeItems: 'center' }}
                   caption={<><h3 className="t-h4">{t.title}</h3><p className="t-small faint" style={{ marginTop: 2 }}>{t.line}</p></>}>
                   <Sticker name={t.sticker} size={t.id === 'kokoro' ? 120 : 96} tilt={TILTS[(i + 3) % TILTS.length] * 3} />

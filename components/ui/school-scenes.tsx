@@ -120,3 +120,77 @@ export function Rooftop() {
     </svg>
   )
 }
+
+export function DeskAtNight() {
+  return (
+    <svg viewBox="0 0 280 210" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <rect width="280" height="210" fill="#182B40" />
+      <rect x="170" y="22" width="88" height="70" fill="#0F1E2E" stroke={INK} strokeWidth="3" />
+      <circle cx="226" cy="44" r="9" fill="#F4ECD6" />
+      <circle cx="230" cy="41" r="8" fill="#0F1E2E" />
+      <path d="M170 57 h88 M214 22 v70" stroke="#2E4A6B" strokeWidth="2" />
+      <path d="M20 150 L120 40" stroke="#56626C" strokeWidth="5" />
+      <path d="M108 40 L150 40 L138 66 L96 66z" fill="#F5C542" stroke={INK} strokeWidth="2.4" />
+      <path d="M60 210 L118 66 L260 210z" fill="#F5C542" opacity="0.12" />
+      <rect y="150" width="280" height="60" fill="#6E5444" />
+      <rect y="146" width="280" height="8" fill="#8A6A52" />
+      <rect x="40" y="122" width="96" height="26" rx="2" fill="#FFFDF7" stroke={INK} strokeWidth="2" transform="rotate(-4 88 135)" />
+      <path d="M50 130 h60 M50 137 h48" stroke="#9AA59F" strokeWidth="2" transform="rotate(-4 88 135)" />
+      <rect x="150" y="128" width="56" height="18" fill="#EC4E8B" stroke={INK} strokeWidth="2" />
+      <rect x="154" y="112" width="50" height="16" fill="#7FA3A0" stroke={INK} strokeWidth="2" />
+      <rect x="216" y="104" width="28" height="44" rx="4" fill="#111111" />
+      <rect x="219" y="108" width="22" height="34" rx="2" fill="#9ED9C3" opacity="0.9" />
+      <path d="M180 100 q4 -8 0 -14 M188 100 q4 -8 0 -14" stroke="#C9D6DE" strokeWidth="1.6" opacity="0.7" />
+      <rect x="174" y="98" width="20" height="14" rx="3" fill="#FFFDF7" stroke={INK} strokeWidth="1.6" transform="translate(-16 -16)" />
+    </svg>
+  )
+}
+
+export function SchoolVan() {
+  return (
+    <svg viewBox="0 0 280 210" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <rect width="280" height="210" fill="#F2D68A" />
+      <circle cx="232" cy="46" r="20" fill="#FBE6A6" />
+      <rect y="150" width="280" height="60" fill="#56626C" />
+      <path d="M0 176 h40 M70 176 h40 M140 176 h40 M210 176 h40" stroke="#FFFDF7" strokeWidth="4" />
+      <path d="M40 140 V86 a12 12 0 0 1 12 -12 h120 l40 30 v36z" fill="#F5C542" stroke={INK} strokeWidth="3" />
+      <rect x="56" y="84" width="34" height="22" rx="3" fill="#C9DDD2" stroke={INK} strokeWidth="2" />
+      <rect x="98" y="84" width="34" height="22" rx="3" fill="#C9DDD2" stroke={INK} strokeWidth="2" />
+      <path d="M140 84 h32 l26 22 h-58z" fill="#C9DDD2" stroke={INK} strokeWidth="2" />
+      <rect x="44" y="116" width="168" height="10" fill="#111111" />
+      <text x="128" y="124" textAnchor="middle" fontFamily="Inter, sans-serif" fontSize="8" fontWeight="700" fill="#F5C542" letterSpacing="1">SCHOOL</text>
+      <circle cx="78" cy="142" r="15" fill="#111111" />
+      <circle cx="78" cy="142" r="6" fill="#9AA59F" />
+      <circle cx="182" cy="142" r="15" fill="#111111" />
+      <circle cx="182" cy="142" r="6" fill="#9AA59F" />
+      <rect x="64" y="56" width="120" height="16" rx="4" fill="#EC4E8B" stroke={INK} strokeWidth="2" />
+      <rect x="80" y="48" width="22" height="10" fill="#7FA3A0" stroke={INK} strokeWidth="1.6" />
+      <rect x="110" y="46" width="30" height="12" fill="#2E4A6B" stroke={INK} strokeWidth="1.6" />
+    </svg>
+  )
+}
+
+export function StreetCricket() {
+  return (
+    <svg viewBox="0 0 280 210" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="sc-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#8C5A78" />
+          <stop offset="1" stopColor="#E28A6B" />
+        </linearGradient>
+      </defs>
+      <rect width="280" height="210" fill="url(#sc-sky)" />
+      <path d="M0 120 V70 h40 v-14 h50 v28 h40 V60 h60 v40 h40 V76 h50 v44z" fill="#4A3A5A" />
+      <path d="M0 150 V112 h280 v38z" fill="#2D2840" />
+      <rect y="150" width="280" height="60" fill="#B9A08A" />
+      <path d="M70 150 V108 M78 150 V108 M86 150 V108" stroke="#FFFDF7" strokeWidth="4" />
+      <path d="M68 108 h20" stroke="#FFFDF7" strokeWidth="3" />
+      <path d="M150 188 l60 -64" stroke="#6E5444" strokeWidth="9" />
+      <path d="M203 131 l14 -15" stroke="#111111" strokeWidth="6" />
+      <circle cx="120" cy="96" r="7" fill="#F5C542" stroke={INK} strokeWidth="2" />
+      <path d="M128 92 q20 -10 40 -2" stroke="#FFFDF7" strokeWidth="1.6" strokeDasharray="3 4" fill="none" />
+      <path d="M0 132 h280" stroke="#111111" strokeWidth="1" opacity="0.4" />
+      <path d="M0 40 C 60 50, 120 30, 280 44" stroke="#111111" strokeWidth="1" opacity="0.4" fill="none" />
+    </svg>
+  )
+}

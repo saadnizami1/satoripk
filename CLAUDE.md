@@ -64,10 +64,11 @@ app/
   layout.tsx                Root layout, fonts (Gloock display + Inter), OG metadata, sticker filter defs
   globals.css               Design tokens + utility classes (read this before UI work)
   page.tsx                  Public landing page (server component; header + hero phone hydrate)
+  about/page.tsx            Public page: the researchers, the study, the SSRN paper, how participants are protected
   auth/page.tsx             Sign in / sign up (email + Google)
   auth/callback/route.ts    OAuth code exchange → /onboarding or `next`
   onboarding/page.tsx       5 quick questions + privacy choice → writes profile, seeds a mood, sets onboarding_completed
-  dashboard/layout.tsx      Pill top bar, menu sheet (NAV_GROUPS), phone tab bar, "today pending" dot
+  dashboard/layout.tsx      Paper binder tabs hanging from the top (TOP_NAV), menu sheet (NAV_GROUPS), tabs rising from the bottom on phones
   dashboard/*/page.tsx      Feature pages (see Page map)
   api/chat/route.ts         Kokoro: auth, rate limit, server-built prompt, Groq stream
   api/research-export/      Password-gated CSV export of research views (service role)
@@ -78,9 +79,10 @@ components/
   ui/controls.tsx           Client controls: MoodPicker, ScalePicker, OptionRows, ChipGroup, Switch, Accordion, TextField
   ui/stickers.tsx           Cut-out SVG stickers (<Sticker name="chai" />) + the global die-cut filter
   ui/MoodGlyph.tsx          Weather glyph per mood score (1 rain … 5 sun)
-  ui/school-scenes.tsx      Illustrated film-strip frames (no people)
+  ui/school-scenes.tsx      Illustrated film-strip frames of a teenager's week (no people)
+  ui/doodles.tsx            Hand-drawn arrows, underline, sparkles, heart, washi tape, HandNote (Caveat)
   app/PageHeader.tsx        Inner-page header: painted band + tape title + sticker, or `calm`
-  landing/                  Landing header and the interactive hero phone
+  landing/                  Public header (home prop), SiteFooter, the interactive hero phone
 lib/
   moods.ts                  The 5-step mood scale (labels, replies, next step), greeting, firstName()
   helplines.ts              Single source of crisis numbers
@@ -216,8 +218,11 @@ onboarding, quieter inside the app, and plain wherever a student may be in distr
     `--rose` #EC4E8B and `--mint` #9ED9C3 are sticker colours. Rose **as text** must be
     `--rose-ink` (contrast). `--danger` is only for crisis and destructive actions;
   - moods: `--mood-1` … `--mood-5`, always paired with the weather glyph, never colour alone.
+- **Brand:** the logo is the indigo kite in `public/brand/kite.png` (favicon/app icon generated
+  from it). `<Logo>` shows it as a die-cut sticker (`.brand-kite`) so it reads on light and dark.
 - **Typography:** `--font-display` is **Gloock** (one weight; size does the hierarchy),
-  body is **Inter**. Classes `.t-hero .t-h1 .t-h2 .t-h3 .t-h4 .t-lead .t-body .t-small .t-label .t-num`.
+  body is **Inter**, and **Caveat** (`.t-hand`, `<HandNote>`) is for short margin notes and
+  captions only, never for anything a student must read to use the app. Classes `.t-hero .t-h1 .t-h2 .t-h3 .t-h4 .t-lead .t-body .t-small .t-label .t-num`.
   Nothing below 13px. Display headings are lowercase on scrapbook surfaces, sentence
   case on calm pages. No all-caps labels, no monospace labels.
 - **Signature pieces** (use these, don't re-create them):
@@ -226,6 +231,10 @@ onboarding, quieter inside the app, and plain wherever a student may be in distr
   - `<Sticker name="…" />`: cut-out SVG with a white die-cut edge. Decorative only. On
     inner pages use at most one, inside `<PageHeader>`.
   - `<TornPaper>`, `<Polaroid>`, `<FilmStrip>`, `<ZigzagDivider>`, `<PhoneMockup>`, `<Scene>`.
+  - Hand-made layer: `<Washi>` tape on polaroids and notes, doodle arrows and underlines,
+    `<HandNote>` captions. Decorative, `aria-hidden`, and never on calm pages.
+  - App navigation is paper index tabs, not a bar: each tab a different paper colour,
+    the current page's tab hangs lower. Don't replace it with a generic glass/pill navbar.
   - Buttons are `<Pill variant="tape|white|marigold|glass|ghost|danger">`; add `knob` for
     the primary call to action on a page.
   - Mood input is always `<MoodPicker>` (weather tiles, arrow-key radiogroup).
@@ -248,6 +257,9 @@ onboarding, quieter inside the app, and plain wherever a student may be in distr
   trig-derived SVG coordinates (`rnd()` in the sticker files).
 - **Mobile:** test at 375px with no horizontal scroll. The dashboard has a fixed tab bar
   (Home, Today, Kokoro, Journal, Menu); `.app-main` already pads for it.
+- **Audience:** Satori is for **teenagers** in Pakistan (middle school to first years of
+  university, mostly under 18). Say so plainly; never show photos of students. The only
+  photos are of the researchers on `/about` (`public/team/`).
 - **Voice:** plain, warm, specific to students in Pakistan (Matric, FSc, A-Levels,
   mocks). Never clinical, never forced-cheerful, never guilt about streaks. Say exactly
   what happens with data. Errors say what went wrong and what to do next.
@@ -279,7 +291,8 @@ onboarding, quieter inside the app, and plain wherever a student may be in distr
 | `/dashboard/profile` | Profile view/edit, avatar upload, stats | `profiles`, Storage, counts |
 | `/dashboard/settings` | Password, research consent, export JSON, delete journals/account | various, `/api/account` |
 | `/dashboard/research-data` | Researcher CSV download (password) | `/api/research-export` |
-| `/dashboard/creator` | About the researcher | static |
+| `/about` | Public: researchers (Saad Nizami, Dr. Havaida Munir), the study, SSRN paper, participant protections | static |
+| `/dashboard/creator` | Redirects to `/about` | static |
 
 ---
 

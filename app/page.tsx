@@ -1,11 +1,14 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { LandingHeader } from '@/components/landing/LandingHeader'
 import { HeroPhone } from '@/components/landing/HeroPhone'
 import { TapeHeading, Pill, Scene, ZigzagDivider, NumberBadge, TornPaper, FilmStrip, Logo } from '@/components/ui/kit'
 import { Sticker, type StickerName } from '@/components/ui/stickers'
 import { Accordion } from '@/components/ui/controls'
 import { MoodGlyph } from '@/components/ui/MoodGlyph'
-import { Classroom, Library, ExamHall, Rooftop } from '@/components/ui/school-scenes'
+import { Classroom, ExamHall, Rooftop, SchoolVan, DeskAtNight, StreetCricket } from '@/components/ui/school-scenes'
+import { CurlyArrow, SwoopArrow, HandNote, Sparkles, Washi, Scribble, Heart } from '@/components/ui/doodles'
+import { SiteFooter } from '@/components/landing/SiteFooter'
 import { HELPLINES } from '@/lib/helplines'
 
 /*
@@ -14,11 +17,11 @@ import { HELPLINES } from '@/lib/helplines'
  * here is server-rendered; only the header and the hero phone hydrate.
  */
 
-const STEPS: { title: string; body: string; sticker: StickerName; tilt: number }[] = [
-  { title: 'check in', body: 'One tap tells Satori how today feels. No essays and no wrong answers.', sticker: 'phone', tilt: -8 },
-  { title: 'do one small thing', body: 'Breathe for two minutes, write three lines, or start a focus block. Satori suggests one that fits the day.', sticker: 'chai', tilt: 6 },
-  { title: 'see your weeks', body: 'After a few weeks your patterns show up: what drains you, and what helps.', sticker: 'calendar', tilt: -5 },
-  { title: 'talk it out', body: 'Kokoro is there at 2am, between classes, and the night before results. Say it however it comes out.', sticker: 'polaroid', tilt: 7 },
+const STEPS: { title: string; body: string; sticker: StickerName; tilt: number; note: string }[] = [
+  { title: 'check in', body: 'One tap tells Satori how today feels. No essays and no wrong answers.', sticker: 'phone', tilt: -8, note: 'takes about three seconds' },
+  { title: 'do one small thing', body: 'Breathe for two minutes, write three lines, or start a focus block. Satori suggests one that fits the day.', sticker: 'chai', tilt: 6, note: 'chai optional' },
+  { title: 'see your weeks', body: 'After a few weeks your patterns show up: what drains you, and what helps.', sticker: 'calendar', tilt: -5, note: 'no grades here' },
+  { title: 'talk it out', body: 'Kokoro is there at 2am, between classes, and the night before results. Say it however it comes out.', sticker: 'polaroid', tilt: 7, note: 'even at 2am' },
 ]
 
 const STATS = [
@@ -28,12 +31,24 @@ const STATS = [
 ]
 
 const KOKORO = [
-  { title: 'built with researchers', body: 'Made as part of a Lahore Garrison University study on academic stress, with Matric, FSc and A-Level pressure in mind.', sticker: 'papers' as const },
+  { title: 'built with researchers', body: 'Made as part of a study on academic stress among teenagers in Pakistan, with Matric, O-Level, FSc and A-Level pressure in mind.', sticker: 'papers' as const },
   { title: 'remembers your week', body: "Kokoro sees your recent check-ins, so you don't have to explain everything from the start each time.", sticker: 'notebook' as const },
   { title: 'there at 2am', body: "Exam tomorrow, can't sleep, need to vent. Kokoro answers any time, and points you to real people in an emergency.", sticker: 'moon' as const },
 ]
 
 const FAQ = [
+  {
+    q: 'Who is Satori for?',
+    a: (
+      <div className="stack-sm">
+        <p>
+          Teenagers in Pakistan: students from middle school, Matric and O-Levels through FSc, A-Levels and the first years
+          of university. It was shaped by the students who use it.
+        </p>
+        <p>If you&apos;re under 18, we suggest letting a parent or guardian know you use it.</p>
+      </div>
+    ),
+  },
   {
     q: 'How does Satori use my data?',
     a: (
@@ -90,10 +105,11 @@ export default function LandingPage() {
         <Scene src="/art/dusk.webp" priority position="center 72%" className="on-dark lp-hero"
           scrim="linear-gradient(180deg, rgba(15,30,46,0.55) 0%, rgba(15,30,46,0.1) 45%, rgba(15,30,46,0) 60%, rgba(15,30,46,0.55) 100%)">
           <div className="container lp-hero__inner">
+            <p className="lp-hero__tag"><span className="t-hand">made for teenagers in Pakistan</span></p>
             <h1 className="t-hero lp-hero__title">a quiet place for the loudest years</h1>
             <p className="t-lead lp-hero__lead">
-              A free, private space for students in Pakistan to check in, breathe, focus and talk things
-              through, especially when exams feel bigger than everything else.
+              A free, private space for teenagers to check in, breathe, focus and talk things through, especially
+              when exams feel bigger than everything else.
             </p>
             <div className="row" style={{ justifyContent: 'center', gap: 10 }}>
               <Pill href="/auth?mode=signup" variant="white" size="lg" knob>Start free</Pill>
@@ -103,7 +119,13 @@ export default function LandingPage() {
           <div className="lp-hero__phone">
             <Sticker name="chai" size={128} tilt={-10} className="lp-hero__sticker lp-hero__sticker--l" />
             <HeroPhone />
-            <Sticker name="kite" size={110} tilt={12} className="lp-hero__sticker lp-hero__sticker--r sway" />
+            <span className="lp-hero__sticker lp-hero__sticker--r sway" aria-hidden="true">
+              <Image src="/brand/kite.png" alt="" width={150} height={150} className="brand-kite" />
+            </span>
+            <div className="lp-hero__note" aria-hidden="true">
+              <HandNote color="var(--paper)" size="lg">try it, tap one</HandNote>
+              <CurlyArrow width={96} style={{ color: 'var(--paper)', marginTop: -4 }} />
+            </div>
           </div>
         </Scene>
 
@@ -114,10 +136,17 @@ export default function LandingPage() {
             <p className="t-lead" style={{ maxWidth: 520, marginTop: 18 }}>
               A two-minute habit, not another thing to keep up with.
             </p>
+            <Scribble width={240} style={{ color: 'var(--marigold)', marginTop: 2 }} />
             <ol className="lp-steps">
               {STEPS.map((s, i) => (
                 <li key={s.title} className="lp-step" data-side={i % 2 ? 'right' : 'left'}>
-                  <div className="lp-step__art"><Sticker name={s.sticker} size={190} tilt={s.tilt} /></div>
+                  <div className="lp-step__art">
+                    <Sticker name={s.sticker} size={190} tilt={s.tilt} />
+                    <span className="lp-step__note" aria-hidden="true">
+                      <SwoopArrow width={54} flip={i % 2 === 1} style={{ color: 'var(--rose-ink)' }} />
+                      <HandNote color="var(--rose-ink)">{s.note}</HandNote>
+                    </span>
+                  </div>
                   <div className="lp-step__text">
                     <NumberBadge n={i + 1} color={['var(--marigold)', 'var(--mint)', 'var(--paper)', 'var(--rose)'][i]} />
                     <h3 className="t-h2">{s.title}</h3>
@@ -136,21 +165,35 @@ export default function LandingPage() {
           <div className="container">
             <div className="lp-split">
               <TapeHeading id="real-h" lines={['real students,', 'real weeks']} accent="real" tone="paper" size="t-h1" />
-              <p className="t-lead" style={{ color: 'var(--on-dark-2)', maxWidth: 440 }}>
-                Satori began as a research study at Lahore Garrison University and grew with the students who use it,
-                from Matric to university.
-              </p>
+              <div className="stack-sm" style={{ maxWidth: 460 }}>
+                <p className="t-lead" style={{ color: 'var(--on-dark-2)' }}>
+                  Made for teenagers, with teenagers. Satori began as a research study on academic stress and grew with
+                  the students who use it, from Matric and O-Levels to FSc and A-Levels.
+                </p>
+                <Link href="/about" className="link" style={{ color: 'var(--paper)', fontWeight: 600 }}>Meet the researchers and read the paper</Link>
+              </div>
             </div>
             <div className="lp-film">
-              <FilmStrip label="Places Satori students study">
-                {[Classroom, Library, ExamHall, Rooftop].map((Art, i) => (
-                  <div key={i} role="listitem" className="film__frame"><Art /></div>
+              <FilmStrip label="A week in a Pakistani teenager's life">
+                {[
+                  { Art: SchoolVan, cap: '6:45, the van' },
+                  { Art: Classroom, cap: 'period four' },
+                  { Art: ExamHall, cap: 'mocks week' },
+                  { Art: DeskAtNight, cap: 'one more past paper' },
+                  { Art: StreetCricket, cap: 'finally, outside' },
+                  { Art: Rooftop, cap: 'kites at dusk' },
+                ].map(({ Art, cap }) => (
+                  <figure key={cap} role="listitem" className="film__frame" style={{ margin: 0, position: 'relative' }}>
+                    <Art />
+                    <figcaption className="t-hand lp-film__cap">{cap}</figcaption>
+                  </figure>
                 ))}
               </FilmStrip>
               <ul className="lp-stats" aria-label="Satori in numbers">
                 {STATS.map(s => (
                   <li key={s.label}>
-                    <TornPaper color={s.color} tilt={s.tilt} seed={s.seed}>
+                    <TornPaper color={s.color} tilt={s.tilt} seed={s.seed} style={{ position: 'relative' }}>
+                      <Washi at={s.tilt < 0 ? 'tl' : 'tr'} tone={s.color === 'var(--mint)' ? 'sky' : undefined} />
                       <span className="t-num" style={{ display: 'block' }}>{s.n}</span>
                       <span className="t-label" style={{ fontSize: 15 }}>{s.label}</span>
                     </TornPaper>
@@ -164,7 +207,10 @@ export default function LandingPage() {
         {/* ── Kokoro ─────────────────────────────────────────────── */}
         <section id="kokoro" aria-labelledby="kokoro-h" className="on-dark lp-kokoro">
           <div className="container">
-            <TapeHeading id="kokoro-h" lines={['meet kokoro,', 'your pocket companion']} accent="kokoro" tone="marigold" size="t-h1" />
+            <div className="row" style={{ alignItems: 'flex-start', gap: 14 }}>
+              <TapeHeading id="kokoro-h" lines={['meet kokoro,', 'your pocket companion']} accent="kokoro" tone="marigold" size="t-h1" />
+              <Sparkles width={70} style={{ color: 'var(--marigold)' }} />
+            </div>
             <ul className="grid-3 lp-kokoro__cols">
               {KOKORO.map((k, i) => (
                 <li key={k.title}>
@@ -219,7 +265,10 @@ export default function LandingPage() {
         {/* ── Privacy ────────────────────────────────────────────── */}
         <section id="privacy" aria-labelledby="privacy-h" className="lp-privacy">
           <div className="container">
-            <TapeHeading id="privacy-h" lines={['private. safe.', 'yours.']} accent="yours." size="t-h1" />
+            <div className="row" style={{ alignItems: 'flex-end', gap: 18 }}>
+              <TapeHeading id="privacy-h" lines={['private. safe.', 'yours.']} accent="yours." size="t-h1" />
+              <span className="lp-priv-note" aria-hidden="true"><Heart width={40} style={{ color: 'var(--rose-ink)' }} /><HandNote color="var(--rose-ink)">we mean it</HandNote></span>
+            </div>
             <ul className="grid-3 lp-privacy__cols">
               <li>
                 <Sticker name="padlock" size={130} tilt={-6} />
@@ -297,32 +346,7 @@ export default function LandingPage() {
         </Scene>
       </main>
 
-      <footer className="on-dark lp-foot">
-        <div className="container lp-footer">
-          <div>
-            <Logo tone="paper" />
-            <p className="t-body" style={{ marginTop: 12, color: 'var(--on-dark-2)', maxWidth: 360 }}>
-              Breathe without scrolling. Satori supports you; it doesn&apos;t replace a counsellor or doctor.
-            </p>
-          </div>
-          <nav aria-label="Footer">
-            <a href="#how" className="text-btn">how it works</a>
-            <a href="#privacy" className="text-btn">privacy</a>
-            <a href="#faq" className="text-btn">faq</a>
-            <a href="#schools" className="text-btn">for schools</a>
-            <Link href="/auth" className="text-btn">log in</Link>
-          </nav>
-          <div>
-            <p className="t-label" style={{ color: 'var(--paper)' }}>need help now?</p>
-            <ul className="lp-lines" style={{ marginTop: 8 }}>
-              {HELPLINES.slice(0, 2).map(h => (
-                <li key={h.name}><a href={h.href} className="link">{h.name}: {h.number}</a></li>
-              ))}
-            </ul>
-          </div>
-          <p className="t-small lp-footer__legal">© 2026 Satori, a Lahore Garrison University research project.</p>
-        </div>
-      </footer>
+      <SiteFooter />
 
       <style>{LANDING_CSS}</style>
     </div>
@@ -335,6 +359,13 @@ const LANDING_CSS = `
 .faint-dark { color: var(--on-dark-2); }
 
 /* Hero */
+.lp-hero__tag { margin: 0; }
+.lp-hero__tag .t-hand { display: inline-block; padding: 4px 14px 6px; background: var(--marigold); color: var(--ink); transform: rotate(-2deg); box-shadow: 0 8px 14px -10px rgba(0,0,0,0.6); }
+.lp-hero__note { position: absolute; left: -210px; top: 210px; transform: rotate(-6deg); display: grid; justify-items: end; z-index: 2; }
+.lp-step__art { position: relative; flex-direction: column; align-items: center; }
+.lp-step__note { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; transform: rotate(-3deg); }
+.lp-film__cap { position: absolute; left: 10px; bottom: 6px; color: var(--paper); text-shadow: 0 1px 6px rgba(0,0,0,0.75); font-size: 22px; }
+.lp-priv-note { display: inline-flex; align-items: center; gap: 4px; transform: rotate(-4deg); padding-bottom: 6px; }
 .lp-hero { min-height: max(860px, 100svh); padding-top: 168px; overflow: visible; z-index: 2; background: var(--night); }
 .lp-hero .scene__art { overflow: hidden; }
 .lp-hero__inner { text-align: center; display: grid; justify-items: center; gap: 22px; }
@@ -346,7 +377,7 @@ const LANDING_CSS = `
 .lp-hero__sticker--r { right: -130px; top: 40px; }
 @media (max-width: 760px) {
   .lp-hero { padding-top: 140px; }
-  .lp-hero__sticker { display: none !important; }
+  .lp-hero__sticker, .lp-hero__note { display: none !important; }
   .lp-hero__phone { transform: scale(0.92); transform-origin: top center; margin-bottom: -300px; }
 }
 

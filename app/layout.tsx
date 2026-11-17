@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Gloock } from 'next/font/google'
+import { Inter, Gloock, Caveat } from 'next/font/google'
 import './globals.css'
 import { StickerDefs } from '@/components/ui/stickers'
 
@@ -18,8 +18,16 @@ const gloock = Gloock({
   display: 'swap',
 })
 
+// Handwriting, for margin notes and captions only.
+const caveat = Caveat({
+  subsets: ['latin'],
+  weight: ['500', '700'],
+  variable: '--font-caveat',
+  display: 'swap',
+})
+
 const DESCRIPTION =
-  'A free, private place for students in Pakistan to check in, breathe, focus and talk things through.'
+  'A free, private place for teenagers in Pakistan to check in, breathe, focus and talk things through. Made with students, as part of a research study on academic stress.'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://satoripk.vercel.app'),
@@ -30,7 +38,7 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     url: 'https://satoripk.vercel.app',
     siteName: 'Satori',
-    images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Satori: kites over Lahore rooftops at dusk' }],
+    images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Satori: a quiet place for the loudest years' }],
     type: 'website',
   },
   twitter: {
@@ -47,7 +55,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${gloock.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${gloock.variable} ${caveat.variable}`}>
       <body>
         <StickerDefs />
         {children}

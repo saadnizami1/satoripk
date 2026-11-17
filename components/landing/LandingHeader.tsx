@@ -6,15 +6,19 @@ import { Menu, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Logo, Pill } from '@/components/ui/kit'
 
-const LINKS = [
+const SECTIONS = [
   { label: 'how it works', href: '#how' },
   { label: 'kokoro', href: '#kokoro' },
   { label: 'privacy', href: '#privacy' },
   { label: 'faq', href: '#faq' },
-  { label: 'schools', href: '#schools' },
 ]
 
-export function LandingHeader() {
+/** `home` is false on other public pages, so section links point back to the landing page. */
+export function LandingHeader({ home = true }: { home?: boolean }) {
+  const LINKS = [
+    ...SECTIONS.map(l => ({ ...l, href: home ? l.href : `/${l.href}` })),
+    { label: 'the research', href: '/about' },
+  ]
   const [solid, setSolid] = useState(false)
   const [signedIn, setSignedIn] = useState(false)
   const [open, setOpen] = useState(false)
@@ -79,9 +83,9 @@ export function LandingHeader() {
             {!signedIn && <a href="/auth" className="text-btn" style={{ fontSize: 18 }}>log in</a>}
           </nav>
         )}
-        <a href="/auth?mode=signup&next=/dashboard/breathing" className="lp-strip">
+        {home && <a href="/auth?mode=signup&next=/dashboard/breathing" className="lp-strip">
           exams this week? take a two-minute breathing break <span aria-hidden="true">›</span>
-        </a>
+        </a>}
       </header>
       <style>{`
         .lp-header { transition: background 220ms, box-shadow 220ms; }

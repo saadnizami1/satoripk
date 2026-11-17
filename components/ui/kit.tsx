@@ -5,16 +5,13 @@ import type { CSSProperties, ReactNode } from 'react'
 
 /* ── Logo ──────────────────────────────────────────────────────────── */
 
-/** Wordmark: a small kite over a horizon line, then "satori" in the display face. */
+/** Wordmark: the Satori kite (a die-cut sticker so it reads on any background), then "satori". */
 export function Logo({ tone = 'ink', size = 26 }: { tone?: 'ink' | 'paper'; size?: number }) {
   const c = tone === 'paper' ? '#FFFDF7' : '#111111'
+  const mark = Math.round(size * 1.45)
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: c }}>
-      <svg width={size + 4} height={size + 4} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-        <path d="M16 3 L25 13 L16 25 L7 13z" fill="#F5C542" stroke={c} strokeWidth="1.8" strokeLinejoin="round" />
-        <path d="M16 3 V25 M7 13 H25" stroke={c} strokeWidth="1.2" />
-        <path d="M16 25 q-3 3 0 5" fill="none" stroke={c} strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: c }}>
+      <Image src="/brand/kite-128.png" alt="" width={mark} height={mark} className="brand-kite" priority />
       <span style={{ font: `400 ${size}px/1 var(--font-display)`, letterSpacing: '-0.02em' }}>satori</span>
     </span>
   )
