@@ -385,7 +385,8 @@ select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csv
   position: relative; height: 100%; overflow: hidden; border-radius: 36px;
   background: linear-gradient(180deg, #F2EEE3 0%, #E6EEE8 100%); display: flex; flex-direction: column;
 }
-.phone__notch { position: absolute; top: 10px; left: 50%; width: 96px; height: 26px; margin-left: -48px; border-radius: 20px; background: #0B0B0B; z-index: 2; }
+/* A floating island inside the screen, with screen showing above it (not fused to the frame). */
+.phone__notch { position: absolute; top: 24px; left: 50%; width: 88px; height: 24px; margin-left: -44px; border-radius: 20px; background: #0B0B0B; z-index: 2; box-shadow: 0 0 0 1px rgba(255,255,255,0.04); }
 
 /* Accordion */
 .acc { border-top: 1px solid var(--line-dark); }

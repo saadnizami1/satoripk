@@ -29,7 +29,7 @@ export function HeroPhone() {
 
   return (
     <PhoneMockup className="bob">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '46px 16px 12px', borderBottom: '1px solid rgba(17,17,17,0.08)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '50px 16px 12px', borderBottom: '1px solid rgba(17,17,17,0.08)' }}>
         <span aria-hidden="true" style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--night)', display: 'grid', placeItems: 'center' }}>
           <svg width="20" height="20" viewBox="0 0 20 20"><path d="M13 3a7.5 7.5 0 1 0 4 10.5A6 6 0 1 1 13 3z" fill="#F4ECD6" /></svg>
         </span>
