@@ -1,9 +1,16 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
-import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
+import { Send } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { HELPLINES } from '@/lib/helplines'
+import { Scene } from '@/components/ui/kit'
+
+/*
+ * Kokoro chat. Deliberately calm: no stickers, no tilt, no decorative
+ * motion. A way to reach a real person is always on screen.
+ */
 
 interface Message {
   id: string
@@ -12,22 +19,13 @@ interface Message {
   timestamp: Date
 }
 
-const QUICK_CHIPS = ['I NEED TO VENT', 'EXAM STRESS', 'BREATHING HELP']
+const STARTERS = ["I can't focus", 'Exam tomorrow', 'I just want to vent', 'Help me breathe']
 const MAX_STORED_MESSAGES = 200
 
-function TypingIndicator() {
+function Thinking() {
   return (
-    <div style={{ display: 'flex', gap: 6, padding: '10px 14px', background: 'var(--bg-card)', border: '1.5px solid var(--border)' }}>
-      {['_', '_', '_'].map((ch, i) => (
-        <motion.span
-          key={i}
-          style={{ fontFamily: 'var(--font-mono)', fontSize: 16, color: 'var(--ink-2)' }}
-          animate={{ opacity: [0.3, 1, 0.3] }}
-          transition={{ duration: 0.9, delay: i * 0.3, repeat: Infinity }}
-        >
-          {ch}
-        </motion.span>
-      ))}
+    <div className="kk-msg kk-msg--in" role="status" aria-label="Kokoro is thinking">
+      <div className="bubble bubble--in kk-dots" aria-hidden="true"><span /><span /><span /></div>
     </div>
   )
 }
@@ -37,16 +35,23 @@ export default function KokoroPage() {
   const [input, setInput]         = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [helpOpen, setHelpOpen]   = useState(false)
-  const endRef   = useRef<HTMLDivElement>(null)
+  const listRef  = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  useEffect(() => {
+    const el = listRef.current
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  }, [messages, isLoading])
 
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
+
+      // A starter tapped on the dashboard arrives as ?q=. Pre-fill it; the
+      // student still chooses to send it.
+      const q = new URLSearchParams(window.location.search).get('q')
+      if (q) { setInput(q.slice(0, 2000)); window.history.replaceState(null, '', '/dashboard/kokoro'); inputRef.current?.focus() }
 
       // The mood / stress context for the model is built server-side in /api/chat.
       const [{ data: profile }, { data: sessions }] = await Promise.all([
@@ -70,9 +75,10 @@ export default function KokoroPage() {
   }, [])
 
   const greet = (name?: string) => {
+    const first = name?.trim().split(/\s+/)[0]
     setMessages([{
       id: Date.now().toString(), role: 'assistant', timestamp: new Date(),
-      content: `Hey${name ? ` ${name}` : ''}. I'm Kokoro.\n\nTell me what's on your mind. I'm listening.`,
+      content: `Hi${first ? ` ${first}` : ''}, I'm Kokoro. What's on your mind? There's no right way to start.`,
     }])
   }
 
@@ -100,6 +106,7 @@ export default function KokoroPage() {
     const showReply = (reply: string) =>
       setMessages([...updated, { id: aiId, role: 'assistant', content: reply, timestamp: new Date() }])
 
+    const fallback = "I couldn't get a reply through just now. Please try sending that again."
     let reply = ''
     try {
       const res = await fetch('/api/chat', {
@@ -111,7 +118,7 @@ export default function KokoroPage() {
       })
       if (!res.ok || !res.body) {
         const { error } = await res.json().catch(() => ({ error: '' }))
-        reply = error || 'Connection issue. Try again.'
+        reply = error || fallback
         showReply(reply)
         return
       }
@@ -125,16 +132,17 @@ export default function KokoroPage() {
         reply += decoder.decode(value, { stream: true })
         showReply(reply)
       }
-      if (!reply) { reply = 'Connection issue. Try again.'; showReply(reply) }
+      if (!reply) { reply = fallback; showReply(reply) }
       else await save([...updated, { id: aiId, role: 'assistant', content: reply, timestamp: new Date() }])
     } catch {
-      showReply(reply || 'Connection issue. Try again.')
+      showReply(reply || fallback)
     } finally {
       setIsLoading(false)
     }
   }
 
   const clearChat = async () => {
+    if (!confirm('Clear this conversation? Kokoro will start fresh and the old messages are deleted.')) return
     setMessages([])
     if (sessionId) await supabase.from('chat_sessions').update({ messages: [] }).eq('id', sessionId)
     greet()
@@ -144,219 +152,109 @@ export default function KokoroPage() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
   }
 
-  const isEmpty = messages.length === 0
-
   return (
-    <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 6rem)' }}>
-
-      {/* Header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px',
-        borderBottom: '1.5px solid var(--border)', flexShrink: 0, marginBottom: 0,
-        background: 'var(--bg)',
-      }}>
-        <Link href="/dashboard" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', textDecoration: 'none', letterSpacing: '0.06em' }}>
-          ← BACK
-        </Link>
-        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, color: 'var(--ink)', flex: 1, textAlign: 'center', letterSpacing: '-0.01em' }}>
-          KOKORO
-        </span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', letterSpacing: '0.06em' }}>
-          ● ONLINE
-        </span>
-        <button
-          onClick={clearChat}
-          style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em' }}
-        >
-          DELETE
-        </button>
-      </div>
-
-      {/* Messages */}
-      <div className="scrollbar-thin flex-1 overflow-y-auto" style={{ padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-        {isEmpty && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '40px 24px', textAlign: 'center' }}>
-            <div style={{ border: '1.5px solid var(--border)', padding: '32px 40px', marginBottom: 24 }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 40, color: 'var(--ink)', marginBottom: 16, letterSpacing: '-0.02em' }}>
-                KOKORO.
-              </div>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: 'var(--ink-2)', lineHeight: 1.65, maxWidth: 320 }}>
-                An AI that listens.<br />
-                Trained to help students navigate stress, anxiety, and academic pressure.
-              </p>
-              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', marginTop: 16, letterSpacing: '0.06em' }}>
-                TYPE TO BEGIN.
-              </p>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 320 }}>
-              {QUICK_CHIPS.map(chip => (
-                <button
-                  key={chip}
-                  onClick={() => send(chip)}
-                  className="br-btn"
-                  style={{ padding: '10px 16px', width: '100%', textAlign: 'left' }}
-                >
-                  {chip}
-                </button>
+    <div className="kk">
+      <Scene src="/art/night.webp" position="center 85%" className="on-dark kk__side" sizes="30vw"
+        scrim="linear-gradient(180deg, rgba(7,14,24,0.65), rgba(7,14,24,0.15) 55%, rgba(7,14,24,0.7))">
+        <div className="kk__side-inner">
+          <div>
+            <h1 className="t-h1">talk it through</h1>
+            <p className="t-body" style={{ marginTop: 12, color: 'var(--on-dark-2)' }}>
+              Kokoro is an AI companion. It can listen and help you think, but it isn&apos;t a therapist.
+            </p>
+          </div>
+          <div className="kk__people">
+            <p className="t-label" style={{ fontSize: 15 }}>Talk to a real person</p>
+            <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'grid', gap: 4 }}>
+              {HELPLINES.slice(0, 3).map(h => (
+                <li key={h.name}><a className="link" href={h.href}>{h.name}: {h.number}</a></li>
               ))}
+            </ul>
+            <Link href="/dashboard/helpline" className="link t-small" style={{ display: 'inline-block', marginTop: 8 }}>All helplines</Link>
+          </div>
+        </div>
+      </Scene>
+
+      <section className="kk__chat" aria-label="Conversation with Kokoro">
+        <div className="kk__bar">
+          <div className="row" style={{ gap: 10, flexWrap: 'nowrap' }}>
+            <span aria-hidden="true" className="kk__avatar">
+              <svg width="18" height="18" viewBox="0 0 20 20"><path d="M13 3a7.5 7.5 0 1 0 4 10.5A6 6 0 1 1 13 3z" fill="#F4ECD6" /></svg>
+            </span>
+            <div>
+              <h2 className="t-h4">Kokoro</h2>
+              <p className="t-small faint">Replies in a few seconds</p>
             </div>
           </div>
-        )}
+          <button type="button" className="text-btn" onClick={clearChat}>Clear chat</button>
+        </div>
 
-        <AnimatePresence initial={false}>
+        <div ref={listRef} className="kk__list" aria-live="polite" aria-relevant="additions">
           {messages.map(msg => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.12, ease: [0.25, 0, 0, 1] }}
-              style={{
-                display: 'flex',
-                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                padding: '0 4px',
-              }}
-            >
-              <div style={{ maxWidth: '78%' }}>
-                <div
-                  style={
-                    msg.role === 'user'
-                      ? {
-                          background: 'var(--bg-invert)', color: 'var(--ink-invert)',
-                          border: '1.5px solid var(--border)', padding: '12px 16px',
-                          fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.6,
-                          whiteSpace: 'pre-wrap',
-                        }
-                      : {
-                          background: 'var(--bg-card)', color: 'var(--ink)',
-                          border: '1.5px solid var(--border)', padding: '12px 16px',
-                          fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.6,
-                          whiteSpace: 'pre-wrap',
-                        }
-                  }
-                >
-                  {msg.content}
-                </div>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)',
-                    marginTop: 4, textAlign: msg.role === 'user' ? 'right' : 'left',
-                    opacity: 0, transition: 'opacity 160ms',
-                  }}
-                  className="msg-time"
-                >
-                  {msg.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                </div>
+            <div key={msg.id} className={`kk-msg kk-msg--${msg.role === 'user' ? 'out' : 'in'}`}>
+              <div className={`bubble bubble--${msg.role === 'user' ? 'out' : 'in'}`} style={{ whiteSpace: 'pre-wrap' }}>
+                <span className="sr-only">{msg.role === 'user' ? 'You said: ' : 'Kokoro said: '}</span>
+                {msg.content}
               </div>
-            </motion.div>
+              <time className="kk-time" dateTime={msg.timestamp.toISOString()}>
+                {msg.timestamp.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' })}
+              </time>
+            </div>
           ))}
-        </AnimatePresence>
-
-        {isLoading && (
-          <div style={{ padding: '0 4px' }}>
-            <TypingIndicator />
-          </div>
-        )}
-
-        {/* Quick chips when chatting */}
-        {messages.length > 0 && !isLoading && (
-          <div style={{ display: 'flex', gap: 8, padding: '4px 4px 0', flexWrap: 'wrap' }}>
-            {QUICK_CHIPS.map(chip => (
-              <button
-                key={chip}
-                onClick={() => send(chip)}
-                style={{
-                  fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
-                  color: 'var(--ink-2)', background: 'var(--bg)', border: '1.5px solid var(--border)',
-                  padding: '6px 12px', cursor: 'pointer', letterSpacing: '0.04em',
-                  transition: `background ${80}ms`,
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg)' }}
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div ref={endRef} />
-      </div>
-
-      {/* Emergency strip */}
-      <div style={{ flexShrink: 0 }}>
-        <button
-          onClick={() => setHelpOpen(h => !h)}
-          style={{
-            width: '100%', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8,
-            border: '1.5px solid var(--border)', borderBottom: helpOpen ? '1px solid var(--border-2)' : '1.5px solid var(--border)',
-            background: 'var(--bg-card)', cursor: 'pointer', textAlign: 'left',
-          }}
-        >
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', letterSpacing: '0.06em', flex: 1 }}>
-            EMERGENCY: 1122  ·  UMANG HELPLINE: 0317-4288665
-          </span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>
-            {helpOpen ? '▲' : '▼'}
-          </span>
-        </button>
-        <AnimatePresence>
-          {helpOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-              style={{ overflow: 'hidden' }}
-            >
-              <div style={{ padding: '10px 14px', border: '1.5px solid var(--border)', borderTop: 'none', background: 'var(--bg-card)' }}>
-                {[
-                  ['Rescue / Emergency', '1122'],
-                  ['Umang Helpline', '0317-4288665'],
-                  ['Umang WhatsApp', '0311-7786264'],
-                  ['Rozan Counselling', '051-2890505'],
-                  ['Edhi Foundation', '115'],
-                ].map(([label, num]) => (
-                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>{label}</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)' }}>{num}</strong>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
+          {isLoading && <Thinking />}
+          {messages.length <= 1 && !isLoading && (
+            <div className="row kk-starters" style={{ gap: 8 }}>
+              {STARTERS.map(s => <button key={s} type="button" className="chip" onClick={() => send(s)}>{s}</button>)}
+            </div>
           )}
-        </AnimatePresence>
-      </div>
+        </div>
 
-      {/* Input */}
-      <div style={{
-        display: 'flex', flexShrink: 0,
-        border: '1.5px solid var(--border)', borderTop: helpOpen ? '1px solid var(--border-2)' : '1.5px solid var(--border)',
-      }}>
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder="WRITE ANYTHING..."
-          rows={1}
-          style={{
-            flex: 1, background: 'transparent', border: 'none', outline: 'none',
-            padding: '14px 16px', resize: 'none', maxHeight: 120,
-            fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink)',
-          }}
-        />
-        <button
-          onClick={() => send()}
-          disabled={!input.trim() || isLoading}
-          style={{
-            padding: '0 20px', background: 'var(--bg-invert)', color: 'var(--ink-invert)',
-            border: 'none', borderLeft: '1.5px solid var(--border)',
-            fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13,
-            letterSpacing: '0.06em', cursor: 'pointer', opacity: (!input.trim() || isLoading) ? 0.4 : 1,
-            transition: 'opacity 80ms',
-          }}
-        >
-          SEND
-        </button>
-      </div>
+        <p className="kk__sos t-small">
+          In danger or thinking about hurting yourself? Call <a className="link" href="tel:1122"><strong>1122</strong></a> or Umang on{' '}
+          <a className="link" href="tel:03174288665"><strong>0317-4288665</strong></a>.
+        </p>
+
+        <form className="kk__input" onSubmit={e => { e.preventDefault(); send() }}>
+          <label htmlFor="kk-text" className="sr-only">Message Kokoro</label>
+          <textarea id="kk-text" ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
+            placeholder="Write anything…" rows={1} maxLength={2000} />
+          <button type="submit" className="pill pill--tape" disabled={!input.trim() || isLoading} aria-label="Send message" style={{ width: 52, padding: 0 }}>
+            <Send size={18} />
+          </button>
+        </form>
+      </section>
+
+      <style>{`
+        .kk { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr); gap: 20px; height: calc(100svh - 120px); min-height: 520px; }
+        .kk__side { border-radius: var(--r-lg); background: var(--night); color: var(--on-dark); }
+        .kk__side-inner { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: 30px; }
+        .kk__people { padding: 18px; border-radius: 18px; background: rgba(255,253,247,0.1); border: 1px solid var(--line-dark); }
+        .kk__chat { display: flex; flex-direction: column; min-height: 0; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+        .kk__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 12px 18px; border-bottom: 1px solid var(--line); }
+        .kk__avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--night); display: grid; place-items: center; flex-shrink: 0; }
+        .kk__list { flex: 1; overflow-y: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 14px; background: var(--fog); }
+        .kk-msg { display: flex; flex-direction: column; gap: 4px; max-width: 80%; }
+        .kk-msg--in { align-self: flex-start; align-items: flex-start; }
+        .kk-msg--out { align-self: flex-end; align-items: flex-end; }
+        .kk-msg .bubble { max-width: 100%; font-size: 16px; line-height: 1.55; padding: 12px 16px; }
+        .kk-msg .bubble--in { border: 1px solid var(--line); }
+        .kk-time { font-size: 13px; color: var(--ink-3); }
+        .kk-dots { display: flex; gap: 5px; padding: 16px 18px; }
+        .kk-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); animation: kk-pulse 1.2s ease-in-out infinite; }
+        .kk-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .kk-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes kk-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+        .kk-starters { padding-top: 6px; }
+        .kk__sos { padding: 10px 18px; background: var(--marigold-2); color: var(--ink); }
+        .kk__input { display: flex; align-items: flex-end; gap: 10px; padding: 12px; border-top: 1px solid var(--line); }
+        .kk__input textarea { flex: 1; min-height: 52px; max-height: 160px; padding: 14px 18px; border-radius: 26px; border: 1.5px solid #C4CFC8; background: var(--paper); font: 400 16px/1.4 var(--font-body); color: var(--ink); resize: none; outline: none; }
+        .kk__input textarea:focus { border-color: var(--ink); }
+        @media (max-width: 900px) {
+          .kk { grid-template-columns: 1fr; height: calc(100svh - 190px); }
+          .kk__side { display: none; }
+          .kk-msg { max-width: 90%; }
+        }
+      `}</style>
     </div>
   )
 }

@@ -1,209 +1,126 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { localDateKey } from '@/lib/dates'
+import { MOODS, moodFor } from '@/lib/moods'
+import { PageHeader } from '@/components/app/PageHeader'
+import { Skeleton } from '@/components/ui/kit'
+import { MoodGlyph } from '@/components/ui/MoodGlyph'
 
-const MOOD_LABELS: Record<number, string> = {
-  1: 'TERRIBLE',
-  2: 'BAD',
-  3: 'OKAY',
-  4: 'GOOD',
-  5: 'GREAT',
-}
+const STRESS_LABELS: Record<number, string> = { 1: 'Not stressed', 2: 'Slightly stressed', 3: 'Moderately stressed', 4: 'Very stressed', 5: 'Extremely stressed' }
 
-const STRESS_LABELS: Record<number, string> = {
-  1: 'NOT STRESSED',
-  2: 'SLIGHTLY',
-  3: 'MODERATELY',
-  4: 'VERY STRESSED',
-  5: 'EXTREMELY',
-}
+interface MoodEntry { id: string; created_at: string; mood_score: number; note: string | null }
+interface StressEntry { id: string; created_at: string; stress_level: number; performance_rating: number }
+interface DayRecord { dateKey: string; mood: MoodEntry | null; stress: StressEntry | null }
 
-interface MoodEntry {
-  id: string
-  created_at: string
-  mood_score: number
-  note: string | null
-}
-
-interface StressEntry {
-  id: string
-  created_at: string
-  stress_level: number
-  performance_rating: number
-}
-
-interface DayRecord {
-  dateKey: string
-  displayDate: string
-  mood: MoodEntry | null
-  stress: StressEntry | null
-}
-
-function toDateKey(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function formatDisplayDate(key: string): string {
-  const [y, m, d] = key.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('en-GB', {
-    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
-  }).toUpperCase()
-}
+const dateOf = (key: string) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d) }
 
 export default function HistoryPage() {
   const [days, setDays]       = useState<DayRecord[]>([])
   const [loading, setLoading] = useState(true)
-  const [totalMoods, setTotalMoods]   = useState(0)
-  const [totalStress, setTotalStress] = useState(0)
+  const [totals, setTotals]   = useState({ moods: 0, stress: 0 })
+  const [filter, setFilter]   = useState<number | null>(null)
 
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
-
       const [{ data: moodData }, { data: stressData }] = await Promise.all([
         supabase.from('moods').select('id, created_at, mood_score, note')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false }),
+          .eq('user_id', session.user.id).order('created_at', { ascending: false }),
         supabase.from('academic_stress').select('id, created_at, stress_level, performance_rating')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false }),
+          .eq('user_id', session.user.id).order('created_at', { ascending: false }),
       ])
-
       const moods: MoodEntry[] = moodData ?? []
       const stresses: StressEntry[] = stressData ?? []
+      setTotals({ moods: moods.length, stress: stresses.length })
 
-      setTotalMoods(moods.length)
-      setTotalStress(stresses.length)
-
-      // Build a map keyed by date, keeping latest entry per day
+      // One row per local day, keeping the latest entry of each kind.
       const dayMap: Record<string, DayRecord> = {}
-
       for (const m of moods) {
-        const key = toDateKey(m.created_at)
-        if (!dayMap[key]) dayMap[key] = { dateKey: key, displayDate: formatDisplayDate(key), mood: null, stress: null }
-        if (!dayMap[key].mood) dayMap[key].mood = m
+        const key = localDateKey(m.created_at)
+        dayMap[key] ??= { dateKey: key, mood: null, stress: null }
+        dayMap[key].mood ??= m
       }
-
       for (const s of stresses) {
-        const key = toDateKey(s.created_at)
-        if (!dayMap[key]) dayMap[key] = { dateKey: key, displayDate: formatDisplayDate(key), mood: null, stress: null }
-        if (!dayMap[key].stress) dayMap[key].stress = s
+        const key = localDateKey(s.created_at)
+        dayMap[key] ??= { dateKey: key, mood: null, stress: null }
+        dayMap[key].stress ??= s
       }
-
-      const sorted = Object.values(dayMap).sort((a, b) => b.dateKey.localeCompare(a.dateKey))
-      setDays(sorted)
+      setDays(Object.values(dayMap).sort((a, b) => b.dateKey.localeCompare(a.dateKey)))
       setLoading(false)
     }
     load()
   }, [])
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center' }}>
-        {[120, 80, 48].map((w, i) => <div key={i} className="skeleton" style={{ width: w, height: 14 }} />)}
-      </div>
-    )
-  }
+  const shown = filter ? days.filter(d => d.mood?.mood_score === filter) : days
+  const months = useMemo(() => {
+    const groups: { label: string; days: DayRecord[] }[] = []
+    for (const d of shown) {
+      const label = dateOf(d.dateKey).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+      if (groups.at(-1)?.label !== label) groups.push({ label, days: [] })
+      groups.at(-1)!.days.push(d)
+    }
+    return groups
+  }, [shown])
 
   return (
-    <div style={{ maxWidth: 680 }}>
+    <div>
+      <PageHeader lines={['your', 'days']} accent="days" art="dawn" sticker="calendar"
+        lead={loading ? undefined : `${totals.moods} mood check-ins and ${totals.stress} stress check-ins so far.`}>
+        <Link href="/dashboard/today" className="pill pill--tape pill--sm">Record today</Link>
+      </PageHeader>
 
-      {/* Header */}
-      <div style={{ marginBottom: 8 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(36px,5vw,56px)', color: 'var(--ink)', letterSpacing: '-0.03em', lineHeight: 1 }}>
-          HISTORY.
-        </h1>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginTop: 6 }}>
-          {totalMoods} MOOD LOGS  ·  {totalStress} STRESS LOGS
-        </div>
-        <div style={{ borderTop: '1.5px solid var(--border)', marginTop: 10, marginBottom: 24 }} />
-      </div>
-
-      {days.length === 0 ? (
-        <div style={{ border: '1.5px solid var(--border)', padding: '32px 20px', textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--ink)', letterSpacing: '0.04em', marginBottom: 8 }}>
-            NO DATA YET.
-          </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em' }}>
-            START BY RECORDING TODAY&apos;S MOOD AND STRESS.
-          </div>
+      {loading ? <Skeleton /> : days.length === 0 ? (
+        <div className="sheet sheet--pad stack-sm">
+          <h2 className="section-title" style={{ margin: 0 }}>Nothing recorded yet</h2>
+          <p className="t-body muted">Record today&apos;s mood and stress, and each day will collect here.</p>
         </div>
       ) : (
-        <>
-          {/* Column headers */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr)',
-            padding: '6px 16px',
-            borderBottom: '1px solid var(--border-2)',
-          }}>
-            {['DATE', 'MOOD', 'STRESS'].map(h => (
-              <span key={h} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.14em' }}>{h}</span>
+        <div className="stack-lg page-narrow">
+          <div role="radiogroup" aria-label="Show days by mood" className="row" style={{ gap: 8 }}>
+            <button type="button" role="radio" aria-checked={filter === null} className="chip" onClick={() => setFilter(null)}>All days</button>
+            {MOODS.map(m => (
+              <button key={m.score} type="button" role="radio" aria-checked={filter === m.score} className="chip" onClick={() => setFilter(m.score)}
+                style={{ paddingLeft: 8 }}>
+                <MoodGlyph score={m.score} size={26} />{m.label}
+              </button>
             ))}
           </div>
 
-          {/* Entries */}
-          <div style={{ border: '1.5px solid var(--border)', borderTop: 'none' }}>
-            {days.map((day, i) => (
-              <div
-                key={day.dateKey}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr)',
-                  padding: '12px 16px',
-                  borderBottom: i < days.length - 1 ? '1px solid var(--border-2)' : 'none',
-                  alignItems: 'start',
-                }}
-              >
-                {/* Date */}
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.06em', paddingRight: 8 }}>
-                  {day.displayDate}
-                </div>
+          {shown.length === 0 && <p className="t-body muted">No {moodFor(filter)?.label.toLowerCase()} days yet.</p>}
 
-                {/* Mood */}
-                <div style={{ paddingRight: 8 }}>
-                  {day.mood ? (
-                    <>
-                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13, color: 'var(--ink)', letterSpacing: '0.02em' }}>
-                        {MOOD_LABELS[day.mood.mood_score]}
+          {months.map(g => (
+            <section key={g.label} aria-label={g.label}>
+              <h2 className="section-title">{g.label}</h2>
+              <ul className="list sheet" style={{ padding: '4px 20px' }}>
+                {g.days.map(day => {
+                  const m = moodFor(day.mood?.mood_score)
+                  const d = dateOf(day.dateKey)
+                  return (
+                    <li key={day.dateKey} style={{ alignItems: 'flex-start' }}>
+                      <div style={{ width: 52, textAlign: 'center', flexShrink: 0 }}>
+                        <p className="t-h3">{d.getDate()}</p>
+                        <p className="t-small faint">{d.toLocaleDateString('en-GB', { weekday: 'short' })}</p>
                       </div>
-                      {day.mood.note && (
-                        <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--ink-3)', fontStyle: 'italic', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {day.mood.note}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--border-2)', letterSpacing: '0.08em' }}>—</span>
-                  )}
-                </div>
-
-                {/* Stress */}
-                <div>
-                  {day.stress ? (
-                    <>
-                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13, color: 'var(--ink)', letterSpacing: '0.02em' }}>
-                        {STRESS_LABELS[day.stress.stress_level]}
+                      <div style={{ flex: 1, minWidth: 0, display: 'grid', gap: 4 }}>
+                        {m ? (
+                          <p className="row t-label" style={{ fontSize: 16, gap: 8, flexWrap: 'nowrap' }}><MoodGlyph score={m.score} size={30} />{m.label}</p>
+                        ) : <p className="t-small faint">No mood check-in</p>}
+                        {day.mood?.note && <p className="t-small muted">&ldquo;{day.mood.note}&rdquo;</p>}
+                        {day.stress && (
+                          <p className="t-small">{STRESS_LABELS[day.stress.stress_level]}, school went {day.stress.performance_rating}/5</p>
+                        )}
                       </div>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.06em', marginTop: 2 }}>
-                        PERF {day.stress.performance_rating}/5
-                      </div>
-                    </>
-                  ) : (
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--border-2)', letterSpacing: '0.08em' }}>—</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.1em', marginTop: 16 }}>
-            SHOWING {days.length} {days.length === 1 ? 'DAY' : 'DAYS'} OF DATA  ·  ONE ENTRY PER DAY SHOWN
-          </div>
-        </>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
     </div>
   )

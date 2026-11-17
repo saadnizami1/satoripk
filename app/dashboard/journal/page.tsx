@@ -1,8 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { ArrowLeft, Search, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { PageHeader } from '@/components/app/PageHeader'
+import { Pill, Skeleton } from '@/components/ui/kit'
+import { Sticker } from '@/components/ui/stickers'
 
 interface JournalEntry {
   id: string
@@ -52,15 +56,16 @@ function migrateLocalEntries(userId: string) {
   return migration
 }
 
+// Stored in journal_entries.mood; keep the values stable.
 const MOODS = [
-  { value: 'great',     label: 'GREAT' },
-  { value: 'good',      label: 'GOOD' },
-  { value: 'okay',      label: 'OKAY' },
-  { value: 'tired',     label: 'TIRED' },
-  { value: 'sad',       label: 'SAD' },
-  { value: 'anxious',   label: 'ANXIOUS' },
-  { value: 'grateful',  label: 'GRATEFUL' },
-  { value: 'motivated', label: 'MOTIVATED' },
+  { value: 'great', label: 'Great' },
+  { value: 'good', label: 'Good' },
+  { value: 'okay', label: 'Okay' },
+  { value: 'tired', label: 'Tired' },
+  { value: 'sad', label: 'Sad' },
+  { value: 'anxious', label: 'Anxious' },
+  { value: 'grateful', label: 'Grateful' },
+  { value: 'motivated', label: 'Motivated' },
 ]
 
 function getWordCount(text: string) {
@@ -68,11 +73,7 @@ function getWordCount(text: string) {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
-}
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 export default function JournalPage() {
@@ -96,7 +97,30 @@ export default function JournalPage() {
   const target    = useRef<{ entry: JournalEntry | null }>({ entry: null })
   const saveChain = useRef<Promise<void>>(Promise.resolve())
 
-  useEffect(() => { loadEntries() }, [])
+  const reduce = useReducedMotion()
+
+  useEffect(() => {
+    loadEntries()
+    // Arriving from the dashboard's journal prompt: open a new entry titled with it.
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('new') === '1') {
+      const prompt = (params.get('prompt') || '').slice(0, 300)
+      target.current = { entry: null }
+      if (prompt) { setEditorTitle(prompt); setEditorMood(''); setEditorContent(''); setShowEditor(true) }
+      else setShowNewModal(true)
+      window.history.replaceState(null, '', '/dashboard/journal')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!showNewModal && !showEditor) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (showEditor) closeEditor(); else setShowNewModal(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   useEffect(() => {
     if (!query.trim()) { setFiltered(entries); return }
@@ -174,190 +198,87 @@ export default function JournalPage() {
 
   async function deleteEntry(id: string, e?: React.MouseEvent) {
     e?.stopPropagation()
-    if (!confirm('Delete this entry?')) return
+    if (!confirm("Delete this entry? This can't be undone.")) return
     const { error } = await supabase.from('journal_entries').delete().eq('id', id)
-    if (error) { alert('Could not delete the entry. Please try again.'); return }
+    if (error) { alert("That entry wasn't deleted. Check your connection and try again."); return }
     setEntries(prev => prev.filter(entry => entry.id !== id))
   }
 
-  const todayCount = entries.filter(e => new Date(e.createdAt).toDateString() === new Date().toDateString()).length
-
   return (
-    <div style={{ maxWidth: 840 }}>
+    <div>
+      <PageHeader lines={['write it', 'down']} accent="down" art="dawn" sticker="notebook"
+        lead="Only you can read what you write here. It is never shared with anyone, including the study.">
+        <Pill variant="tape" knob onClick={startNew}>New entry</Pill>
+      </PageHeader>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 8 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(36px, 6vw, 56px)', color: 'var(--ink)', letterSpacing: '-0.03em', lineHeight: 1 }}>
-          JOURNAL
-        </h1>
-        <button
-          onClick={startNew}
-          className="br-btn"
-          style={{ padding: '10px 18px', marginBottom: 6 }}
-        >
-          + NEW ENTRY
-        </button>
-      </div>
-
-      <div style={{ borderTop: '1.5px solid var(--border)', marginBottom: 16 }} />
-
-      {/* Stats + Search */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 32, alignItems: 'center' }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', letterSpacing: '0.08em', flexShrink: 0 }}>
-          {entries.length} TOTAL  ·  {todayCount} TODAY
-        </span>
-        <input
-          type="text"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="SEARCH..."
-          className="br-input"
-          style={{ flex: 1, padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.06em' }}
-        />
-      </div>
-
-      {/* Entry grid */}
-      {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', padding: '60px 0' }}>
-          {[120, 80, 48].map((w, i) => <div key={i} className="skeleton" style={{ width: w, height: 14 }} />)}
+      <div className="row" style={{ marginBottom: 24, justifyContent: 'space-between' }}>
+        <div className="field" style={{ flex: 1, maxWidth: 420, position: 'relative' }}>
+          <label htmlFor="j-search" className="sr-only">Search your journal</label>
+          <Search size={18} aria-hidden="true" style={{ position: 'absolute', left: 16, top: 18, color: 'var(--ink-3)' }} />
+          <input id="j-search" type="search" className="input" style={{ paddingLeft: 44, borderRadius: 'var(--r-pill)' }}
+            value={query} onChange={e => setQuery(e.target.value)} placeholder="Search your entries" />
         </div>
-      ) : filtered.length === 0 ? (
-        <div style={{ border: '1.5px solid var(--border)', padding: '60px 32px', textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--ink-3)', marginBottom: 12 }}>
-            {query ? 'NO ENTRIES FOUND.' : 'YOUR THOUGHTS LIVE HERE.'}
+        {!loading && <p className="t-small muted">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</p>}
+      </div>
+
+      {loading ? <Skeleton /> : filtered.length === 0 ? (
+        <div className="sheet sheet--pad row" style={{ gap: 24, flexWrap: 'wrap' }}>
+          <Sticker name="notebook" size={110} tilt={-6} />
+          <div className="stack-sm" style={{ flex: 1, minWidth: 240 }}>
+            <h2 className="section-title" style={{ margin: 0 }}>{query ? 'Nothing matches that search' : 'Your first page is blank'}</h2>
+            <p className="t-body muted">{query ? 'Try a different word.' : 'Write about today, a worry, a win, anything. Three lines is plenty.'}</p>
+            {!query && <div><Pill variant="tape" onClick={startNew}>Write your first entry</Pill></div>}
           </div>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-3)', marginBottom: 24 }}>
-            {query ? 'Try a different search.' : 'Write about your day. No judgment.'}
-          </p>
-          {!query && (
-            <button onClick={startNew} className="br-btn br-btn-inv" style={{ padding: '12px 24px' }}>
-              WRITE FIRST ENTRY →
-            </button>
-          )}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 0, border: '1.5px solid var(--border)' }}>
-          {filtered.map((entry) => {
+        <ul className="j-grid">
+          {filtered.map((entry, i) => {
             const mood = MOODS.find(m => m.value === entry.mood)
             return (
-              <div
-                key={entry.id}
-                onClick={() => openEntry(entry)}
-                className="br-lift"
-                style={{
-                  padding: 20, cursor: 'pointer', background: 'var(--bg)',
-                  borderRight: '1.5px solid var(--border)', borderBottom: '1.5px solid var(--border)',
-                }}
-              >
-                {/* Date + mood */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
-                    {formatDate(entry.createdAt)}  ·  {formatTime(entry.createdAt)}
-                  </span>
-                  {mood && (
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
-                      ● {mood.label}
-                    </span>
-                  )}
-                </div>
-
-                {/* Title */}
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, color: 'var(--ink)', letterSpacing: '-0.01em', marginBottom: 8, lineHeight: 1.2 }}>
-                  {entry.title}
-                </div>
-
-                {/* Preview */}
-                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 12, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                  {entry.content || 'No content yet.'}
-                </p>
-
-                {/* Footer */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
-                    {getWordCount(entry.content)} WORDS
-                  </span>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <button
-                      onClick={e => deleteEntry(entry.id, e)}
-                      style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em' }}
-                    >
-                      DELETE
-                    </button>
-                    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink)' }}>→ OPEN</span>
-                  </div>
-                </div>
-              </div>
+              <li key={entry.id} className="j-card" style={{ ['--tilt' as string]: `${[-0.8, 0.6, -0.4, 0.9][i % 4]}deg` }}>
+                <button type="button" className="j-card__open" onClick={() => openEntry(entry)}>
+                  <span className="t-small faint">{formatDate(entry.createdAt)}{mood ? `, feeling ${mood.label.toLowerCase()}` : ''}</span>
+                  <span className="t-h4 j-card__title">{entry.title}</span>
+                  <span className="t-small muted j-card__preview">{entry.content || 'Nothing written yet.'}</span>
+                  <span className="t-small faint">{getWordCount(entry.content)} words</span>
+                </button>
+                <button type="button" className="icon-btn j-card__del" aria-label={`Delete "${entry.title}"`} onClick={e => deleteEntry(entry.id, e)}>
+                  <Trash2 size={18} />
+                </button>
+              </li>
             )
           })}
-        </div>
+        </ul>
       )}
 
-      {/* New Entry Modal */}
+      {/* New entry dialog */}
       <AnimatePresence>
         {showNewModal && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(12,12,12,0.6)' }}
-            onClick={() => setShowNewModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }}
-              onClick={e => e.stopPropagation()}
-              style={{ width: '100%', maxWidth: 480, background: 'var(--bg)', border: '1.5px solid var(--border)', padding: 32 }}
-            >
-              <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28, color: 'var(--ink)', marginBottom: 24, letterSpacing: '-0.02em' }}>
-                NEW ENTRY
-              </h2>
-              <div style={{ borderTop: '1.5px solid var(--border)', marginBottom: 24 }} />
-
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>TITLE</div>
-                <input
-                  type="text" value={tempTitle} onChange={e => setTempTitle(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') proceedToEditor() }}
-                  placeholder="GIVE YOUR ENTRY A TITLE"
-                  autoFocus
-                  className="br-input"
-                  style={{ width: '100%', padding: '12px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, letterSpacing: '0.02em', boxSizing: 'border-box' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: 24 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>MOOD (OPTIONAL)</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {MOODS.map(mood => (
-                    <button
-                      key={mood.value}
-                      onClick={() => setTempMood(tempMood === mood.value ? '' : mood.value)}
-                      style={{
-                        padding: '6px 12px',
-                        background: tempMood === mood.value ? 'var(--bg-invert)' : 'var(--bg)',
-                        color: tempMood === mood.value ? 'var(--ink-invert)' : 'var(--ink-2)',
-                        border: '1.5px solid var(--border)',
-                        fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
-                        cursor: 'pointer', letterSpacing: '0.04em',
-                        transition: 'background 80ms, color 80ms',
-                      }}
-                    >
-                      {mood.label}
-                    </button>
-                  ))}
+          <motion.div className="j-scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowNewModal(false)}>
+            <motion.div role="dialog" aria-modal="true" aria-labelledby="j-new-h" className="j-dialog"
+              initial={reduce ? false : { y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={reduce ? undefined : { y: 12, opacity: 0 }}
+              onClick={e => e.stopPropagation()}>
+              <h2 id="j-new-h" className="t-h2">New entry</h2>
+              <form className="stack" onSubmit={e => { e.preventDefault(); proceedToEditor() }}>
+                <div className="field">
+                  <label htmlFor="j-title" className="field__label">Title</label>
+                  <input id="j-title" className="input" value={tempTitle} onChange={e => setTempTitle(e.target.value)} maxLength={300}
+                    placeholder="e.g. After the chemistry mock" autoFocus />
                 </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={proceedToEditor}
-                  disabled={!tempTitle.trim()}
-                  className="br-btn br-btn-inv"
-                  style={{ flex: 1, padding: '12px', opacity: !tempTitle.trim() ? 0.4 : 1 }}
-                >
-                  CONTINUE →
-                </button>
-                <button onClick={() => setShowNewModal(false)} className="br-btn" style={{ padding: '12px 20px' }}>
-                  CANCEL
-                </button>
-              </div>
+                <div className="stack-sm">
+                  <p id="j-mood" className="field__label">How are you feeling? <span className="faint" style={{ fontWeight: 400 }}>(optional)</span></p>
+                  <div role="radiogroup" aria-labelledby="j-mood" className="row" style={{ gap: 6 }}>
+                    {MOODS.map(mood => (
+                      <button key={mood.value} type="button" role="radio" aria-checked={tempMood === mood.value} className="chip"
+                        style={{ minHeight: 44 }} onClick={() => setTempMood(tempMood === mood.value ? '' : mood.value)}>{mood.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="row">
+                  <Pill type="submit" variant="tape" disabled={!tempTitle.trim()}>Start writing</Pill>
+                  <button type="button" className="text-btn" onClick={() => setShowNewModal(false)}>Cancel</button>
+                </div>
+              </form>
             </motion.div>
           </motion.div>
         )}
@@ -366,78 +287,54 @@ export default function JournalPage() {
       {/* Editor */}
       <AnimatePresence>
         {showEditor && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}
-          >
-            {/* Editor top bar */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1.5px solid var(--border)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <button
-                  onClick={closeEditor}
-                  style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink-2)', background: 'none', border: '1.5px solid var(--border)', padding: '6px 14px', cursor: 'pointer', letterSpacing: '0.06em' }}
-                >
-                  ← BACK
-                </button>
-                {isSaving ? (
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em' }}>SAVING...</span>
-                ) : saveError ? (
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', letterSpacing: '0.08em' }}>NOT SAVED — CHECK CONNECTION</span>
-                ) : lastSaved ? (
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em' }}>SAVED {lastSaved.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-                ) : null}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
-                  {getWordCount(editorContent)} WORDS
-                </span>
-                {editorMood && (
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11, color: 'var(--ink-2)', border: '1.5px solid var(--border-2)', padding: '4px 10px' }}>
-                    {MOODS.find(m => m.value === editorMood)?.label}
-                  </span>
-                )}
-                <button onClick={() => { if (editorTitle.trim()) autoSave() }} className="br-btn br-btn-inv" style={{ padding: '8px 16px' }}>
-                  SAVE
-                </button>
+          <motion.div role="dialog" aria-modal="true" aria-label="Journal entry" className="j-editor"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="j-editor__bar">
+              <button type="button" className="text-btn" onClick={closeEditor}><ArrowLeft size={18} aria-hidden="true" /> Done</button>
+              <p className="t-small" aria-live="polite" style={{ color: saveError ? 'var(--danger)' : 'var(--ink-3)' }}>
+                {isSaving ? 'Saving…' : saveError ? 'Not saved. Check your connection.' : lastSaved ? `Saved at ${lastSaved.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' })}, only visible to you` : 'Saves as you write'}
+              </p>
+              <div className="row" style={{ gap: 12, flexWrap: 'nowrap' }}>
+                <span className="t-small faint j-hide-sm">{getWordCount(editorContent)} words</span>
+                <Pill variant="tape" size="sm" onClick={() => { if (editorTitle.trim()) autoSave() }} disabled={!editorTitle.trim()}>Save</Pill>
               </div>
             </div>
-
-            {/* Title */}
-            <div style={{ padding: '32px 40px 0', flexShrink: 0 }}>
-              <input
-                type="text" value={editorTitle} onChange={e => setEditorTitle(e.target.value)}
-                placeholder="UNTITLED"
-                style={{
-                  width: '100%', background: 'transparent', border: 'none', outline: 'none',
-                  fontFamily: 'var(--font-display)', fontWeight: 800,
-                  fontSize: 'clamp(28px, 5vw, 48px)', color: 'var(--ink)',
-                  letterSpacing: '-0.02em', boxSizing: 'border-box',
-                }}
-              />
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', marginTop: 6, letterSpacing: '0.06em' }}>
-                {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}
-              </div>
-            </div>
-
-            <div style={{ borderTop: '1.5px solid var(--border)', margin: '16px 40px' }} />
-
-            {/* Body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0 40px 32px' }}>
-              <textarea
-                value={editorContent}
-                onChange={e => setEditorContent(e.target.value)}
-                placeholder="Start writing..."
-                style={{
-                  width: '100%', minHeight: '100%', background: 'transparent',
-                  border: 'none', outline: 'none', resize: 'none',
-                  fontFamily: 'var(--font-body)', fontSize: 16, lineHeight: 1.75,
-                  color: 'var(--ink)', boxSizing: 'border-box',
-                }}
-              />
+            <div className="j-editor__page">
+              <label htmlFor="j-ed-title" className="sr-only">Title</label>
+              <input id="j-ed-title" className="j-editor__title" value={editorTitle} onChange={e => setEditorTitle(e.target.value)} placeholder="Give it a title" maxLength={300} />
+              <p className="t-small faint" style={{ marginTop: 6 }}>
+                {new Date(target.current.entry?.createdAt ?? Date.now()).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                {editorMood && `, feeling ${MOODS.find(m => m.value === editorMood)?.label.toLowerCase()}`}
+              </p>
+              <label htmlFor="j-ed-body" className="sr-only">Entry</label>
+              <textarea id="j-ed-body" className="j-editor__body" value={editorContent} onChange={e => setEditorContent(e.target.value)}
+                placeholder="Start anywhere." autoFocus maxLength={100000} />
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      <style>{`
+        .j-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 22px; }
+        .j-card { position: relative; transform: rotate(var(--tilt)); background: var(--paper); border-radius: 6px; box-shadow: 0 14px 24px -16px rgba(15,30,46,0.45);
+          background-image: repeating-linear-gradient(180deg, transparent 0 31px, rgba(127,163,160,0.25) 31px 32px); background-position: 0 14px; }
+        .j-card::before { content: ''; position: absolute; top: 0; bottom: 0; left: 30px; width: 1px; background: rgba(236,78,139,0.35); }
+        .j-card__open { display: grid; gap: 6px; width: 100%; min-height: 200px; padding: 18px 56px 20px 46px; text-align: left; background: none; border: 0; cursor: pointer; border-radius: 6px; color: var(--ink); }
+        .j-card__open:hover .j-card__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+        .j-card__title { overflow-wrap: anywhere; }
+        .j-card__preview { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .j-card__del { position: absolute; top: 8px; right: 8px; color: var(--ink-3); }
+        .j-card__del:hover { color: var(--danger); background: var(--danger-bg); }
+        .j-scrim { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px; background: rgba(15,30,46,0.5); }
+        .j-dialog { width: 100%; max-width: 520px; background: var(--paper); border-radius: 24px; padding: 28px; display: grid; gap: 20px; }
+        .j-editor { position: fixed; inset: 0; z-index: 80; display: flex; flex-direction: column; background: var(--fog); }
+        .j-editor__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px var(--gutter); border-bottom: 1px solid var(--line); background: var(--paper); }
+        .j-editor__page { flex: 1; overflow-y: auto; width: 100%; max-width: 760px; margin: 0 auto; padding: 40px var(--gutter) 64px; display: flex; flex-direction: column; }
+        .j-editor__title { width: 100%; background: transparent; border: 0; outline: none; font: 400 clamp(30px, 5vw, 48px)/1.1 var(--font-display); color: var(--ink); }
+        .j-editor__body { flex: 1; width: 100%; min-height: 50vh; margin-top: 24px; background: transparent; border: 0; outline: none; resize: none; font: 400 18px/1.8 var(--font-body); color: var(--ink); }
+        .j-editor__title:focus-visible, .j-editor__body:focus-visible { outline: none; }
+        @media (max-width: 560px) { .j-hide-sm { display: none; } }
+      `}</style>
     </div>
   )
 }

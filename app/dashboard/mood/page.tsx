@@ -1,23 +1,20 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { motion, AnimatePresence } from 'framer-motion'
 import { notifyCheckin, startOfToday } from '@/lib/dates'
-
-const MOODS = [
-  { score: 1, label: 'TERRIBLE' },
-  { score: 2, label: 'BAD' },
-  { score: 3, label: 'OKAY' },
-  { score: 4, label: 'GOOD' },
-  { score: 5, label: 'GREAT' },
-]
+import { moodFor } from '@/lib/moods'
+import { PageHeader } from '@/components/app/PageHeader'
+import { MoodPicker } from '@/components/ui/controls'
+import { MoodGlyph } from '@/components/ui/MoodGlyph'
+import { Pill } from '@/components/ui/kit'
 
 const STRESS_OPTIONS = [
-  { value: 'yes_heavy', label: 'YES, HEAVILY' },
-  { value: 'yes_some',  label: 'YES, SOMEWHAT' },
-  { value: 'no',        label: 'NOT REALLY' },
-  { value: 'unsure',    label: 'NOT SURE' },
+  { value: 'yes_heavy', label: 'Yes, a lot' },
+  { value: 'yes_some',  label: 'Yes, somewhat' },
+  { value: 'no',        label: 'Not really' },
+  { value: 'unsure',    label: 'Not sure' },
 ]
 
 export default function MoodPage() {
@@ -29,6 +26,7 @@ export default function MoodPage() {
   const [history, setHistory]      = useState<any[]>([])
   const [saving, setSaving]        = useState(false)
   const [confirmation, setConfirm] = useState('')
+  const [error, setError]          = useState('')
   const [userId, setUserId]        = useState('')
 
   useEffect(() => {
@@ -51,210 +49,104 @@ export default function MoodPage() {
 
   const handleSave = async () => {
     if (selected === null || !userId) return
-    setSaving(true)
+    setSaving(true); setError('')
     const { data: inserted, error } = await supabase.from('moods').insert({
       user_id: userId, mood_score: selected,
       note: note || (stressAnswer ? `Academic stress: ${stressAnswer}` : null),
     }).select().single()
     if (!error) {
       notifyCheckin()
-      const label = MOODS.find(m => m.score === selected)!.label
-      const now = new Date()
-      const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
-      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-      setConfirm(`LOGGED. ${label} · ${dateStr} · ${timeStr}`)
-      setTimeout(() => setConfirm(''), 4000)
+      const time = new Date().toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' })
+      setConfirm(`Saved: ${moodFor(selected)!.label.toLowerCase()} at ${time}.`)
+      setTimeout(() => setConfirm(''), 5000)
       setLogged(true)
       setTodayMood(inserted)
       setHistory(h => [inserted, ...h].slice(0, 7))
-    }
+      setSelected(null); setNote(''); setStress('')
+    } else setError("That didn't save. Check your connection and try again.")
     setSaving(false)
   }
 
-  const selectedMood = MOODS.find(m => m.score === selected)
+  const today = moodFor(todayMood?.mood_score)
+  const selectedMood = moodFor(selected)
 
   return (
-    <div style={{ maxWidth: 560 }}>
+    <div>
+      <PageHeader lines={['how are you,', 'really?']} accent="really?" art="day" sticker="kite"
+        lead="One tap. Add a note if you want to remember why." />
 
-      {/* Header */}
-      <div style={{ marginBottom: 40 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(36px, 5vw, 56px)', color: 'var(--ink)', letterSpacing: '-0.03em', lineHeight: 1 }}>
-          MOOD TRACKER
-        </h1>
-        <div style={{ borderTop: '1.5px solid var(--border)', marginTop: 12 }} />
-      </div>
-
-      {/* Confirmation strip */}
-      <AnimatePresence>
-        {confirmation && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            style={{
-              fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-invert)',
-              background: 'var(--bg-invert)', padding: '10px 16px', marginBottom: 24,
-              letterSpacing: '0.08em', border: '1.5px solid var(--border)',
-            }}
-          >
-            {confirmation}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Already logged */}
-      {alreadyLogged && todayMood ? (
-        <div style={{ border: '1.5px solid var(--border)', padding: '24px', marginBottom: 32 }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 12 }}>
-            TODAY&apos;S MOOD
-          </div>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 40, color: 'var(--ink)', letterSpacing: '-0.02em', marginBottom: 8 }}>
-            {MOODS.find(m => m.score === todayMood.mood_score)?.label}
-          </div>
-          {todayMood.note && (
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-2)', fontStyle: 'italic' }}>
-              &ldquo;{todayMood.note}&rdquo;
-            </p>
-          )}
-          <button
-            onClick={() => setLogged(false)}
-            style={{
-              marginTop: 16, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
-              color: 'var(--ink-2)', background: 'none', border: '1.5px solid var(--border-2)',
-              padding: '6px 14px', cursor: 'pointer', letterSpacing: '0.06em',
-            }}
-          >
-            LOG AGAIN
-          </button>
+      <div className="page-narrow stack-lg">
+        <div aria-live="polite">
+          {confirmation && <div className="notice notice--ok">{confirmation}</div>}
+          {error && <div className="notice notice--error" role="alert">{error}</div>}
         </div>
-      ) : (
-        <div>
-          {/* Mood selector */}
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-            HOW ARE YOU FEELING?
-          </div>
-          <div style={{ display: 'flex', border: '1.5px solid var(--border)', marginBottom: 24 }}>
-            {MOODS.map((mood, i) => (
-              <button
-                key={mood.score}
-                onClick={() => setSelected(mood.score)}
-                style={{
-                  flex: 1, padding: 'clamp(12px,3vw,20px) clamp(3px,1vw,8px)', textAlign: 'center',
-                  background: selected === mood.score ? 'var(--bg-invert)' : 'var(--bg)',
-                  color: selected === mood.score ? 'var(--ink-invert)' : 'var(--ink-2)',
-                  border: 'none', borderRight: i < 4 ? '1.5px solid var(--border)' : 'none',
-                  fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(8px, 1.8vw, 13px)',
-                  letterSpacing: '0.02em', cursor: 'pointer',
-                  transition: `background ${80}ms, color ${80}ms`,
-                }}
-              >
-                {mood.label}
-              </button>
-            ))}
-          </div>
 
-          <AnimatePresence>
+        {alreadyLogged && today ? (
+          <section className="sheet sheet--pad stack-sm" aria-labelledby="m-today">
+            <h2 id="m-today" className="t-small muted" style={{ fontFamily: 'var(--font-body)', fontWeight: 600 }}>Today&apos;s mood</h2>
+            <div className="row" style={{ gap: 16 }}>
+              <MoodGlyph score={today.score} size={64} />
+              <div>
+                <p className="t-h2">{today.label}</p>
+                {todayMood.note && <p className="t-body muted" style={{ marginTop: 4 }}>&ldquo;{todayMood.note}&rdquo;</p>}
+              </div>
+            </div>
+            <div className="row" style={{ marginTop: 8 }}>
+              <button type="button" className="pill pill--ghost pill--sm" onClick={() => setLogged(false)}>Log again</button>
+              <Link href={today.next.href} className="pill pill--tape pill--sm">{today.next.label}</Link>
+            </div>
+          </section>
+        ) : (
+          <section className="sheet sheet--pad stack" aria-labelledby="m-q">
+            <h2 id="m-q" className="section-title" style={{ margin: 0 }}>How are you feeling?</h2>
+            <MoodPicker value={selected} onChange={setSelected} labelledBy="m-q" />
+            {selectedMood && <p className="t-body muted">{selectedMood.reply}</p>}
+
             {selected !== null && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                style={{ overflow: 'hidden' }}
-              >
-                {/* Stress question */}
-                <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-                    IS THIS RELATED TO ACADEMIC STRESS?
-                  </div>
-                  <div style={{ display: 'flex', border: '1.5px solid var(--border)' }}>
-                    {STRESS_OPTIONS.map((opt, i) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setStress(stressAnswer === opt.value ? '' : opt.value)}
-                        style={{
-                          flex: 1, padding: 'clamp(10px,2.5vw,14px) clamp(3px,1vw,6px)', textAlign: 'center',
-                          background: stressAnswer === opt.value ? 'var(--bg-invert)' : 'var(--bg)',
-                          color: stressAnswer === opt.value ? 'var(--ink-invert)' : 'var(--ink-2)',
-                          border: 'none', borderRight: i < 3 ? '1.5px solid var(--border)' : 'none',
-                          fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'clamp(8px,1.8vw,11px)',
-                          letterSpacing: '0.02em', cursor: 'pointer',
-                          transition: `background ${80}ms, color ${80}ms`,
-                        }}
-                      >
-                        {opt.label}
-                      </button>
+              <>
+                <div className="stack-sm">
+                  <p id="m-stress" className="field__label">Is this about school stress?</p>
+                  <div role="radiogroup" aria-labelledby="m-stress" className="row" style={{ gap: 8 }}>
+                    {STRESS_OPTIONS.map(opt => (
+                      <button key={opt.value} type="button" role="radio" aria-checked={stressAnswer === opt.value} className="chip"
+                        onClick={() => setStress(stressAnswer === opt.value ? '' : opt.value)}>{opt.label}</button>
                     ))}
                   </div>
                 </div>
-
-                {/* Note */}
-                <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-                    ADD A NOTE (OPTIONAL)
-                  </div>
-                  <textarea
-                    value={note}
-                    onChange={e => setNote(e.target.value)}
-                    rows={3}
-                    placeholder="What's on your mind..."
-                    className="br-input"
-                    style={{ width: '100%', padding: '12px', resize: 'none', fontFamily: 'var(--font-body)', fontSize: 14, boxSizing: 'border-box' }}
-                  />
+                <div className="field">
+                  <label htmlFor="m-note" className="field__label">Add a note <span className="faint" style={{ fontWeight: 400 }}>(optional)</span></label>
+                  <textarea id="m-note" className="input" rows={3} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} placeholder="What's on your mind?" />
                 </div>
-
-                {/* Submit */}
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="br-btn br-btn-inv"
-                  style={{
-                    width: '100%', padding: '16px',
-                    fontSize: 14, letterSpacing: '0.06em',
-                    opacity: saving ? 0.6 : 1,
-                  }}
-                >
-                  {saving ? 'SAVING...' : `LOG AS ${selectedMood?.label} →`}
-                </button>
-              </motion.div>
+                <Pill variant="tape" size="lg" block onClick={handleSave} disabled={saving}>
+                  {saving ? 'Saving…' : `Save as ${selectedMood?.label.toLowerCase()}`}
+                </Pill>
+              </>
             )}
-          </AnimatePresence>
-        </div>
-      )}
+          </section>
+        )}
 
-      {/* History */}
-      {history.length > 0 && (
-        <div style={{ marginTop: 48 }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 12 }}>
-            RECENT MOODS
-          </div>
-          <div style={{ border: '1.5px solid var(--border)' }}>
-            {history.map((entry, i) => {
-              const mood = MOODS.find(m => m.score === entry.mood_score)
-              const date = new Date(entry.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
-              return (
-                <div
-                  key={entry.id ?? i}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    borderBottom: i < history.length - 1 ? '1px solid var(--border-2)' : 'none',
-                  }}
-                >
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14, color: 'var(--ink)' }}>
-                    {mood?.label}
-                  </span>
-                  {entry.note && (
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink-3)', flex: 1, padding: '0 16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {entry.note}
-                    </span>
-                  )}
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
-                    {date}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+        {history.length > 0 && (
+          <section aria-labelledby="m-recent">
+            <h2 id="m-recent" className="section-title">Recent moods</h2>
+            <ul className="list sheet" style={{ padding: '4px 20px' }}>
+              {history.map((entry, i) => {
+                const m = moodFor(entry.mood_score)
+                return (
+                  <li key={entry.id ?? i}>
+                    <MoodGlyph score={entry.mood_score} size={36} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p className="t-label" style={{ fontSize: 16 }}>{m?.label}</p>
+                      {entry.note && <p className="t-small muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.note}</p>}
+                    </div>
+                    <span className="t-small faint">{new Date(entry.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="t-small" style={{ marginTop: 12 }}><Link href="/dashboard/graph" className="link">See your mood graph</Link></p>
+          </section>
+        )}
+      </div>
     </div>
   )
 }

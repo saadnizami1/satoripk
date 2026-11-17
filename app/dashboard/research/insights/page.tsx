@@ -1,381 +1,182 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { supabase } from '@/lib/supabase'
-import { motion } from 'framer-motion'
-import {
-  TrendingUp, ArrowLeft, Brain, CircleAlert, BookOpen,
-  Heart, Users, Calendar, Award, Flame, Target,
-  CheckCircle, XCircle, HelpCircle
-} from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { localDateKey } from '@/lib/dates'
+import { PageHeader } from '@/components/app/PageHeader'
+import { TornPaper, Skeleton } from '@/components/ui/kit'
 
-const performanceColors: Record<number, string> = { 5: '#2DD4BF', 4: '#4ADE80', 3: '#EAB308', 2: '#F97316', 1: '#EF4444' }
-const stressColors: Record<number, string>      = { 5: '#EF4444', 4: '#F97316', 3: '#EAB308', 2: '#4ADE80', 1: '#2DD4BF' }
+const PERF: Record<number, string> = { 5: 'Excellent', 4: 'Good', 3: 'Average', 2: 'Below average', 1: 'Poor' }
+const STRESS: Record<number, string> = { 5: 'Extremely', 4: 'Very', 3: 'Moderately', 2: 'Slightly', 1: 'Not at all' }
+const IMPACT: Record<string, string> = { yes: 'Yes', no: 'No', somewhat: 'Somewhat', planning: 'Planning to' }
 
-const getPerformanceLabel = (v: number) =>
-  ({ 5: 'Excellent', 4: 'Good', 3: 'Average', 2: 'Below Average', 1: 'Poor' } as Record<number,string>)[v] || 'N/A'
+type Stats = {
+  avgPerformance: number; avgStress: number; totalEntries: number; streak: number
+  selfStudyCount: number; moodImpactCount: number; lifeImpactCount: number
+  highStressDays: number; lowPerformanceDays: number
+}
+const EMPTY: Stats = { avgPerformance: 0, avgStress: 0, totalEntries: 0, streak: 0, selfStudyCount: 0, moodImpactCount: 0, lifeImpactCount: 0, highStressDays: 0, lowPerformanceDays: 0 }
 
-const getStressLabel = (v: number) =>
-  ({ 5: 'Extremely Stressed', 4: 'Very Stressed', 3: 'Moderately Stressed', 2: 'Slightly Stressed', 1: 'Not Stressed' } as Record<number,string>)[v] || 'N/A'
-
-const getSelfStudyLabel = (v: string) =>
-  ({ yes: 'Yes', no: 'No', planning: 'Planning to' } as Record<string,string>)[v] || 'N/A'
-
-const getImpactLabel = (v: string) =>
-  ({ yes: 'Yes', no: 'No', somewhat: 'Somewhat' } as Record<string,string>)[v] || 'N/A'
-
-const getImpactIcon = (v: string) => v === 'yes' ? CheckCircle : v === 'no' ? XCircle : HelpCircle
-const getImpactColor = (v: string) => v === 'yes' ? '#F97316' : v === 'no' ? '#4ADE80' : '#EAB308'
+function parseNotes(notes: string | null) {
+  try { return JSON.parse(notes || '{}') ?? {} } catch { return {} }
+}
 
 export default function StressInsightsPage() {
-  const router = useRouter()
-  const [entries, setEntries]   = useState<any[]>([])
+  const [entries, setEntries]     = useState<any[] | null>(null)
   const [timeRange, setTimeRange] = useState<'30' | '90'>('30')
-  const [stats, setStats] = useState({
-    avgPerformance: 0, avgStress: 0, totalEntries: 0, streak: 0,
-    selfStudyCount: 0, moodImpactCount: 0, lifeImpactCount: 0,
-    highStressDays: 0, lowPerformanceDays: 0,
-  })
+  const [stats, setStats]         = useState<Stats>(EMPTY)
 
-  useEffect(() => { fetchEntries() }, [timeRange])
-
-  const fetchEntries = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    const user = session?.user
-    if (user) {
+  useEffect(() => {
+    const fetchEntries = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
       const daysAgo = new Date()
       daysAgo.setDate(daysAgo.getDate() - parseInt(timeRange))
-
       const { data } = await supabase
-        .from('academic_stress').select('*').eq('user_id', user.id)
+        .from('academic_stress').select('id, created_at, stress_level, performance_rating, notes').eq('user_id', session.user.id)
         .gte('created_at', daysAgo.toISOString()).order('created_at', { ascending: false })
-
-      if (data && data.length > 0) { setEntries(data); calculateStats(data) }
-      else {
-        setEntries([])
-        setStats({ avgPerformance: 0, avgStress: 0, totalEntries: 0, streak: 0, selfStudyCount: 0, moodImpactCount: 0, lifeImpactCount: 0, highStressDays: 0, lowPerformanceDays: 0 })
-      }
+      const rows = data ?? []
+      setEntries(rows)
+      setStats(rows.length ? calculateStats(rows) : EMPTY)
     }
-  }
+    fetchEntries()
+  }, [timeRange])
 
-  const calculateStats = (data: any[]) => {
-    const perf   = data.map(e => e.performance_rating)
-    const stress = data.map(e => e.stress_level)
+  const chart = (entries ?? []).slice().reverse().map(e => ({
+    day: new Date(e.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+    stress: e.stress_level, school: e.performance_rating,
+  }))
 
-    let selfStudyCount = 0, moodImpactCount = 0, lifeImpactCount = 0
-    data.forEach(entry => {
-      try {
-        const notes = JSON.parse(entry.notes)
-        if (notes.selfStudy === 'yes') selfStudyCount++
-        if (notes.moodImpact === 'yes') moodImpactCount++
-        if (notes.lifeImpact === 'yes') lifeImpactCount++
-      } catch {}
-    })
-
-    const loggedDays = new Set(data.map(e => localDateKey(e.created_at)))
-    const today = new Date()
-    let streak = 0
-    for (let i = 0; i < 90; i++) {
-      const d = new Date(today); d.setDate(d.getDate() - i)
-      if (loggedDays.has(localDateKey(d))) streak++
-      else break
-    }
-
-    setStats({
-      avgPerformance:    parseFloat((perf.reduce((a, b) => a + b, 0) / perf.length).toFixed(1)),
-      avgStress:         parseFloat((stress.reduce((a, b) => a + b, 0) / stress.length).toFixed(1)),
-      totalEntries:      data.length,
-      streak,
-      selfStudyCount,
-      moodImpactCount,
-      lifeImpactCount,
-      highStressDays:    stress.filter(s => s >= 4).length,
-      lowPerformanceDays: perf.filter(p => p <= 2).length,
-    })
+  const insights: string[] = []
+  if (stats.totalEntries) {
+    if (stats.avgStress >= 4) insights.push(`Your stress has averaged ${stats.avgStress} out of 5. That's a lot to carry. A two-minute breathing break or a talk with Kokoro can take the edge off.`)
+    else if (stats.avgStress <= 2) insights.push(`Your stress has averaged ${stats.avgStress} out of 5. Whatever you're doing, it seems to be working.`)
+    if (stats.moodImpactCount > stats.totalEntries / 2) insights.push(`School affected your mood on ${Math.round((stats.moodImpactCount / stats.totalEntries) * 100)}% of the days you checked in.`)
+    if (stats.lifeImpactCount > stats.totalEntries / 3) insights.push('School has been spilling into the rest of your day quite often. Protect some time that has nothing to do with studying.')
+    if (stats.streak >= 7) insights.push(`You've checked in ${stats.streak} days in a row. Patterns get clearer the longer you keep going.`)
+    if (stats.totalEntries < 5) insights.push('A few more check-ins and the patterns here will start to mean something.')
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
-      {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
-        <button
-          onClick={() => router.push('/dashboard/research')}
-          className="flex items-center gap-1.5 text-sm mb-4 transition-opacity hover:opacity-70"
-          style={{ color: '#475569' }}
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Academic Stress Tracker
-        </button>
+    <div>
+      <Link href="/dashboard/research" className="text-btn" style={{ marginBottom: 12 }}><ArrowLeft size={18} aria-hidden="true" /> Back to stress check-in</Link>
+      <PageHeader lines={['your stress,', 'over time']} accent="over time" art="dusk" sticker="chart"
+        lead="How school has been feeling, and how much of it spills into the rest of your day." />
 
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(249,115,22,0.12)' }}>
-            <TrendingUp className="w-5 h-5" style={{ color: '#F97316' }} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-instrument), Georgia, serif', color: '#F1F5F9' }}>
-              Stress Statistics
-            </h1>
-            <p className="text-xs" style={{ color: '#475569' }}>Academic performance and stress insights</p>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Range tabs */}
-      <div className="flex gap-2">
+      <div role="radiogroup" aria-label="Time range" className="row" style={{ marginBottom: 24 }}>
         {(['30', '90'] as const).map(r => (
-          <button
-            key={r}
-            onClick={() => setTimeRange(r)}
-            className="px-5 py-2 rounded-xl text-sm font-semibold transition-all"
-            style={{
-              background: timeRange === r ? 'rgba(249,115,22,0.12)' : '#13161F',
-              border: timeRange === r ? '1px solid rgba(249,115,22,0.3)' : '1px solid rgba(255,255,255,0.06)',
-              color: timeRange === r ? '#F97316' : '#475569',
-            }}
-          >
-            {r === '30' ? '30 days' : '3 months'}
+          <button key={r} type="button" role="radio" aria-checked={timeRange === r} className="chip" onClick={() => setTimeRange(r)}>
+            {r === '30' ? 'Last 30 days' : 'Last 3 months'}
           </button>
         ))}
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {[
-          { label: 'Avg Performance', value: stats.avgPerformance.toFixed(1), icon: Brain,     color: '#2DD4BF', sub: 'out of 5' },
-          { label: 'Avg Stress',      value: stats.avgStress.toFixed(1),      icon: CircleAlert,color: '#F97316', sub: 'out of 5' },
-          { label: 'Streak',          value: `${stats.streak}d`,              icon: Flame,      color: '#EF4444', sub: 'days' },
-          { label: 'Total Entries',   value: stats.totalEntries,              icon: Calendar,   color: '#818CF8', sub: 'logged' },
-          { label: 'Self Study Days', value: `${stats.selfStudyCount}`,       icon: BookOpen,   color: '#4ADE80', sub: `of ${stats.totalEntries}` },
-        ].map((s, i) => (
-          <motion.div
-            key={s.label}
-            initial={{ opacity: 0, scale: 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 + i * 0.04 }}
-            className="rounded-2xl p-4"
-            style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-          >
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2" style={{ background: `${s.color}15` }}>
-              <s.icon className="w-4 h-4" style={{ color: s.color }} />
+      {entries === null ? <Skeleton /> : entries.length === 0 ? (
+        <div className="sheet sheet--pad stack-sm">
+          <h2 className="section-title" style={{ margin: 0 }}>Nothing here yet</h2>
+          <p className="t-body muted">Check in on your stress a few times and your trends will show up here.</p>
+          <div><Link href="/dashboard/research" className="pill pill--tape pill--sm">Check in now</Link></div>
+        </div>
+      ) : (
+        <div className="stack-lg">
+          <ul className="ins-notes" aria-label="Summary">
+            {[
+              { n: stats.avgStress.toFixed(1), l: 'average stress, out of 5', c: 'var(--marigold)', s: 2 },
+              { n: stats.avgPerformance.toFixed(1), l: 'how school went, out of 5', c: 'var(--mint)', s: 6 },
+              { n: String(stats.highStressDays), l: 'high-stress days (4 or 5)', c: 'var(--rose)', s: 9 },
+              { n: `${stats.selfStudyCount}/${stats.totalEntries}`, l: 'days you self-studied', c: 'var(--paper)', s: 13 },
+            ].map((x, i) => (
+              <li key={x.l}>
+                <TornPaper color={x.c} tilt={[-1.5, 1, -0.8, 1.4][i]} seed={x.s}>
+                  <p className="t-num">{x.n}</p>
+                  <p className="t-small" style={{ marginTop: 6 }}>{x.l}</p>
+                </TornPaper>
+              </li>
+            ))}
+          </ul>
+
+          <section aria-labelledby="ins-chart" className="sheet sheet--pad">
+            <h2 id="ins-chart" className="section-title">Stress and school, day by day</h2>
+            <div style={{ height: 260 }} role="img" aria-label={`Line chart of ${chart.length} check-ins. Average stress ${stats.avgStress} out of 5.`}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chart} margin={{ top: 10, right: 12, bottom: 0, left: -24 }}>
+                  <CartesianGrid stroke="#D3DCD6" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fontSize: 13, fill: '#56626C' }} tickLine={false} axisLine={false} minTickGap={24} />
+                  <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 13, fill: '#56626C' }} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #D3DCD6', fontSize: 14 }} />
+                  <Line type="monotone" dataKey="stress" name="Stress" stroke="#B0225A" strokeWidth={2.5} dot={{ r: 3 }} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="school" name="How school went" stroke="#2E4A6B" strokeWidth={2.5} strokeDasharray="5 4" dot={{ r: 3 }} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
-            <p className="text-2xl font-bold" style={{ color: '#F1F5F9', fontFamily: 'var(--font-jetbrains), monospace' }}>{s.value}</p>
-            <p className="text-[10px] mt-0.5" style={{ color: '#94A3B8' }}>{s.label}</p>
-            <p className="text-[10px]" style={{ color: '#475569' }}>{s.sub}</p>
-          </motion.div>
-        ))}
-      </div>
+            <p className="t-small muted" style={{ marginTop: 10 }}>Solid line: stress. Dashed line: how school went.</p>
+          </section>
 
-      {/* Impact stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {[
-          { label: 'Mood Impact',     count: stats.moodImpactCount,  icon: Heart,      color: '#F97316', desc: 'Days when academics affected mood' },
-          { label: 'Life Impact',     count: stats.lifeImpactCount,  icon: Users,      color: '#2DD4BF', desc: 'Days when academics affected daily activities' },
-          { label: 'High Stress Days',count: stats.highStressDays,   icon: Target,     color: '#EF4444', desc: 'Days with stress level 4 or 5' },
-        ].map((item, i) => (
-          <motion.div
-            key={item.label}
-            initial={{ opacity: 0, scale: 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.25 + i * 0.07 }}
-            className="rounded-2xl p-4"
-            style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-          >
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${item.color}15` }}>
-                <item.icon className="w-4 h-4" style={{ color: item.color }} />
-              </div>
-              <div>
-                <p className="text-xs font-medium" style={{ color: '#94A3B8' }}>{item.label}</p>
-                <p className="text-xl font-bold" style={{ color: '#F1F5F9', fontFamily: 'var(--font-jetbrains), monospace' }}>
-                  {item.count}
-                  <span className="text-sm font-normal ml-1" style={{ color: '#475569' }}>/{stats.totalEntries}</span>
-                </p>
-              </div>
-            </div>
-            <p className="text-xs" style={{ color: '#475569' }}>{item.desc}</p>
-          </motion.div>
-        ))}
-      </div>
+          {insights.length > 0 && (
+            <section aria-labelledby="ins-what" className="sheet sheet--pad">
+              <h2 id="ins-what" className="section-title">What this suggests</h2>
+              <ul className="list">{insights.map(t => <li key={t} className="t-body">{t}</li>)}</ul>
+            </section>
+          )}
 
-      {/* Log history */}
-      <div>
-        <h2 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: '#94A3B8' }}>
-          <Calendar className="w-4 h-4" style={{ color: '#2DD4BF' }} />
-          Log History
-        </h2>
-
-        {entries.length === 0 ? (
-          <div className="rounded-2xl p-16 text-center" style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-20" style={{ color: '#F1F5F9' }} />
-            <p className="text-sm" style={{ color: '#475569' }}>No data for this period. Start logging to see your history!</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {entries.map((entry, i) => {
-              let resp = { selfStudy: '', moodImpact: '', lifeImpact: '', lifeImpactExample: '' }
-              try { resp = JSON.parse(entry.notes) } catch {}
-
-              const MoodIcon = getImpactIcon(resp.moodImpact)
-              const LifeIcon = getImpactIcon(resp.lifeImpact)
-              const perfColor  = performanceColors[entry.performance_rating] || '#94A3B8'
-              const stressColor = stressColors[entry.stress_level] || '#94A3B8'
-
-              return (
-                <motion.div
-                  key={entry.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05 * i }}
-                  className="rounded-2xl p-5"
-                  style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-                >
-                  {/* Date header */}
-                  <div className="flex items-center gap-3 mb-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(249,115,22,0.12)' }}>
-                      <Calendar className="w-4 h-4" style={{ color: '#F97316' }} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
-                        {new Date(entry.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                      </p>
-                      <p className="text-xs" style={{ color: '#475569' }}>
-                        {new Date(entry.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Response grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Performance */}
-                    <div className="p-3.5 rounded-xl" style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <Brain className="w-3.5 h-3.5 shrink-0" style={{ color: '#2DD4BF' }} />
-                        <span className="text-xs" style={{ color: '#475569' }}>Academic Performance</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: perfColor }} />
-                        <p className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
-                          {getPerformanceLabel(entry.performance_rating)}
-                          <span className="text-xs font-normal ml-1" style={{ color: '#475569' }}>({entry.performance_rating}/5)</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Stress */}
-                    <div className="p-3.5 rounded-xl" style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <CircleAlert className="w-3.5 h-3.5 shrink-0" style={{ color: '#F97316' }} />
-                        <span className="text-xs" style={{ color: '#475569' }}>Stress Level</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: stressColor }} />
-                        <p className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
-                          {getStressLabel(entry.stress_level)}
-                          <span className="text-xs font-normal ml-1" style={{ color: '#475569' }}>({entry.stress_level}/5)</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Self study */}
-                    <div className="p-3.5 rounded-xl" style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <BookOpen className="w-3.5 h-3.5 shrink-0" style={{ color: '#818CF8' }} />
-                        <span className="text-xs" style={{ color: '#475569' }}>Self Study at Home</span>
-                      </div>
-                      <p className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{getSelfStudyLabel(resp.selfStudy)}</p>
-                    </div>
-
-                    {/* Mood impact */}
-                    <div className="p-3.5 rounded-xl" style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <Heart className="w-3.5 h-3.5 shrink-0" style={{ color: '#F97316' }} />
-                        <span className="text-xs" style={{ color: '#475569' }}>Impact on Mood</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MoodIcon className="w-4 h-4 shrink-0" style={{ color: getImpactColor(resp.moodImpact) }} />
-                        <p className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{getImpactLabel(resp.moodImpact)}</p>
-                      </div>
-                    </div>
-
-                    {/* Life impact */}
-                    <div className="p-3.5 rounded-xl sm:col-span-2" style={{ background: '#1C2030', border: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <Users className="w-3.5 h-3.5 shrink-0" style={{ color: '#4ADE80' }} />
-                        <span className="text-xs" style={{ color: '#475569' }}>Impact on Day-to-Day Life</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <LifeIcon className="w-4 h-4 shrink-0" style={{ color: getImpactColor(resp.lifeImpact) }} />
-                        <p className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{getImpactLabel(resp.lifeImpact)}</p>
-                      </div>
-                      {resp.lifeImpactExample && (
-                        <p className="mt-1.5 text-xs italic pl-6" style={{ color: '#475569' }}>
-                          &ldquo;{resp.lifeImpactExample}&rdquo;
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Key insights */}
-      {entries.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="rounded-2xl p-5"
-          style={{ background: '#13161F', border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: '#F1F5F9' }}>
-            <Award className="w-4 h-4" style={{ color: '#F97316' }} />
-            Key Insights
-          </h2>
-          <div className="space-y-2.5 text-sm" style={{ color: '#94A3B8' }}>
-            {stats.streak >= 7 && (
-              <p className="flex items-start gap-2">
-                <Flame className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#F97316' }} />
-                Excellent! You have a {stats.streak}-day tracking streak. Consistency is key to understanding your patterns!
-              </p>
-            )}
-            {stats.avgPerformance >= 4 && (
-              <p className="flex items-start gap-2">
-                <Brain className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#2DD4BF' }} />
-                Your average academic performance is {stats.avgPerformance}/5 — you&apos;re performing well!
-              </p>
-            )}
-            {stats.avgStress >= 4 && (
-              <p className="flex items-start gap-2">
-                <CircleAlert className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#EF4444' }} />
-                Your average stress level is {stats.avgStress}/5. Consider using breathing exercises or talking to Kokoro for support.
-              </p>
-            )}
-            {stats.moodImpactCount > stats.totalEntries / 2 && (
-              <p className="flex items-start gap-2">
-                <Heart className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#F97316' }} />
-                Academic stress is affecting your mood {Math.round((stats.moodImpactCount / stats.totalEntries) * 100)}% of the time. Remember to practice self-care!
-              </p>
-            )}
-            {stats.lifeImpactCount > stats.totalEntries / 3 && (
-              <p className="flex items-start gap-2">
-                <Users className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#4ADE80' }} />
-                Academics are impacting your daily activities frequently. Try to maintain a healthy balance between studies and personal time.
-              </p>
-            )}
-            {stats.selfStudyCount < stats.totalEntries / 2 && stats.totalEntries > 5 && (
-              <p className="flex items-start gap-2">
-                <BookOpen className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#818CF8' }} />
-                You&apos;re self-studying on {Math.round((stats.selfStudyCount / stats.totalEntries) * 100)}% of days. Consider establishing a consistent study routine!
-              </p>
-            )}
-          </div>
-        </motion.div>
+          <section aria-labelledby="ins-log">
+            <h2 id="ins-log" className="section-title">Every check-in</h2>
+            <ul className="list sheet" style={{ padding: '4px 20px' }}>
+              {entries.map(entry => {
+                const r = parseNotes(entry.notes)
+                return (
+                  <li key={entry.id} style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    <span className="t-label" style={{ minWidth: 120 }}>
+                      {new Date(entry.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </span>
+                    <span className="t-small" style={{ flex: 1, minWidth: 220 }}>
+                      Stress: <strong>{STRESS[entry.stress_level] ?? '–'}</strong> ({entry.stress_level}/5). School: <strong>{PERF[entry.performance_rating] ?? '–'}</strong>.
+                      {r.selfStudy && <> Self-study: {IMPACT[r.selfStudy] ?? r.selfStudy}.</>}
+                      {r.moodImpact && <> Affected mood: {IMPACT[r.moodImpact] ?? r.moodImpact}.</>}
+                      {r.lifeImpact && <> Affected the day: {IMPACT[r.lifeImpact] ?? r.lifeImpact}.</>}
+                      {r.lifeImpactExample && <span className="muted"> &ldquo;{r.lifeImpactExample}&rdquo;</span>}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        </div>
       )}
+
+      <style>{`
+        .ins-notes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+        @media (max-width: 900px) { .ins-notes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      `}</style>
     </div>
   )
+}
+
+function calculateStats(data: any[]): Stats {
+  const perf   = data.map(e => e.performance_rating)
+  const stress = data.map(e => e.stress_level)
+  let selfStudyCount = 0, moodImpactCount = 0, lifeImpactCount = 0
+  data.forEach(entry => {
+    const notes = parseNotes(entry.notes)
+    if (notes.selfStudy === 'yes') selfStudyCount++
+    if (notes.moodImpact === 'yes') moodImpactCount++
+    if (notes.lifeImpact === 'yes') lifeImpactCount++
+  })
+  const loggedDays = new Set(data.map(e => localDateKey(e.created_at)))
+  let streak = 0
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i)
+    if (loggedDays.has(localDateKey(d))) streak++
+    else break
+  }
+  const avg = (xs: number[]) => parseFloat((xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(1))
+  return {
+    avgPerformance: avg(perf), avgStress: avg(stress), totalEntries: data.length, streak,
+    selfStudyCount, moodImpactCount, lifeImpactCount,
+    highStressDays: stress.filter(s => s >= 4).length,
+    lowPerformanceDays: perf.filter(p => p <= 2).length,
+  }
 }

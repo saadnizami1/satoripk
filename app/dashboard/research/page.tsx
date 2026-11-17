@@ -1,92 +1,60 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { motion, AnimatePresence } from 'framer-motion'
 import { notifyCheckin, startOfToday } from '@/lib/dates'
-import { useRouter } from 'next/navigation'
+import { PageHeader } from '@/components/app/PageHeader'
+import { ScalePicker } from '@/components/ui/controls'
+import { Pill } from '@/components/ui/kit'
 
 const PERFORMANCE = [
-  { value: 5, label: 'EXCELLENT' },
-  { value: 4, label: 'GOOD' },
-  { value: 3, label: 'AVERAGE' },
-  { value: 2, label: 'BELOW AVERAGE' },
-  { value: 1, label: 'POOR' },
+  { value: 1, label: 'Poor' },
+  { value: 2, label: 'Below avg' },
+  { value: 3, label: 'Average' },
+  { value: 4, label: 'Good' },
+  { value: 5, label: 'Excellent' },
 ]
 
 const STRESS = [
-  { value: 5, label: 'EXTREMELY STRESSED' },
-  { value: 4, label: 'VERY STRESSED' },
-  { value: 3, label: 'MODERATELY STRESSED' },
-  { value: 2, label: 'SLIGHTLY STRESSED' },
-  { value: 1, label: 'NOT STRESSED' },
+  { value: 1, label: 'Not at all' },
+  { value: 2, label: 'Slightly' },
+  { value: 3, label: 'Moderately' },
+  { value: 4, label: 'Very' },
+  { value: 5, label: 'Extremely' },
 ]
 
+// Stored inside academic_stress.notes as JSON; keep the values stable.
 const YES_NO = [
-  { value: 'yes',      label: 'YES' },
-  { value: 'no',       label: 'NO' },
-  { value: 'planning', label: 'PLANNING TO' },
+  { value: 'yes',      label: 'Yes' },
+  { value: 'no',       label: 'No' },
+  { value: 'planning', label: 'Planning to' },
 ]
 
 const IMPACT = [
-  { value: 'yes',      label: 'YES' },
-  { value: 'no',       label: 'NO' },
-  { value: 'somewhat', label: 'SOMEWHAT' },
+  { value: 'yes',      label: 'Yes' },
+  { value: 'no',       label: 'No' },
+  { value: 'somewhat', label: 'Somewhat' },
 ]
 
-function OptionRow({ label, value, selected, onClick }: {
-  label: string; value?: string; selected: boolean; onClick: () => void
+function Choice({ id, label, options, value, onChange }: {
+  id: string; label: string; options: { value: string; label: string }[]; value: string | null; onChange: (v: string) => void
 }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        width: '100%', padding: '11px 14px', textAlign: 'left',
-        background: selected ? 'var(--bg-invert)' : 'var(--bg)',
-        color: selected ? 'var(--ink-invert)' : 'var(--ink)',
-        border: 'none', borderBottom: '1px solid var(--border-2)',
-        fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
-        letterSpacing: '0.06em', cursor: 'pointer',
-        transition: 'background 80ms, color 80ms',
-      }}
-      onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)' }}
-      onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'var(--bg)' }}
-    >
-      <span>{label}</span>
-      {value && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, opacity: 0.45 }}>{value}</span>}
-    </button>
-  )
-}
-
-function TripleButton({ options, value, onChange }: {
-  options: typeof YES_NO; value: string | null; onChange: (v: string) => void
-}) {
-  return (
-    <div style={{ display: 'flex', border: '1.5px solid var(--border)', overflow: 'hidden' }}>
-      {options.map(({ value: v, label }, i) => (
-        <button
-          key={v}
-          onClick={() => onChange(v)}
-          style={{
-            flex: 1, padding: '11px 8px',
-            background: value === v ? 'var(--bg-invert)' : 'var(--bg)',
-            color: value === v ? 'var(--ink-invert)' : 'var(--ink)',
-            border: 'none', borderRight: i < options.length - 1 ? '1px solid var(--border-2)' : 'none',
-            fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
-            letterSpacing: '0.06em', cursor: 'pointer',
-            transition: 'background 80ms, color 80ms',
-          }}
-        >
-          {label}
-        </button>
-      ))}
+    <div className="stack-sm">
+      <p id={id} className="field__label">{label}</p>
+      <div role="radiogroup" aria-labelledby={id} className="row" style={{ gap: 8 }}>
+        {options.map(o => (
+          <button key={o.value} type="button" role="radio" aria-checked={value === o.value} className="chip" onClick={() => onChange(o.value)}>
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
 
 export default function AcademicStressPage() {
-  const router = useRouter()
   const [performance, setPerformance] = useState<number | null>(null)
   const [stressLevel, setStressLevel] = useState<number | null>(null)
   const [selfStudy, setSelfStudy]     = useState<string | null>(null)
@@ -96,6 +64,7 @@ export default function AcademicStressPage() {
   const [recentEntries, setRecentEntries] = useState<any[]>([])
   const [loading, setLoading]   = useState(false)
   const [success, setSuccess]   = useState(false)
+  const [error, setError]       = useState('')
   const [alreadyLogged, setAlreadyLogged] = useState(false)
   const [todayEntry, setTodayEntry]       = useState<any>(null)
 
@@ -116,7 +85,7 @@ export default function AcademicStressPage() {
 
   const handleSubmit = async () => {
     if (!performance || !stressLevel || alreadyLogged) return
-    setLoading(true)
+    setLoading(true); setError('')
     const { data: { session } } = await supabase.auth.getSession()
     const user = session?.user
     if (user) {
@@ -134,192 +103,96 @@ export default function AcademicStressPage() {
         setMoodImpact(null); setLifeImpact(null); setLifeImpactExample('')
         loadEntries()
         notifyCheckin()
-        setTimeout(() => setSuccess(false), 4000)
-      }
+        setTimeout(() => setSuccess(false), 5000)
+      } else setError("That didn't save. Check your connection and try again.")
     }
     setLoading(false)
   }
 
+  const ready = !!performance && !!stressLevel && selfStudy !== null && moodImpact !== null && lifeImpact !== null
+
   return (
     <div>
+      <PageHeader lines={["what's heavy", 'right now']} accent="heavy" art="dusk" sticker="pencil"
+        lead="Name it, track it, and watch it change over the term.">
+        <Pill href="/dashboard/research/insights" variant="ghost" size="sm" style={{ background: 'var(--paper)' } as React.CSSProperties}>See your stress insights</Pill>
+      </PageHeader>
 
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between" style={{ marginBottom: 8 }}>
-        <h1 style={{
-          fontFamily: 'var(--font-display)', fontWeight: 800,
-          fontSize: 'clamp(36px,5vw,56px)', color: 'var(--ink)',
-          letterSpacing: '-0.03em', lineHeight: 1,
-        }}>
-          ACADEMIC STRESS
-        </h1>
-        <button
-          onClick={() => router.push('/dashboard/research/insights')}
-          className="br-btn"
-          style={{ padding: '8px 16px', fontSize: 11, letterSpacing: '0.06em', cursor: 'pointer', alignSelf: 'flex-start' }}
-        >
-          INSIGHTS →
-        </button>
-      </div>
-      <div style={{ borderTop: '1.5px solid var(--border)', marginBottom: 24 }} />
-
-      {/* Success strip */}
-      <AnimatePresence>
-        {success && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-            style={{
-              fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.1em',
-              color: 'var(--ink-invert)', background: 'var(--bg-invert)',
-              padding: '10px 14px', marginBottom: 16,
-            }}
-          >
-            LOGGED. ENTRY SAVED  ·  {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Already logged */}
-      {alreadyLogged && todayEntry && (
-        <div style={{
-          border: '1.5px solid var(--border)', padding: '10px 14px', marginBottom: 24,
-          background: 'var(--bg-card)',
-          fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', letterSpacing: '0.06em',
-        }}>
-          ALREADY LOGGED TODAY  ·  PERFORMANCE: {todayEntry.performance_rating}/5  ·  STRESS: {todayEntry.stress_level}/5  ·  COME BACK TOMORROW
-        </div>
-      )}
-
-      <div className="grid-2fr1fr">
-
-        {/* Form */}
-        <div style={{ opacity: alreadyLogged ? 0.4 : 1, pointerEvents: alreadyLogged ? 'none' : 'auto' }}>
-
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-              01  HOW WAS YOUR ACADEMIC PERFORMANCE TODAY?
-            </div>
-            <div style={{ border: '1.5px solid var(--border)', overflow: 'hidden' }}>
-              {PERFORMANCE.map(({ value, label }) => (
-                <OptionRow key={value} label={label} value={`${value}/5`} selected={performance === value} onClick={() => setPerformance(value)} />
-              ))}
-            </div>
+      <div className="stress-grid">
+        <section aria-labelledby="s-form" className="sheet sheet--pad stack-lg">
+          <h2 id="s-form" className="section-title" style={{ margin: 0 }}>Today&apos;s check-in</h2>
+          <div aria-live="polite">
+            {success && <div className="notice notice--ok">Saved. Thanks for checking in.</div>}
+            {error && <div className="notice notice--error" role="alert">{error}</div>}
           </div>
 
-          <AnimatePresence>
-            {performance !== null && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginBottom: 20, overflow: 'hidden' }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-                  02  HOW STRESSED WERE YOU TODAY?
-                </div>
-                <div style={{ border: '1.5px solid var(--border)', overflow: 'hidden' }}>
-                  {STRESS.map(({ value, label }) => (
-                    <OptionRow key={value} label={label} value={`${value}/5`} selected={stressLevel === value} onClick={() => setStressLevel(value)} />
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {stressLevel !== null && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginBottom: 20, overflow: 'hidden' }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-                  03  DID YOU SELF-STUDY AT HOME TODAY?
-                </div>
-                <TripleButton options={YES_NO} value={selfStudy} onChange={setSelfStudy} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {selfStudy !== null && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginBottom: 20, overflow: 'hidden' }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-                  04  DID ACADEMIC PERFORMANCE IMPACT YOUR MOOD?
-                </div>
-                <TripleButton options={IMPACT} value={moodImpact} onChange={setMoodImpact} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {moodImpact !== null && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginBottom: 20, overflow: 'hidden' }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-                  05  DID IT IMPACT YOUR DAY-TO-DAY LIFE?
-                </div>
-                <TripleButton options={IMPACT} value={lifeImpact} onChange={setLifeImpact} />
-                {lifeImpact === 'yes' && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginTop: 8 }}>
-                    <input
-                      type="text"
-                      value={lifeImpactExample}
-                      onChange={e => setLifeImpactExample(e.target.value)}
-                      placeholder="WHAT DID YOU MISS OUT ON?"
-                      style={{
-                        width: '100%', padding: '11px 14px', boxSizing: 'border-box',
-                        fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em',
-                        color: 'var(--ink)', background: 'var(--bg)',
-                        border: '1.5px solid var(--border)', outline: 'none',
-                      }}
-                    />
-                  </motion.div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {lifeImpact !== null && (
-              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                <button
-                  onClick={handleSubmit}
-                  disabled={!performance || !stressLevel || loading || alreadyLogged}
-                  className="br-btn br-btn-inv"
-                  style={{
-                    width: '100%', padding: '13px', fontSize: 12, letterSpacing: '0.08em',
-                    opacity: alreadyLogged || loading ? 0.45 : 1,
-                    cursor: alreadyLogged || loading ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {alreadyLogged ? 'ALREADY LOGGED TODAY' : loading ? 'SAVING…' : 'LOG ENTRY →'}
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Recent entries */}
-        <div>
-          <div style={{ border: '1.5px solid var(--border)', position: 'sticky', top: 24 }}>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em',
-              padding: '9px 12px', borderBottom: '1.5px solid var(--border)',
-            }}>
-              RECENT ENTRIES
-            </div>
-            {recentEntries.length === 0 ? (
-              <div style={{ padding: '20px 12px', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.06em' }}>
-                NO ENTRIES YET.
+          {alreadyLogged && todayEntry ? (
+            <div className="stack-sm">
+              <p className="t-body">You&apos;ve already checked in today. Come back tomorrow.</p>
+              <div className="row" style={{ gap: 28 }}>
+                <div><p className="t-num">{todayEntry.stress_level}<span className="t-h4 faint">/5</span></p><p className="t-small muted">stress</p></div>
+                <div><p className="t-num">{todayEntry.performance_rating}<span className="t-h4 faint">/5</span></p><p className="t-small muted">how school went</p></div>
               </div>
-            ) : (
-              recentEntries.map((entry, i) => (
-                <div
-                  key={entry.id}
-                  style={{ padding: '9px 12px', borderBottom: i < recentEntries.length - 1 ? '1px solid var(--border-2)' : 'none' }}
-                >
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.08em', marginBottom: 4 }}>
-                    {new Date(entry.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()}
-                  </div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink)', letterSpacing: '0.04em' }}>
-                    P: {entry.performance_rating}/5  ·  S: {entry.stress_level}/5
-                  </div>
+            </div>
+          ) : (
+            <>
+              <div className="stack-sm">
+                <p id="s-perf" className="field__label">How did school go today?</p>
+                <ScalePicker options={PERFORMANCE} value={performance} onChange={setPerformance} labelledBy="s-perf" />
+              </div>
+              {performance !== null && (
+                <div className="stack-sm">
+                  <p id="s-level" className="field__label">How stressed were you?</p>
+                  <ScalePicker options={STRESS} value={stressLevel} onChange={setStressLevel} labelledBy="s-level" />
                 </div>
-              ))
+              )}
+              {stressLevel !== null && <Choice id="s-self" label="Did you self-study at home today?" options={YES_NO} value={selfStudy} onChange={setSelfStudy} />}
+              {selfStudy !== null && <Choice id="s-mood" label="Did school affect your mood?" options={IMPACT} value={moodImpact} onChange={setMoodImpact} />}
+              {moodImpact !== null && (
+                <div className="stack-sm">
+                  <Choice id="s-life" label="Did it affect the rest of your day?" options={IMPACT} value={lifeImpact} onChange={setLifeImpact} />
+                  {lifeImpact === 'yes' && (
+                    <div className="field">
+                      <label htmlFor="s-example" className="field__label">What did you miss out on? <span className="faint" style={{ fontWeight: 400 }}>(optional)</span></label>
+                      <input id="s-example" className="input" value={lifeImpactExample} onChange={e => setLifeImpactExample(e.target.value)} placeholder="e.g. skipped cricket with friends" />
+                    </div>
+                  )}
+                </div>
+              )}
+              {lifeImpact !== null && (
+                <Pill variant="tape" size="lg" block onClick={handleSubmit} disabled={!ready || loading}>
+                  {loading ? 'Saving…' : 'Save check-in'}
+                </Pill>
+              )}
+            </>
+          )}
+        </section>
+
+        <aside aria-labelledby="s-recent">
+          <div className="sheet sheet--pad">
+            <h2 id="s-recent" className="section-title">Recent entries</h2>
+            {recentEntries.length === 0 ? (
+              <p className="t-body muted">Nothing yet. Your first check-in will show up here.</p>
+            ) : (
+              <ul className="list">
+                {recentEntries.map(entry => (
+                  <li key={entry.id} style={{ justifyContent: 'space-between' }}>
+                    <span className="t-small muted">{new Date(entry.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                    <span className="t-small"><strong>Stress {entry.stress_level}/5</strong> · school {entry.performance_rating}/5</span>
+                  </li>
+                ))}
+              </ul>
             )}
+            <p className="t-small" style={{ marginTop: 12 }}><Link href="/dashboard/research/insights" className="link">Open insights</Link></p>
           </div>
-        </div>
+        </aside>
       </div>
+
+      <style>{`
+        .stress-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+        .stress-grid aside { position: sticky; top: 100px; }
+        @media (max-width: 900px) { .stress-grid { grid-template-columns: 1fr; } .stress-grid aside { position: static; } }
+      `}</style>
     </div>
   )
 }

@@ -1,61 +1,55 @@
-import type { Metadata } from 'next'
-import { Inter, Syne, JetBrains_Mono } from 'next/font/google'
+import type { Metadata, Viewport } from 'next'
+import { Inter, Gloock } from 'next/font/google'
 import './globals.css'
+import { StickerDefs } from '@/components/ui/stickers'
 
 const inter = Inter({
   subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-inter',
   display: 'swap',
 })
 
-const syne = Syne({
+// Display face: a condensed, high-contrast serif with soft ball terminals.
+const gloock = Gloock({
   subsets: ['latin'],
-  weight: ['400', '700', '800'],
-  variable: '--font-syne',
+  weight: '400',
+  variable: '--font-gloock',
   display: 'swap',
 })
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '600'],
-  variable: '--font-jetbrains',
-  display: 'swap',
-})
+const DESCRIPTION =
+  'A free, private place for students in Pakistan to check in, breathe, focus and talk things through.'
 
 export const metadata: Metadata = {
-  title: 'Satori',
-  description: 'Your private companion for mental wellness',
+  metadataBase: new URL('https://satoripk.vercel.app'),
+  title: { default: 'Satori', template: '%s · Satori' },
+  description: DESCRIPTION,
   openGraph: {
     title: 'Satori',
-    description: 'Your private companion for mental wellness',
+    description: DESCRIPTION,
     url: 'https://satoripk.vercel.app',
     siteName: 'Satori',
-    images: [
-      {
-        url: 'https://satoripk.vercel.app/og-image.png',
-        width: 1200,
-        height: 630,
-        alt: 'Satori',
-      },
-    ],
+    images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Satori: kites over Lahore rooftops at dusk' }],
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Satori ',
-    description: 'Your private companion for mental wellness — mood tracking, AI support, journaling, and breathwork.',
-    images: ['https://satoripk.vercel.app/og-image.png'],
+    title: 'Satori',
+    description: DESCRIPTION,
+    images: ['/og-image.jpg'],
   },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#0F1E2E',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={`${inter.variable} ${syne.variable} ${jetbrainsMono.variable}`}
-    >
-      <body className="antialiased" style={{ background: '#F4F2EE', color: '#0C0C0C', fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${gloock.variable}`}>
+      <body>
+        <StickerDefs />
         {children}
       </body>
     </html>

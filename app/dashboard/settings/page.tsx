@@ -1,78 +1,42 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useState, useEffect, type ReactNode } from 'react'
+import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useRouter } from 'next/navigation'
+import { ChevronRight } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { PageHeader } from '@/components/app/PageHeader'
+import { Switch } from '@/components/ui/controls'
+import { Pill } from '@/components/ui/kit'
 
-function SettingsRow({
-  label, desc, onClick, danger = false, rightEl,
-}: {
-  label: string; desc?: string; onClick?: () => void; danger?: boolean; rightEl?: React.ReactNode
-}) {
+function Row({ label, desc, onClick, danger = false }: { label: string; desc?: string; onClick: () => void; danger?: boolean }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        width: '100%', padding: '14px 16px', textAlign: 'left',
-        background: 'var(--bg)', border: 'none', borderBottom: '1px solid var(--border-2)',
-        cursor: 'pointer', transition: 'background 80ms',
-      }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)' }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = danger ? 'var(--accent-bg)' : 'var(--bg)' }}
-    >
-      <div style={{ flex: 1, textAlign: 'left' }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, color: danger ? 'var(--accent)' : 'var(--ink)', letterSpacing: '0.04em', marginBottom: desc ? 2 : 0 }}>
-          {label}
-        </div>
-        {desc && (
-          <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink-3)' }}>{desc}</div>
-        )}
-      </div>
-      {rightEl ?? (
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: danger ? 'var(--accent)' : 'var(--ink-3)', flexShrink: 0 }}>→</span>
-      )}
-    </button>
+    <li>
+      <button type="button" className={`st-row ${danger ? 'st-row--danger' : ''}`} onClick={onClick}>
+        <span>
+          <span className="st-row__label">{label}</span>
+          {desc && <span className="st-row__desc">{desc}</span>}
+        </span>
+        <ChevronRight size={18} aria-hidden="true" />
+      </button>
+    </li>
   )
 }
 
-function AngularToggle({ on, onChange }: { on: boolean; onChange: () => void }) {
-  return (
-    <button
-      onClick={e => { e.stopPropagation(); onChange() }}
-      style={{
-        position: 'relative', width: 40, height: 20, flexShrink: 0,
-        background: on ? 'var(--bg-invert)' : 'var(--bg)', border: '1.5px solid var(--border)',
-        cursor: 'pointer', transition: 'background 80ms',
-      }}
-    >
-      <motion.div
-        animate={{ x: on ? 18 : 2 }}
-        transition={{ duration: 0.08 }}
-        style={{
-          position: 'absolute', top: 2, width: 12, height: 12,
-          background: on ? 'var(--ink-invert)' : 'var(--ink)',
-        }}
-      />
-    </button>
-  )
-}
-
-function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
+function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(12,12,12,0.6)' }}
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.97, opacity: 0 }}
-            onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 440, background: 'var(--bg)', border: '1.5px solid var(--border)', padding: 28 }}
-          >
+        <motion.div className="st-scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+          <motion.div role="dialog" aria-modal="true" aria-label={title} className="st-dialog"
+            initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} onClick={e => e.stopPropagation()}>
+            <h2 className="t-h3">{title}</h2>
             {children}
           </motion.div>
         </motion.div>
@@ -81,30 +45,20 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 32 }}>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 6 }}>
-        {title}
-      </div>
-      <div style={{ border: '1.5px solid var(--border)' }}>{children}</div>
-    </div>
-  )
-}
-
 export default function SettingsPage() {
-  const router = useRouter()
   const [toast, setToast]                   = useState('')
   const [showDeleteModal, setShowDelete]     = useState(false)
   const [showResetModal, setShowReset]       = useState(false)
   const [showPasswordModal, setShowPassword] = useState(false)
-  const [resetType, setResetType]            = useState<'all' | 'journals' | 'pomodoros'>('all')
+  const [resetType, setResetType]            = useState<'all' | 'journals'>('all')
   const [email, setEmail]                    = useState('')
   const [userId, setUserId]                  = useState<string | null>(null)
   const [currentPw, setCurrentPw]           = useState('')
   const [newPw, setNewPw]                   = useState('')
   const [confirmPw, setConfirmPw]           = useState('')
-  const [anonData, setAnonData]             = useState(true)
+  const [pwError, setPwError]               = useState('')
+  const [pwSaving, setPwSaving]             = useState(false)
+  const [consent, setConsent]               = useState(false)
   const [deleting, setDeleting]             = useState(false)
 
   useEffect(() => {
@@ -114,36 +68,40 @@ export default function SettingsPage() {
       setEmail(session.user.email || '')
       setUserId(session.user.id)
       const { data } = await supabase.from('profiles').select('research_consent').eq('id', session.user.id).single()
-      if (data) setAnonData(data.research_consent !== false)
+      // The research views only include rows where consent is true.
+      if (data) setConsent(data.research_consent === true)
     }
     load()
   }, [])
 
   // Withdrawing consent removes the user's rows from the research views.
-  async function toggleResearchConsent() {
+  async function setResearchConsent(next: boolean) {
     if (!userId) return
-    const next = !anonData
-    setAnonData(next)
+    setConsent(next)
     const { error } = await supabase.from('profiles').update({ research_consent: next }).eq('id', userId)
-    if (error) { setAnonData(!next); showToast('COULD NOT UPDATE — TRY AGAIN'); return }
-    showToast(next ? 'RESEARCH SHARING ON' : 'RESEARCH SHARING OFF')
+    if (error) { setConsent(!next); showToast("That didn't save. Try again."); return }
+    showToast(next ? "You're part of the study. Thank you." : "You've left the study. Your check-ins are no longer shared.")
   }
 
   function showToast(msg: string) {
     setToast(msg)
-    setTimeout(() => setToast(''), 3000)
+    setTimeout(() => setToast(''), 4000)
   }
 
-  async function handlePasswordChange() {
-    if (!currentPw || !newPw || !confirmPw) return alert('Fill in all fields')
-    if (newPw !== confirmPw) return alert('Passwords do not match')
-    if (newPw.length < 8) return alert('Password must be at least 8 characters')
+  async function handlePasswordChange(e: React.FormEvent) {
+    e.preventDefault()
+    setPwError('')
+    if (!currentPw || !newPw || !confirmPw) return setPwError('Fill in all three fields.')
+    if (newPw.length < 8) return setPwError('Your new password needs at least 8 characters.')
+    if (newPw !== confirmPw) return setPwError("The two new passwords don't match.")
+    setPwSaving(true)
     const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: currentPw })
-    if (signInErr) return alert('Current password is incorrect')
+    if (signInErr) { setPwSaving(false); return setPwError("Your current password isn't right.") }
     const { error } = await supabase.auth.updateUser({ password: newPw })
-    if (error) return alert('Failed to update: ' + error.message)
+    setPwSaving(false)
+    if (error) return setPwError(`That didn't work: ${error.message}`)
     setShowPassword(false); setCurrentPw(''); setNewPw(''); setConfirmPw('')
-    showToast('PASSWORD UPDATED')
+    showToast('Password changed.')
   }
 
   async function handleDeleteAccount() {
@@ -151,7 +109,7 @@ export default function SettingsPage() {
     const res = await fetch('/api/account', { method: 'DELETE' }).catch(() => null)
     if (!res?.ok) {
       setDeleting(false)
-      return alert('Failed to delete account. Please try again.')
+      return alert("Your account wasn't deleted. Check your connection and try again.")
     }
     await supabase.auth.signOut().catch(() => {})
     localStorage.clear(); sessionStorage.clear()
@@ -162,15 +120,14 @@ export default function SettingsPage() {
     if (resetType === 'journals') {
       if (!userId) return
       const { error } = await supabase.from('journal_entries').delete().eq('user_id', userId)
-      if (error) { showToast('COULD NOT DELETE JOURNALS'); return }
-    } else if (resetType === 'all') {
+      if (error) { showToast("Your journals weren't deleted. Try again."); return }
+      showToast('All journal entries deleted.')
+    } else {
       // Auth lives in cookies, so clearing browser storage keeps the session.
       localStorage.clear()
-    } else {
-      localStorage.removeItem('pomodoro_total')
+      showToast('Cleared this device.')
     }
     setShowReset(false)
-    showToast('DATA CLEARED')
   }
 
   async function handleExport() {
@@ -188,154 +145,100 @@ export default function SettingsPage() {
     a.href = URL.createObjectURL(blob)
     a.download = `satori-${new Date().toISOString().split('T')[0]}.json`
     a.click()
-    showToast('DATA EXPORTED')
+    showToast('Your data is downloading.')
   }
 
   return (
-    <div style={{ maxWidth: 560 }}>
+    <div>
+      <PageHeader lines={['settings']} accent="settings" art="day" sticker="padlock" lead="Your account, your data and what you share." />
 
-      {/* Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            style={{
-              position: 'fixed', top: 20, right: 20, zIndex: 60,
-              background: 'var(--bg-invert)', color: 'var(--ink-invert)',
-              fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.08em',
-              padding: '10px 16px', border: '1.5px solid var(--border)',
-            }}
-          >
-            {toast}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div aria-live="polite" className="st-toast-wrap">{toast && <div className="notice notice--ok st-toast">{toast}</div>}</div>
 
-      {/* Header */}
-      <div style={{ marginBottom: 40 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(36px, 5vw, 56px)', color: 'var(--ink)', letterSpacing: '-0.03em', lineHeight: 1 }}>
-          SETTINGS
-        </h1>
-        <div style={{ borderTop: '1.5px solid var(--border)', marginTop: 12 }} />
+      <div className="page-narrow stack-lg">
+        <section aria-labelledby="st-research" className="sheet sheet--pad stack-sm">
+          <h2 id="st-research" className="section-title" style={{ margin: 0 }}>Research</h2>
+          <Switch checked={consent} onChange={setResearchConsent}
+            label="Share my check-ins with the study"
+            description="Your mood and stress check-ins (with any notes on them) and your profile answers, including your name and email, go to the Lahore Garrison University study team. Your journal and Kokoro chats are never shared. Turn this off any time and you'll be left out of every future export." />
+        </section>
+
+        <section aria-labelledby="st-data">
+          <h2 id="st-data" className="section-title">Your data</h2>
+          <ul className="st-list sheet">
+            <Row label="Download my data" desc="Everything in your account, as a JSON file" onClick={handleExport} />
+            <Row label="Clear this device" desc="Removes focus timer stats and saved preferences from this browser" onClick={() => { setResetType('all'); setShowReset(true) }} />
+            <Row label="Delete all journal entries" desc="Permanently removes every entry" onClick={() => { setResetType('journals'); setShowReset(true) }} danger />
+          </ul>
+        </section>
+
+        <section aria-labelledby="st-account">
+          <h2 id="st-account" className="section-title">Account</h2>
+          <ul className="st-list sheet">
+            <Row label="Change password" desc={email ? `Signed in as ${email}` : undefined} onClick={() => { setPwError(''); setShowPassword(true) }} />
+            <Row label="Delete my account" desc="Permanently deletes your account and everything in it" onClick={() => setShowDelete(true)} danger />
+          </ul>
+        </section>
+
+        <p className="t-small muted">
+          Satori is made by Saad Nizami as part of a research study. <Link href="/dashboard/creator" className="link">About Satori</Link>
+        </p>
       </div>
 
-      {/* Account */}
-      <Section title="ACCOUNT">
-        <SettingsRow label="CHANGE PASSWORD" desc="Update your account password" onClick={() => setShowPassword(true)} />
-        <SettingsRow
-          label="DELETE ACCOUNT"
-          desc="Permanently delete account and all data"
-          onClick={() => setShowDelete(true)}
-          danger
-        />
-      </Section>
-
-      {/* Privacy */}
-      <Section title="PRIVACY & DATA">
-        <SettingsRow
-          label="RESEARCH DATA SHARING"
-          desc="Include your mood and stress logs in the confidential research dataset"
-          onClick={toggleResearchConsent}
-          rightEl={<AngularToggle on={anonData} onChange={toggleResearchConsent} />}
-        />
-        <div style={{ padding: '12px 16px', background: 'var(--bg-card)', borderTop: '1px solid var(--border-2)' }}>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.6 }}>
-            Your data contributes to mental health research in Pakistan. Turn this off at any time to withdraw — your entries are excluded from all future exports.
-          </p>
-        </div>
-      </Section>
-
-      {/* Data management */}
-      <Section title="DATA MANAGEMENT">
-        <SettingsRow label="EXPORT MY DATA" desc="Download all your data as JSON" onClick={handleExport} />
-        <SettingsRow label="CLEAR LOCAL DATA" desc="Remove data stored on this device (pomodoro stats)" onClick={() => { setResetType('all'); setShowReset(true) }} />
-        <SettingsRow label="DELETE ALL JOURNALS" desc="Permanently delete every journal entry" onClick={() => { setResetType('journals'); setShowReset(true) }} danger />
-      </Section>
-
-      {/* App info */}
-      <Section title="APP INFO">
-        {[{ label: 'VERSION', value: '2.0.0' }, { label: 'DEVELOPER', value: 'SAAD NIZAMI' }].map(r => (
-          <div
-            key={r.label}
-            style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border-2)' }}
-          >
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>{r.label}</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)' }}>{r.value}</span>
+      <Modal open={showPasswordModal} onClose={() => setShowPassword(false)} title="Change password">
+        <form className="stack" onSubmit={handlePasswordChange}>
+          {[
+            { id: 'pw-cur', label: 'Current password', val: currentPw, set: setCurrentPw, ac: 'current-password' },
+            { id: 'pw-new', label: 'New password', val: newPw, set: setNewPw, ac: 'new-password' },
+            { id: 'pw-con', label: 'New password, again', val: confirmPw, set: setConfirmPw, ac: 'new-password' },
+          ].map(f => (
+            <div key={f.id} className="field">
+              <label htmlFor={f.id} className="field__label">{f.label}</label>
+              <input id={f.id} type="password" className="input" autoComplete={f.ac} value={f.val} onChange={e => f.set(e.target.value)} aria-describedby={pwError ? 'pw-err' : undefined} />
+            </div>
+          ))}
+          {pwError && <p id="pw-err" className="field__error" role="alert">{pwError}</p>}
+          <div className="row">
+            <Pill type="submit" variant="tape" disabled={pwSaving}>{pwSaving ? 'Changing…' : 'Change password'}</Pill>
+            <button type="button" className="text-btn" onClick={() => setShowPassword(false)}>Cancel</button>
           </div>
-        ))}
-        <button
-          onClick={() => router.push('/dashboard/creator')}
-          style={{
-            display: 'block', width: '100%', padding: '14px 16px', textAlign: 'left',
-            background: 'var(--bg)', border: 'none',
-            fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
-            color: 'var(--ink)', letterSpacing: '0.04em', cursor: 'pointer',
-          }}
-        >
-          ABOUT THE RESEARCH →
-        </button>
-      </Section>
+        </form>
+      </Modal>
 
-      {/* Password Modal */}
-      <Modal open={showPasswordModal} onClose={() => setShowPassword(false)}>
-        <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--ink)', marginBottom: 20, letterSpacing: '-0.01em' }}>CHANGE PASSWORD</h2>
-        <div style={{ borderTop: '1.5px solid var(--border)', marginBottom: 20 }} />
-        <div style={{ marginBottom: 14, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', padding: '8px 12px', background: 'var(--bg-card)', border: '1.5px solid var(--border)' }}>
-          {email}
-        </div>
-        {[
-          { label: 'CURRENT PASSWORD', val: currentPw, set: setCurrentPw },
-          { label: 'NEW PASSWORD',     val: newPw,     set: setNewPw },
-          { label: 'CONFIRM NEW',      val: confirmPw, set: setConfirmPw },
-        ].map(f => (
-          <div key={f.label} style={{ marginBottom: 12 }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 6 }}>{f.label}</div>
-            <input
-              type="password" value={f.val} onChange={e => f.set(e.target.value)}
-              className="br-input"
-              style={{ width: '100%', padding: '10px 12px', fontFamily: 'var(--font-body)', fontSize: 14, boxSizing: 'border-box' }}
-            />
-          </div>
-        ))}
-        <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-          <button onClick={handlePasswordChange} className="br-btn br-btn-inv" style={{ flex: 1, padding: '12px' }}>UPDATE PASSWORD</button>
-          <button onClick={() => setShowPassword(false)} className="br-btn" style={{ padding: '12px 16px' }}>CANCEL</button>
+      <Modal open={showDeleteModal} onClose={() => setShowDelete(false)} title="Delete your account?">
+        <p className="t-body">This permanently deletes your profile, check-ins, journal, Kokoro chats and profile picture. It can&apos;t be undone, and you&apos;ll be signed out straight away.</p>
+        <p className="t-small muted">Want a copy first? Close this and use &ldquo;Download my data&rdquo;.</p>
+        <div className="row">
+          <Pill variant="danger" onClick={handleDeleteAccount} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete my account'}</Pill>
+          <button type="button" className="text-btn" onClick={() => setShowDelete(false)}>Keep my account</button>
         </div>
       </Modal>
 
-      {/* Delete Modal */}
-      <Modal open={showDeleteModal} onClose={() => setShowDelete(false)}>
-        <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--accent)', marginBottom: 16, letterSpacing: '-0.01em' }}>DELETE ACCOUNT?</h2>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink)', marginBottom: 8, fontWeight: 600 }}>This action is permanent and cannot be undone.</p>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-2)', marginBottom: 20 }}>
-          Everything — profile, moods, stress logs, journals, chat sessions, profile picture — will be deleted from the database.
-        </p>
-        <div style={{ padding: '10px 14px', background: 'var(--accent-bg)', border: '1.5px solid var(--accent)', marginBottom: 20 }}>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent)', letterSpacing: '0.04em' }}>YOU WILL BE IMMEDIATELY LOGGED OUT AND CANNOT RECOVER THIS ACCOUNT.</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={handleDeleteAccount} disabled={deleting} style={{ flex: 1, padding: '12px', background: 'var(--accent)', color: 'var(--ink-invert)', border: '1.5px solid var(--accent)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', cursor: deleting ? 'wait' : 'pointer', opacity: deleting ? 0.6 : 1 }}>
-            {deleting ? 'DELETING…' : 'YES, DELETE EVERYTHING'}
-          </button>
-          <button onClick={() => setShowDelete(false)} className="br-btn" style={{ padding: '12px 16px' }}>CANCEL</button>
-        </div>
-      </Modal>
-
-      {/* Reset Modal */}
-      <Modal open={showResetModal} onClose={() => setShowReset(false)}>
-        <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--ink)', marginBottom: 16, letterSpacing: '-0.01em' }}>CLEAR DATA?</h2>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-2)', marginBottom: 20 }}>
+      <Modal open={showResetModal} onClose={() => setShowReset(false)} title={resetType === 'journals' ? 'Delete every journal entry?' : 'Clear this device?'}>
+        <p className="t-body">
           {resetType === 'journals'
-            ? 'This permanently deletes every journal entry from your account. It cannot be undone.'
-            : resetType === 'all'
-              ? 'This clears data stored on this device, such as pomodoro stats. Your account data is not affected.'
-              : 'This clears your pomodoro stats from this device.'}
+            ? "This permanently deletes every journal entry in your account. It can't be undone."
+            : 'This clears focus timer stats and saved preferences from this browser. Your account and check-ins are not affected.'}
         </p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={handleReset} className="br-btn br-btn-inv" style={{ flex: 1, padding: '12px' }}>YES, CLEAR DATA</button>
-          <button onClick={() => setShowReset(false)} className="br-btn" style={{ padding: '12px 16px' }}>CANCEL</button>
+        <div className="row">
+          <Pill variant={resetType === 'journals' ? 'danger' : 'tape'} onClick={handleReset}>{resetType === 'journals' ? 'Delete all entries' : 'Clear this device'}</Pill>
+          <button type="button" className="text-btn" onClick={() => setShowReset(false)}>Cancel</button>
         </div>
       </Modal>
+
+      <style>{`
+        .st-list { list-style: none; margin: 0; padding: 4px 0; }
+        .st-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 64px; padding: 12px 20px; background: none; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; text-align: left; color: var(--ink); }
+        .st-list li:last-child .st-row { border-bottom: 0; }
+        .st-row:hover { background: var(--fog); }
+        .st-row__label { display: block; font-weight: 600; font-size: 16px; }
+        .st-row__desc { display: block; font-size: 14px; color: var(--ink-3); margin-top: 2px; }
+        .st-row--danger .st-row__label { color: var(--danger); }
+        .st-row--danger:hover { background: var(--danger-bg); }
+        .st-scrim { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px; background: rgba(15,30,46,0.5); }
+        .st-dialog { width: 100%; max-width: 460px; display: grid; gap: 16px; padding: 28px; border-radius: 24px; background: var(--paper); }
+        .st-toast-wrap { position: fixed; top: 92px; left: 50%; transform: translateX(-50%); z-index: 90; width: min(480px, calc(100vw - 32px)); }
+        .st-toast { box-shadow: var(--lift); text-align: center; }
+      `}</style>
     </div>
   )
 }

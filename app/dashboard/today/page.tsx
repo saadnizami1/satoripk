@@ -1,85 +1,30 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { motion, AnimatePresence } from 'framer-motion'
 import { notifyCheckin, startOfToday } from '@/lib/dates'
-
-const MOODS = [
-  { value: 1, label: 'TERRIBLE' },
-  { value: 2, label: 'BAD' },
-  { value: 3, label: 'OKAY' },
-  { value: 4, label: 'GOOD' },
-  { value: 5, label: 'GREAT' },
-]
+import { moodFor } from '@/lib/moods'
+import { PageHeader } from '@/components/app/PageHeader'
+import { MoodPicker, ScalePicker } from '@/components/ui/controls'
+import { MoodGlyph } from '@/components/ui/MoodGlyph'
+import { Pill, Skeleton } from '@/components/ui/kit'
 
 const PERFORMANCE = [
-  { value: 5, label: 'EXCELLENT' },
-  { value: 4, label: 'GOOD' },
-  { value: 3, label: 'AVERAGE' },
-  { value: 2, label: 'BELOW AVG' },
-  { value: 1, label: 'POOR' },
+  { value: 1, label: 'Poor' },
+  { value: 2, label: 'Below avg' },
+  { value: 3, label: 'Average' },
+  { value: 4, label: 'Good' },
+  { value: 5, label: 'Excellent' },
 ]
 
 const STRESS_LEVELS = [
-  { value: 5, label: 'EXTREME' },
-  { value: 4, label: 'VERY HIGH' },
-  { value: 3, label: 'MODERATE' },
-  { value: 2, label: 'SLIGHT' },
-  { value: 1, label: 'NONE' },
+  { value: 1, label: 'None' },
+  { value: 2, label: 'Slight' },
+  { value: 3, label: 'Moderate' },
+  { value: 4, label: 'Very high' },
+  { value: 5, label: 'Extreme' },
 ]
-
-function OptionGrid({ options, value, onChange }: {
-  options: { value: number; label: string }[]
-  value: number | null
-  onChange: (v: number) => void
-}) {
-  return (
-    <div style={{ display: 'flex', border: '1.5px solid var(--border)' }}>
-      {options.map((opt, i) => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          style={{
-            flex: 1,
-            padding: 'clamp(10px,2.5vw,16px) clamp(3px,1vw,6px)',
-            textAlign: 'center',
-            background: value === opt.value ? 'var(--bg-invert)' : 'var(--bg)',
-            color: value === opt.value ? 'var(--ink-invert)' : 'var(--ink-2)',
-            border: 'none',
-            borderRight: i < options.length - 1 ? '1.5px solid var(--border)' : 'none',
-            fontFamily: 'var(--font-display)', fontWeight: 700,
-            fontSize: 'clamp(8px,1.8vw,12px)',
-            letterSpacing: '0.02em', cursor: 'pointer',
-            transition: 'background 80ms, color 80ms',
-          }}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function SectionHeader({ num, label, done }: { num: string; label: string; done: boolean }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '10px 14px', borderBottom: '1.5px solid var(--border)',
-      background: 'var(--bg-card)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.14em' }}>{num}</span>
-        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink)', letterSpacing: '0.06em' }}>{label}</span>
-      </div>
-      {done && (
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink)', letterSpacing: '0.1em' }}>
-          ✓ LOGGED
-        </span>
-      )}
-    </div>
-  )
-}
 
 export default function TodayPage() {
   const [userId, setUserId]       = useState('')
@@ -98,6 +43,7 @@ export default function TodayPage() {
   const [selPerf, setSelPerf]           = useState<number | null>(null)
   const [selStress, setSelStress]       = useState<number | null>(null)
   const [savingStress, setSavingStress] = useState(false)
+  const [error, setError]               = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -120,7 +66,7 @@ export default function TodayPage() {
 
   const saveMood = async () => {
     if (selMood === null || !userId) return
-    setSavingMood(true)
+    setSavingMood(true); setError('')
     const { data, error } = await supabase.from('moods').insert({
       user_id: userId, mood_score: selMood,
       note: moodNote.trim() || null,
@@ -128,14 +74,15 @@ export default function TodayPage() {
     if (!error) {
       setTodayMood(data)
       setMoodDone(true)
+      setSelMood(null); setMoodNote('')
       notifyCheckin()
-    }
+    } else setError("Your mood didn't save. Check your connection and try again.")
     setSavingMood(false)
   }
 
   const saveStress = async () => {
     if (selPerf === null || selStress === null || !userId) return
-    setSavingStress(true)
+    setSavingStress(true); setError('')
     const { data, error } = await supabase.from('academic_stress').insert({
       user_id: userId,
       performance_rating: selPerf,
@@ -145,175 +92,93 @@ export default function TodayPage() {
       setTodayStress(data)
       setStressDone(true)
       notifyCheckin()
-    }
+    } else setError("Your stress check-in didn't save. Check your connection and try again.")
     setSavingStress(false)
   }
 
-  const dateStr = new Date().toLocaleDateString('en-GB', {
-    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
-  }).toUpperCase()
-
-  if (loading) {
-    return (
-      <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center' }}>
-        {[120, 80, 48].map((w, i) => <div key={i} className="skeleton" style={{ width: w, height: 14 }} />)}
-      </div>
-    )
-  }
-
   const allDone = moodDone && stressDone
+  const mood = moodFor(todayMood?.mood_score)
 
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div>
+      <PageHeader lines={['record', 'today']} accent="today" art="dawn" sticker="phone"
+        lead="Two quick check-ins: how you feel, and how school feels. Under 30 seconds." />
 
-      {/* Header */}
-      <div style={{ marginBottom: 8 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(36px,5vw,56px)', color: 'var(--ink)', letterSpacing: '-0.03em', lineHeight: 1 }}>
-          RECORD TODAY.
-        </h1>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginTop: 6 }}>
-          {dateStr}
-        </div>
-        <div style={{ borderTop: '1.5px solid var(--border)', marginTop: 10, marginBottom: 24 }} />
-      </div>
+      {loading ? <Skeleton /> : (
+        <div className="stack">
+          {allDone && (
+            <div className="notice notice--ok" role="status">
+              <strong>All done for today.</strong> See you tomorrow.
+            </div>
+          )}
+          {error && <div className="notice notice--error" role="alert">{error}</div>}
 
-      {/* All done strip */}
-      <AnimatePresence>
-        {allDone && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            style={{
-              fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.1em',
-              color: 'var(--ink-invert)', background: 'var(--bg-invert)',
-              padding: '12px 16px', marginBottom: 24,
-            }}
-          >
-            ALL DONE FOR TODAY. SEE YOU TOMORROW.
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Two sections side by side on tablet+, stacked on mobile */}
-      <div className="grid-2col" style={{ gap: 24 }}>
-
-        {/* ── MOOD SECTION ── */}
-        <div style={{ border: '1.5px solid var(--border)' }}>
-          <SectionHeader num="01" label="MOOD" done={moodDone} />
-
-          {moodDone && todayMood ? (
-            <div style={{ padding: '20px 14px' }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 36, color: 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1, marginBottom: 8 }}>
-                {MOODS.find(m => m.value === todayMood.mood_score)?.label}
+          <div className="grid-2" style={{ alignItems: 'start' }}>
+            {/* ── Mood ── */}
+            <section aria-labelledby="t-mood" className="sheet sheet--pad stack">
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <h2 id="t-mood" className="section-title" style={{ margin: 0 }}>1. Mood</h2>
+                {moodDone && <span className="row t-small" style={{ gap: 6 }}><Check size={16} aria-hidden="true" /> Recorded</span>}
               </div>
-              {todayMood.note && (
-                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-3)', fontStyle: 'italic', marginBottom: 12 }}>
-                  &ldquo;{todayMood.note}&rdquo;
-                </p>
+
+              {moodDone && mood ? (
+                <div className="stack-sm">
+                  <div className="row" style={{ gap: 14 }}>
+                    <MoodGlyph score={mood.score} size={56} />
+                    <p className="t-h3">{mood.label}</p>
+                  </div>
+                  {todayMood.note && <p className="t-body muted">&ldquo;{todayMood.note}&rdquo;</p>}
+                  <div><button type="button" className="pill pill--ghost pill--sm" onClick={() => setMoodDone(false)}>Log again</button></div>
+                </div>
+              ) : (
+                <>
+                  <p id="t-mood-q" className="field__label">How are you feeling?</p>
+                  <MoodPicker value={selMood} onChange={setSelMood} compact labelledBy="t-mood-q" />
+                  {selMood !== null && (
+                    <>
+                      <div className="field">
+                        <label htmlFor="t-note" className="field__label">Add a note <span className="faint" style={{ fontWeight: 400 }}>(optional)</span></label>
+                        <textarea id="t-note" className="input" rows={2} maxLength={2000} value={moodNote} onChange={e => setMoodNote(e.target.value)}
+                          placeholder="What's behind it?" style={{ minHeight: 80 }} />
+                      </div>
+                      <Pill variant="tape" block onClick={saveMood} disabled={savingMood}>
+                        {savingMood ? 'Saving…' : `Save as ${moodFor(selMood)?.label.toLowerCase()}`}
+                      </Pill>
+                    </>
+                  )}
+                </>
               )}
-              <button
-                onClick={() => setMoodDone(false)}
-                style={{
-                  fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11,
-                  color: 'var(--ink-3)', background: 'none',
-                  border: '1.5px solid var(--border-2)', padding: '5px 12px',
-                  cursor: 'pointer', letterSpacing: '0.06em',
-                }}
-              >
-                LOG AGAIN
-              </button>
-            </div>
-          ) : (
-            <div style={{ padding: '14px' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-                HOW ARE YOU FEELING?
-              </div>
-              <OptionGrid options={MOODS} value={selMood} onChange={setSelMood} />
+            </section>
 
-              <AnimatePresence>
-                {selMood !== null && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}
-                  >
-                    <textarea
-                      value={moodNote}
-                      onChange={e => setMoodNote(e.target.value)}
-                      rows={2}
-                      placeholder="Optional note..."
-                      className="br-input"
-                      style={{ width: '100%', padding: '10px', resize: 'none', fontFamily: 'var(--font-body)', fontSize: 13, boxSizing: 'border-box', marginTop: 12 }}
-                    />
-                    <button
-                      onClick={saveMood}
-                      disabled={savingMood}
-                      className="br-btn br-btn-inv"
-                      style={{ width: '100%', padding: '12px', fontSize: 12, letterSpacing: '0.06em', marginTop: 10, opacity: savingMood ? 0.6 : 1 }}
-                    >
-                      {savingMood ? 'SAVING...' : `LOG AS ${MOODS.find(m => m.value === selMood)?.label} →`}
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* ── Stress ── */}
+            <section aria-labelledby="t-stress" className="sheet sheet--pad stack">
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <h2 id="t-stress" className="section-title" style={{ margin: 0 }}>2. Academic stress</h2>
+                {stressDone && <span className="row t-small" style={{ gap: 6 }}><Check size={16} aria-hidden="true" /> Recorded</span>}
+              </div>
+
+              {stressDone && todayStress ? (
+                <div className="row" style={{ gap: 28 }}>
+                  <div><p className="t-num">{todayStress.stress_level}<span className="t-h4 faint">/5</span></p><p className="t-small muted">stress</p></div>
+                  <div><p className="t-num">{todayStress.performance_rating}<span className="t-h4 faint">/5</span></p><p className="t-small muted">how school went</p></div>
+                </div>
+              ) : (
+                <>
+                  <p id="t-perf-q" className="field__label">How did school go today?</p>
+                  <ScalePicker options={PERFORMANCE} value={selPerf} onChange={setSelPerf} labelledBy="t-perf-q" />
+                  <p id="t-stress-q" className="field__label">How stressed do you feel about it?</p>
+                  <ScalePicker options={STRESS_LEVELS} value={selStress} onChange={setSelStress} labelledBy="t-stress-q" />
+                  <Pill variant="tape" block onClick={saveStress} disabled={savingStress || selPerf === null || selStress === null}>
+                    {savingStress ? 'Saving…' : 'Save stress check-in'}
+                  </Pill>
+                </>
+              )}
+            </section>
+          </div>
+
+          {!allDone && (
+            <p className="t-small muted">If you said yes to research, both check-ins help the study. Either way, they build your mood graph.</p>
           )}
-        </div>
-
-        {/* ── STRESS SECTION ── */}
-        <div style={{ border: '1.5px solid var(--border)' }}>
-          <SectionHeader num="02" label="ACADEMIC STRESS" done={stressDone} />
-
-          {stressDone && todayStress ? (
-            <div style={{ padding: '20px 14px' }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 36, color: 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1, marginBottom: 8 }}>
-                {todayStress.stress_level}/5
-              </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em' }}>
-                STRESS  ·  PERFORMANCE {todayStress.performance_rating}/5
-              </div>
-            </div>
-          ) : (
-            <div style={{ padding: '14px' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-                ACADEMIC PERFORMANCE TODAY
-              </div>
-              <OptionGrid options={PERFORMANCE} value={selPerf} onChange={setSelPerf} />
-
-              <AnimatePresence>
-                {selPerf !== null && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}
-                  >
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.12em', marginTop: 16, marginBottom: 8 }}>
-                      STRESS LEVEL TODAY
-                    </div>
-                    <OptionGrid options={STRESS_LEVELS} value={selStress} onChange={setSelStress} />
-                    <AnimatePresence>
-                      {selStress !== null && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}>
-                          <button
-                            onClick={saveStress}
-                            disabled={savingStress}
-                            className="br-btn br-btn-inv"
-                            style={{ width: '100%', padding: '12px', fontSize: 12, letterSpacing: '0.06em', marginTop: 12, opacity: savingStress ? 0.6 : 1 }}
-                          >
-                            {savingStress ? 'SAVING...' : 'LOG STRESS →'}
-                          </button>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Footer note */}
-      {!allDone && (
-        <div style={{ marginTop: 20, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.08em', lineHeight: 1.6 }}>
-          BOTH ENTRIES HELP THE RESEARCH.  TAKES UNDER 30 SECONDS.
         </div>
       )}
     </div>

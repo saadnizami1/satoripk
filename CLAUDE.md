@@ -23,14 +23,19 @@ Supabase database, and Vercel in sync. The workflows below do that.
    regenerating types, all in the same change. See *Changing the database*.
 3. **Every table needs RLS** that scopes rows to `auth.uid()`. Anonymous visitors
    have no table access at all, and that must stay true.
-4. **Keep the design system.** No border-radius, no soft shadows or gradients,
-   1.5px black borders, at most 3 uses of the accent per page. See *Design system*.
+4. **Keep the design system.** Build pages from `components/ui` and the tokens in
+   `app/globals.css`; don't invent new buttons, cards or colours. Kokoro, Help and
+   Breathing stay calm (no stickers, tilt or decorative motion). See *Design system*.
 5. **Verify before you ship:** `npm run typecheck` and `npm run build` must pass.
    Run `npm run e2e` for anything touching auth, data or APIs.
 6. **`main` is production.** Pushing to `main` deploys to real users. Do larger work
    on a branch (which gets a preview deploy), verify it, then merge.
-7. Crisis helpline numbers (`/dashboard/helpline`, Kokoro's emergency strip and
-   system prompt) must stay accurate and consistent. Don't change them casually.
+7. Crisis helpline numbers live in `lib/helplines.ts` (used by the Help page, the
+   landing page, the dashboard and Kokoro) and are repeated in Kokoro's system prompt
+   in `app/api/chat/route.ts`. Keep them accurate and in sync; don't change them casually.
+8. **Never claim what the product doesn't do.** No invented stats, testimonials or
+   features. Verified figures: 200+ students, 7 schools, 4 cities. Research exports are
+   identifiable (name, email), so never describe them as anonymised.
 
 ---
 
@@ -39,10 +44,10 @@ Supabase database, and Vercel in sync. The workflows below do that.
 | Layer | What |
 |---|---|
 | Framework | Next.js **16** (App Router, Turbopack), React 19, TypeScript (strict) |
-| Styling | Tailwind CSS v4 (sparingly), mostly **inline `style={{}}` objects + CSS variables** from `app/globals.css` |
+| Styling | Class-based design system in `app/globals.css` (tokens + component classes), shared React kit in `components/ui`, page-specific CSS in a `<style>` block at the bottom of each page. Tailwind v4 is loaded but barely used |
 | Motion | `framer-motion` |
 | Charts | `recharts` (mood graph, insights) |
-| Icons | `lucide-react` (used sparingly; the UI is mostly typographic) |
+| Icons | `lucide-react` at 1.5–2px stroke, plus hand-drawn SVG stickers and weather glyphs in `components/ui` |
 | Backend | Supabase project **"Satori PK"**, ref `ooiddphmbwyepuacjpoz`, region **ap-south-1 (Mumbai)**, free plan |
 | Auth | Supabase Auth: email/password (auto-confirmed, min 8 chars) and Google OAuth. ES256 JWT signing keys |
 | AI | Groq, model `openai/gpt-oss-120b` (reasoning effort low, reasoning hidden), streamed |
@@ -56,19 +61,31 @@ Supabase database, and Vercel in sync. The workflows below do that.
 ```
 proxy.ts                    Next 16 "proxy" (formerly middleware): auth + onboarding routing
 app/
-  layout.tsx                Root layout, fonts (Inter / Syne / JetBrains Mono), OG metadata
+  layout.tsx                Root layout, fonts (Gloock display + Inter), OG metadata, sticker filter defs
   globals.css               Design tokens + utility classes (read this before UI work)
-  page.tsx                  Public landing page (editorial "research dossier")
+  page.tsx                  Public landing page (server component; header + hero phone hydrate)
   auth/page.tsx             Sign in / sign up (email + Google)
   auth/callback/route.ts    OAuth code exchange → /onboarding or `next`
-  onboarding/page.tsx       25-step questionnaire → writes profile, sets onboarding_completed
-  dashboard/layout.tsx      Floating menu, mobile bottom tabs, "today pending" badge
+  onboarding/page.tsx       5 quick questions + privacy choice → writes profile, seeds a mood, sets onboarding_completed
+  dashboard/layout.tsx      Pill top bar, menu sheet (NAV_GROUPS), phone tab bar, "today pending" dot
   dashboard/*/page.tsx      Feature pages (see Page map)
   api/chat/route.ts         Kokoro: auth, rate limit, server-built prompt, Groq stream
   api/research-export/      Password-gated CSV export of research views (service role)
   api/account/route.ts      DELETE = delete the signed-in user's account + all data
   api/health/route.ts       Daily Vercel cron keep-alive (needs CRON_SECRET)
+components/
+  ui/kit.tsx                Logo, TapeHeading, Pill, TornPaper, Polaroid, Scene, PhoneMockup, ZigzagDivider, Skeleton…
+  ui/controls.tsx           Client controls: MoodPicker, ScalePicker, OptionRows, ChipGroup, Switch, Accordion, TextField
+  ui/stickers.tsx           Cut-out SVG stickers (<Sticker name="chai" />) + the global die-cut filter
+  ui/MoodGlyph.tsx          Weather glyph per mood score (1 rain … 5 sun)
+  ui/school-scenes.tsx      Illustrated film-strip frames (no people)
+  app/PageHeader.tsx        Inner-page header: painted band + tape title + sticker, or `calm`
+  landing/                  Landing header and the interactive hero phone
 lib/
+  moods.ts                  The 5-step mood scale (labels, replies, next step), greeting, firstName()
+  helplines.ts              Single source of crisis numbers
+  profile-options.ts        Answer options for profile/survey questions (stored values are research data)
+  focus.ts                  Focus minutes + pomodoro_total in localStorage
   supabase.ts               Browser client (singleton, typed)
   supabase/server.ts        Server client for route handlers (cookies)
   supabase/admin.ts         Service-role client (bypasses RLS: server only!)
@@ -77,6 +94,7 @@ lib/
   avatar.ts                 Avatar resize/upload/signed-URL helpers (Storage)
 supabase/migrations/        SQL migrations (the source of truth for the schema)
 scripts/ops.mjs             Supabase + Vercel ops CLI (see below)
+scripts/paint-art.py        Paints public/art/*.webp (Lahore skyline scenes); deterministic, needs numpy + Pillow
 scripts/e2e.mjs             End-to-end test suite (32 checks)
 vercel.json                 Function region (bom1) + daily cron
 ```
@@ -149,7 +167,9 @@ The schema is defined in `supabase/migrations/20261117000000_initial_schema.sql`
   touch their own folder. The app displays images through signed URLs.
 - **Functions:** `handle_new_user`, `sync_onboarding_claim`, `check_chat_rate_limit`,
   `set_updated_at` (all `search_path = ''`).
-- **Data that intentionally stays in localStorage:** `pomodoro_total` only.
+- **Data that intentionally stays in localStorage:** `pomodoro_total`, `satori:focus-today`
+  and `satori:tool-order` (per-device conveniences). Onboarding progress and a mood picked
+  on the landing page live in sessionStorage until onboarding saves.
 
 ### Changing the database (always all of these steps)
 
@@ -181,54 +201,58 @@ Be careful with writes: there is one database and it holds real participants' da
 
 ---
 
-## Design system ("editorial print / brutalist")
+## Design system ("a scrapbook kept on a Lahore rooftop")
 
-Read `app/globals.css` first. The look is a printed research dossier: raw paper,
-black ink, one red accent, stark typography.
+Read `app/globals.css` and `components/ui` first. The look borrows the *language* of
+hand-made scrapbook sites (painted scenes, label tape, cut-out stickers, torn paper,
+polaroids) with Satori's own art and content. It is loud on the landing page and
+onboarding, quieter inside the app, and plain wherever a student may be in distress.
 
 - **Colour tokens (always use the variables):**
-  - surfaces: `--bg` #F4F2EE paper, `--bg-card` #EDEBE6, `--bg-invert` #0C0C0C;
-  - text: `--ink`, `--ink-2` #4A4A44, `--ink-3` #8A8880, `--ink-invert`;
-  - borders: `--border` (black), `--border-2` #C8C6C0 (hairline);
-  - accent: `--accent` #C13B2A with `--accent-bg`. **Max 3 uses per page**: errors,
-    destructive actions, the "pending" dot.
-- **Typography:**
-  - `--font-display` (Syne 700/800): headings, labels, buttons, ALL CAPS, tight
-    negative letter-spacing on big headings.
-  - `--font-body` (Inter): paragraphs.
-  - `--font-mono` (JetBrains Mono): metadata, dates, counts, small caps labels at
-    9–11px with 0.06–0.14em tracking.
-  - Utility classes: `.t-hero`, `.t-h1`, `.t-h2`, `.t-label`, `.t-body`, `.t-mono`.
-- **Shape:**
-  - **border-radius 0 everywhere**. The only circles are the 6–7px status dots.
-  - Borders are `1.5px solid var(--border)`; hairlines are `1px solid var(--border-2)`.
-  - Shadows are only hard offsets: `--shadow-sm/md/lg` (e.g. `4px 4px 0 var(--border)`).
-- **Components:**
-  - `.br-btn` / `.br-btn-inv` (buttons that lift on hover), `.br-input`, `.br-card`,
-    `.br-lift` (hover lift for cards), `.skeleton` (loading bars).
-  - Use `.grid-2col` / `.grid-2fr1fr` for responsive grids (single column ≤ 640px).
-- **Page anatomy:**
-  1. A big ALL-CAPS display `h1`, `clamp(36px, 5vw, 56px)`, letter-spacing −0.03em.
-  2. A 1.5px rule underneath.
-  3. Mono metadata lines, then bordered sections.
-  4. Cards sit in bordered grids sharing edges (right/bottom borders), not floating.
-- **Motion:**
-  - Short and mechanical: 80–160ms, ease `cubic-bezier(0.25,0,0,1)` (`--ease-brutal`).
-  - framer-motion for modals, menus and masked reveals.
-  - Respect `prefers-reduced-motion`.
-  - Don't drive animations from scroll-event React state: use framer `useScroll` /
-    motion values.
-- **Loading state:** three `.skeleton` bars (widths 120/80/48), as existing pages do.
-- **Mobile:**
-  - The dashboard layout adds `pb-28` for the fixed bottom tab bar.
-  - Test at ~375px width. No horizontal scroll.
-  - Touch devices disable card dragging (`pointer: coarse`).
-- **Voice:** direct, warm, a little editorial; labels in caps ("RECORD TODAY",
-  "TALK TO KOKORO"). No emojis in the UI.
-- **Existing style:** mostly inline style objects with CSS variables, plus a few
-  Tailwind layout classes (`sm:`, `lg:`). Match the file you're editing.
-- **Navigation:** new dashboard pages must be added to `NAV_ITEMS` in
-  `app/dashboard/layout.tsx` (and `MOBILE_TABS` if they're core).
+  - sky + paper: `--sky` #7FA3A0, `--sky-2`, `--dusk` #2E4A6B, `--night` #0F1E2E,
+    `--fog` #ECF1EC (app background), `--paper` #FFFDF7 (cards, inputs), `--tape` #0B0B0B;
+  - ink: `--ink` #111, `--ink-2`, `--ink-3` (smallest allowed grey), `--on-dark`, `--on-dark-2`;
+  - accents: `--marigold` #F5C542 leads (accent word on tape, focus ring on dark);
+    `--rose` #EC4E8B and `--mint` #9ED9C3 are sticker colours. Rose **as text** must be
+    `--rose-ink` (contrast). `--danger` is only for crisis and destructive actions;
+  - moods: `--mood-1` … `--mood-5`, always paired with the weather glyph, never colour alone.
+- **Typography:** `--font-display` is **Gloock** (one weight; size does the hierarchy),
+  body is **Inter**. Classes `.t-hero .t-h1 .t-h2 .t-h3 .t-h4 .t-lead .t-body .t-small .t-label .t-num`.
+  Nothing below 13px. Display headings are lowercase on scrapbook surfaces, sentence
+  case on calm pages. No all-caps labels, no monospace labels.
+- **Signature pieces** (use these, don't re-create them):
+  - `<TapeHeading lines={[…]} accent="word" />`: a real h1/h2 on strips of black tape,
+    one accent word in marigold, tilted at most 1.5°.
+  - `<Sticker name="…" />`: cut-out SVG with a white die-cut edge. Decorative only. On
+    inner pages use at most one, inside `<PageHeader>`.
+  - `<TornPaper>`, `<Polaroid>`, `<FilmStrip>`, `<ZigzagDivider>`, `<PhoneMockup>`, `<Scene>`.
+  - Buttons are `<Pill variant="tape|white|marigold|glass|ghost|danger">`; add `knob` for
+    the primary call to action on a page.
+  - Mood input is always `<MoodPicker>` (weather tiles, arrow-key radiogroup).
+- **Shape:** pills for buttons (999px), 20–28px radius for sheets and scenes, 4px for
+  polaroids. One soft lift shadow on hover; a deeper "pinned" shadow for paper things.
+- **Art:** `public/art/{dusk,dawn,day,night}.webp` plus `blur-*.webp`, painted by
+  `scripts/paint-art.py`. Always `alt=""`. No photos of students, ever (most users are minors).
+  The dashboard greeting uses the scene for the student's local time of day.
+  Images are served with a one-year immutable cache, so give changed art a new filename.
+- **Page anatomy (inner pages):** `<PageHeader lines accent art sticker lead>`, then
+  content on `.sheet` panels. Calm pages use `<PageHeader calm>`.
+- **Motion:** small and purposeful: the hero phone bob, the kite sway, step fades in
+  onboarding, the breathing circle. Everything stops under `prefers-reduced-motion`
+  (handled globally in `globals.css`).
+- **Accessibility:** every action is a real `<a>`/`<button>`; one h1 per page; selected
+  states use `aria-checked`/`aria-pressed` plus a visual change beyond colour; touch
+  targets at least 44px; text over art sits on a scrim or glass panel.
+- **Hydration:** anything that depends on the clock, locale or browser storage renders
+  after mount (see the dashboard greeting) or uses `useSyncExternalStore`. Round any
+  trig-derived SVG coordinates (`rnd()` in the sticker files).
+- **Mobile:** test at 375px with no horizontal scroll. The dashboard has a fixed tab bar
+  (Home, Today, Kokoro, Journal, Menu); `.app-main` already pads for it.
+- **Voice:** plain, warm, specific to students in Pakistan (Matric, FSc, A-Levels,
+  mocks). Never clinical, never forced-cheerful, never guilt about streaks. Say exactly
+  what happens with data. Errors say what went wrong and what to do next.
+- **Navigation:** new dashboard pages go in `NAV_GROUPS` in `app/dashboard/layout.tsx`
+  (and `TOP_NAV` / `MOBILE_TABS` only if they're core).
 
 ---
 
@@ -238,8 +262,9 @@ black ink, one red accent, stark typography.
 |---|---|---|
 | `/` | Landing page: hero wordmark, tool index, study info | static |
 | `/auth` | Sign in / sign up, Google | Supabase Auth |
-| `/onboarding` | 25 steps: consent, demographics, school, mood/stress baseline | `profiles`, seeds `moods`/`academic_stress` |
-| `/dashboard` | Home: greeting, today's mood, 8 tool cards (draggable on desktop) | `profiles.name`, today's mood |
+| `/onboarding` | Name, age, study stage, mood, privacy (explicit yes/no to research) | `profiles`, seeds `moods` |
+| `/dashboard` | Home: time-of-day greeting, inline check-in, Kokoro starters, week/streak/focus, 8 tool polaroids (reorderable), journal prompt, help | `profiles`, `moods` (90 days) |
+| `/dashboard/survey` | Optional study questionnaire in 4 chapters (the research questions that used to be in onboarding) | `profiles`, seeds `academic_stress` |
 | `/dashboard/today` | Daily check-in: mood + academic stress | `moods`, `academic_stress` |
 | `/dashboard/mood` | Mood check-in + last 7 | `moods` |
 | `/dashboard/research` | Academic stress log (extra answers in `notes` JSON) | `academic_stress` |

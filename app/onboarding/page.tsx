@@ -1,81 +1,85 @@
 'use client'
 
-import { useState, useEffect, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import type { AuthChangeEvent } from '@supabase/supabase-js'
+import { ArrowLeft } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { notifyCheckin } from '@/lib/dates'
+import { PENDING_MOOD_KEY, firstName, moodFor } from '@/lib/moods'
+import { Logo, Pill, Scene, TapeHeading } from '@/components/ui/kit'
+import { Sticker, type StickerName } from '@/components/ui/stickers'
+import { MoodPicker, OptionRows } from '@/components/ui/controls'
+import { BOARDS } from '@/lib/profile-options'
 
-const ONBOARDING_STEPS = [
-  'welcome', 'privacy', 'research', 'name', 'age', 'religion', 'city',
-  'school-type', 'school-name', 'education-level', 'hobbies', 'personality',
-  'recent-mood', 'academic-stress', 'fav-subject', 'fav-why',
-  'worst-subject', 'worst-why', 'report-card', 'tutoring', 'cheating',
-  'research-participation', 'intermission', 'kokoro', 'success',
-]
+/*
+ * Onboarding: five short questions, then a welcome. Everything is skippable
+ * except the privacy step, which needs an explicit choice. The longer
+ * research questionnaire lives at /dashboard/survey and can be done later.
+ * Answers write to the same profile columns the research views read.
+ */
 
-// ── Shared style helpers ──────────────────────────────────────────
-const H: CSSProperties = {
-  fontFamily: 'var(--font-display)', fontWeight: 800,
-  fontSize: 'clamp(22px,3.5vw,32px)', color: 'var(--ink)',
-  letterSpacing: '-0.02em', lineHeight: 1.1, marginBottom: 8,
+const STEPS = ['welcome', 'name', 'age', 'study', 'mood', 'privacy', 'ready'] as const
+type Step = typeof STEPS[number]
+const QUESTION_COUNT = 5
+
+const SIDE: Record<Step, { line: string; sticker: StickerName; art: string }> = {
+  welcome: { line: 'a minute for you, before anything else.', sticker: 'chai', art: '/art/dawn.webp' },
+  name:    { line: 'names matter. use whatever feels like you.', sticker: 'notebook', art: '/art/dawn.webp' },
+  age:     { line: 'it helps Kokoro talk to you like a person, not a form.', sticker: 'calendar', art: '/art/day.webp' },
+  study:   { line: 'matric, a-levels, uni: every stage has its own pressure.', sticker: 'bag', art: '/art/day.webp' },
+  mood:    { line: "there's no wrong answer here.", sticker: 'kite', art: '/art/dusk.webp' },
+  privacy: { line: 'your words stay yours.', sticker: 'padlock', art: '/art/dusk.webp' },
+  ready:   { line: 'welcome in.', sticker: 'moon', art: '/art/night.webp' },
 }
-const SUB: CSSProperties = {
-  fontFamily: 'var(--font-body)', fontSize: 14,
-  color: 'var(--ink-3)', marginBottom: 24, lineHeight: 1.5,
+
+const STORE = 'satori:onboarding'
+
+interface Answers {
+  name: string
+  age: string
+  board: string
+  level: string
+  mood: number | null
+  agreedToPolicies: boolean
+  research: '' | 'yes' | 'no'
 }
-const optStyle = (selected: boolean): CSSProperties => ({
-  padding: '11px 8px',
-  textAlign: 'center',
-  background: selected ? 'var(--bg-invert)' : 'var(--bg)',
-  color: selected ? 'var(--ink-invert)' : 'var(--ink)',
-  border: '1.5px solid var(--border)',
-  fontFamily: 'var(--font-display)',
-  fontWeight: 700,
-  fontSize: 11,
-  letterSpacing: '0.04em',
-  cursor: 'pointer',
-  transition: 'background 80ms, color 80ms',
-  lineHeight: 1.3,
-})
-const INPUT_STYLE: CSSProperties = {
-  width: '100%', padding: '13px 14px',
-  fontSize: 15, boxSizing: 'border-box', marginBottom: 20,
-}
-const MONO_LABEL: CSSProperties = {
-  display: 'block', fontFamily: 'var(--font-mono)',
-  fontSize: 10, letterSpacing: '0.12em', color: 'var(--ink-3)', marginBottom: 8,
-}
+
+const EMPTY: Answers = { name: '', age: '', board: '', level: '', mood: null, agreedToPolicies: false, research: '' }
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const [currentStep, setCurrentStep] = useState(0)
-  const [userData, setUserData] = useState({
-    name: '',
-    age: '',
-    religion: '',
-    city: '',
-    school_type: '',
-    school_name: '',
-    education_board: '',
-    education_level: '',
-    hobbies: [] as string[],
-    personality_traits: [] as string[],
-    recent_mood: 0,
-    academic_stress: 0,
-    stress_is_academic: '',
-    favorite_subject: '',
-    favorite_subject_why: '',
-    worst_subject: '',
-    worst_subject_why: '',
-    report_card_average: '',
-    has_tutoring: '',
-    has_cheated: '',
-    previous_research: '',
-    agreedToPolicies: false,
-    agreedToResearch: false,
-  })
-  const [loading, setLoading] = useState(false)
+  const reduce = useReducedMotion()
+  const [step, setStep] = useState<Step>('welcome')
+  const [a, setA] = useState<Answers>(EMPTY)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const headingRef = useRef<HTMLDivElement>(null)
+  const firstRender = useRef(true)
+
+  // Resume where the student left off (this tab only), and pick up a mood
+  // chosen on the landing page before signing up.
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(STORE)
+      if (saved) {
+        const { step: s, answers } = JSON.parse(saved)
+        // Restoring from sessionStorage must wait until after hydration.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (STEPS.includes(s) && s !== 'ready') setStep(s)
+        setA({ ...EMPTY, ...answers })
+      } else {
+        const pending = Number(sessionStorage.getItem(PENDING_MOOD_KEY))
+        if (moodFor(pending)) setA(prev => ({ ...prev, mood: pending }))
+      }
+    } catch { /* storage unavailable: start fresh */ }
+  }, [])
+
+  useEffect(() => {
+    try { if (step !== 'ready') sessionStorage.setItem(STORE, JSON.stringify({ step, answers: a })) } catch { /* ignore */ }
+  }, [step, a])
 
   // The proxy only lets signed-in users reach this page; this just handles
   // a sign-out that happens while it is open.
@@ -86,913 +90,298 @@ export default function OnboardingPage() {
     return () => subscription.unsubscribe()
   }, [router])
 
-  const nextStep = () => {
-    if (ONBOARDING_STEPS[currentStep] === 'academic-stress' && userData.recent_mood > 3) {
-      setCurrentStep(s => s + 2)
-    } else if (currentStep < ONBOARDING_STEPS.length - 1) {
-      setCurrentStep(s => s + 1)
-    }
-  }
-  const prevStep = () => { if (currentStep > 0) setCurrentStep(s => s - 1) }
+  // Move focus to the new question so screen readers announce it.
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return }
+    const h = headingRef.current?.querySelector<HTMLElement>('h1')
+    h?.setAttribute('tabindex', '-1')
+    h?.focus()
+  }, [step])
 
-  const handleSubmit = async () => {
-    setLoading(true)
+  const index = STEPS.indexOf(step)
+  const go = (s: Step) => { setError(''); setStep(s) }
+  const next = () => go(STEPS[Math.min(index + 1, STEPS.length - 1)])
+  const back = () => go(STEPS[Math.max(index - 1, 0)])
+  const set = <K extends keyof Answers>(k: K, v: Answers[K]) => setA(prev => ({ ...prev, [k]: v }))
+  const name = firstName(a.name)
+
+  const finish = async () => {
+    setSaving(true)
+    setError('')
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const user = session?.user
-      if (!user) throw new Error('No user found')
+      if (!user) throw new Error('Your session ended. Log in again to finish.')
+      const age = parseInt(a.age)
 
-      const { error } = await supabase.from('profiles').upsert({
+      const { error: upErr } = await supabase.from('profiles').upsert({
         id: user.id,
-        name: userData.name,
-        age: parseInt(userData.age),
-        religion: userData.religion,
-        city: userData.city,
-        location: userData.city,
-        school_type: userData.school_type,
-        school_name: userData.school_name,
-        education_board: userData.education_board,
-        education_level: userData.education_level,
-        hobbies: userData.hobbies,
-        personality_traits: userData.personality_traits,
-        recent_mood: userData.recent_mood,
-        academic_stress: userData.academic_stress,
-        stress_is_academic: userData.stress_is_academic,
-        favorite_subject: userData.favorite_subject,
-        favorite_subject_why: userData.favorite_subject_why,
-        worst_subject: userData.worst_subject,
-        worst_subject_why: userData.worst_subject_why,
-        report_card_average: userData.report_card_average,
-        has_tutoring: userData.has_tutoring,
-        has_cheated: userData.has_cheated,
-        previous_research: userData.previous_research,
-        research_consent: userData.agreedToResearch,
+        name: a.name.trim() || null,
+        age: age >= 3 && age <= 99 ? age : null,
+        education_board: a.board || null,
+        education_level: a.level || null,
+        recent_mood: a.mood ?? null,
+        research_consent: a.research === 'yes',
         onboarding_completed: true,
         language: 'en',
         updated_at: new Date().toISOString(),
       })
-      if (error) throw error
+      if (upErr) throw upErr
 
-      // Seed the tracking tables with the onboarding baseline, and refresh
-      // the session so the new token carries onboarding_completed (set by a
-      // DB trigger) — the proxy reads it from there.
-      const perfMap: Record<string, number> = {
-        'excellent': 5, 'very-good': 4, 'good': 3,
-        'satisfactory': 2, 'needs-improvement': 1, 'varies': 3,
-      }
+      // Seed today's mood so the dashboard is never empty, and refresh the
+      // session so the new token carries onboarding_completed (set by a DB
+      // trigger); the proxy reads it from there.
       await Promise.all([
-        userData.recent_mood > 0 && supabase.from('moods').insert({
-          user_id: user.id,
-          mood_score: userData.recent_mood,
-          note: 'Onboarding baseline',
-        }),
-        userData.academic_stress > 0 && supabase.from('academic_stress').insert({
-          user_id: user.id,
-          stress_level: userData.academic_stress,
-          performance_rating: perfMap[userData.report_card_average] ?? 3,
-        }),
+        a.mood && supabase.from('moods').insert({ user_id: user.id, mood_score: a.mood, note: 'Onboarding baseline' }),
         supabase.auth.refreshSession(),
       ])
-
-      nextStep()
-    } catch (err) {
+      try { sessionStorage.removeItem(STORE); sessionStorage.removeItem(PENDING_MOOD_KEY) } catch { /* ignore */ }
+      if (a.mood) notifyCheckin()
+      go('ready')
+    } catch (err: any) {
       console.error('Error saving profile:', err)
-      alert('Error saving your information. Please try again.')
+      setError(err?.message ? `We couldn't save that: ${err.message}` : "We couldn't save that. Check your connection and try again.")
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
-  type UserData = typeof userData
-  const update = <K extends keyof UserData>(key: K, value: UserData[K]) =>
-    setUserData(prev => ({ ...prev, [key]: value }))
-  const set = <K extends keyof UserData>(key: K) => (value: UserData[K]) => update(key, value)
-  const step = ONBOARDING_STEPS[currentStep]
-  const total = ONBOARDING_STEPS.length
+  const side = SIDE[step]
+  const qNum = index >= 1 && index <= QUESTION_COUNT ? index : null
+  const canFinish = a.agreedToPolicies && a.research !== ''
+  const board = BOARDS.find(b => b.id === a.board)
+  const moodNow = moodFor(a.mood)
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div className="ob">
+      <div className="texture" aria-hidden="true" style={{ position: 'fixed' }} />
 
-      {/* ── Fixed progress header ── */}
-      <header style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
-        background: 'var(--bg)', borderBottom: '1.5px solid var(--border)',
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 clamp(16px,4vw,32px)', height: 52,
-        }}>
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14, color: 'var(--ink)', letterSpacing: '-0.01em' }}>
-            SATORI
-          </span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em' }}>
-            {String(currentStep + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
-          </span>
+      {/* ── Art panel ── */}
+      <Scene src={side.art} priority position="center 75%" className="on-dark ob__art" sizes="(max-width: 860px) 100vw, 45vw"
+        scrim="linear-gradient(180deg, rgba(15,30,46,0.45), rgba(15,30,46,0) 40%)">
+        <div className="ob__art-top">
+          <Link href="/" aria-label="Satori home" style={{ textDecoration: 'none' }}><Logo tone="paper" /></Link>
         </div>
-        <div style={{ height: 2, background: 'var(--border-2)' }}>
-          <div style={{
-            height: '100%', background: 'var(--ink)',
-            width: `${((currentStep + 1) / total) * 100}%`,
-            transition: 'width 300ms ease',
-          }} />
+        <div className="ob__caption glass glass--paper">
+          <Sticker name={side.sticker} size={64} tilt={-8} />
+          <p className="t-h4" aria-live="polite">{side.line}</p>
         </div>
-      </header>
+      </Scene>
 
-      {/* ── Content ── */}
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 'clamp(80px,10vw,96px) clamp(16px,4vw,32px) 40px',
-      }}>
+      {/* ── Question panel ── */}
+      <main className="ob__panel">
+        <div className="ob__bar">
+          {index > 0 && step !== 'ready' ? (
+            <button type="button" className="text-btn" onClick={back}><ArrowLeft size={18} aria-hidden="true" /> Back</button>
+          ) : <span />}
+          {qNum && (
+            <div className="ob__progress" role="progressbar" aria-valuemin={1} aria-valuemax={QUESTION_COUNT} aria-valuenow={qNum}
+              aria-label={`Question ${qNum} of ${QUESTION_COUNT}`}>
+              <span className="t-small muted" style={{ marginRight: 10 }}>{qNum} of {QUESTION_COUNT}</span>
+              {Array.from({ length: QUESTION_COUNT }, (_, i) => (
+                <span key={i} className="ob__pol" data-done={i < qNum} data-now={i === qNum - 1} style={{ ['--tilt' as string]: `${[-6, 4, -3, 5, -4][i]}deg` }} />
+              ))}
+            </div>
+          )}
+        </div>
+
         <AnimatePresence mode="wait">
           <motion.div
-            key={currentStep}
-            initial={{ opacity: 0, y: 14 }}
+            key={step}
+            ref={headingRef}
+            className="ob__body"
+            initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -14 }}
-            transition={{ duration: 0.2, ease: [0.25, 0, 0, 1] }}
-            style={{ width: '100%', maxWidth: 600 }}
+            exit={reduce ? undefined : { opacity: 0, y: -8 }}
+            transition={{ duration: 0.28, ease: [0.2, 0.7, 0.2, 1] }}
           >
-            {step === 'welcome' && <WelcomeStep nextStep={nextStep} />}
-            {step === 'privacy' && <PrivacyStep agreed={userData.agreedToPolicies} onAgree={set('agreedToPolicies')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'research' && <ResearchStep agreed={userData.agreedToResearch} onAgree={set('agreedToResearch')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'name' && <NameStep value={userData.name} onChange={set('name')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'age' && <AgeStep value={userData.age} onChange={set('age')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'religion' && <ReligionStep value={userData.religion} onChange={set('religion')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'city' && <CityStep value={userData.city} onChange={set('city')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'school-type' && <SchoolTypeStep value={userData.school_type} onChange={set('school_type')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'school-name' && <SchoolNameStep value={userData.school_name} onChange={set('school_name')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'education-level' && <EducationLevelStep boardValue={userData.education_board} levelValue={userData.education_level} onBoardChange={set('education_board')} onLevelChange={set('education_level')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'hobbies' && <HobbiesStep value={userData.hobbies} onChange={set('hobbies')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'personality' && <PersonalityStep value={userData.personality_traits} onChange={set('personality_traits')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'recent-mood' && <RecentMoodStep value={userData.recent_mood} onChange={set('recent_mood')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'academic-stress' && <AcademicStressStep value={userData.academic_stress} moodValue={userData.recent_mood} stressIsAcademic={userData.stress_is_academic} onChange={set('academic_stress')} onStressChange={set('stress_is_academic')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'fav-subject' && <FavoriteSubjectStep value={userData.favorite_subject} onChange={set('favorite_subject')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'fav-why' && <SubjectWhyStep type="favorite" subject={userData.favorite_subject} value={userData.favorite_subject_why} onChange={set('favorite_subject_why')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'worst-subject' && <WorstSubjectStep value={userData.worst_subject} onChange={set('worst_subject')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'worst-why' && <SubjectWhyStep type="worst" subject={userData.worst_subject} value={userData.worst_subject_why} onChange={set('worst_subject_why')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'report-card' && <ReportCardStep value={userData.report_card_average} onChange={set('report_card_average')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'tutoring' && <TutoringStep value={userData.has_tutoring} onChange={set('has_tutoring')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'cheating' && <CheatingStep value={userData.has_cheated} onChange={set('has_cheated')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'research-participation' && <ResearchParticipationStep value={userData.previous_research} onChange={set('previous_research')} nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'intermission' && <IntermissionStep nextStep={nextStep} prevStep={prevStep} />}
-            {step === 'kokoro' && <KokoroStep onFinish={handleSubmit} prevStep={prevStep} loading={loading} />}
-            {step === 'success' && <SuccessStep router={router} />}
+            {step === 'welcome' && (
+              <div className="stack-lg">
+                <TapeHeading as="h1" lines={["let's make this", 'space yours']} accent="yours" size="t-h1" />
+                <p className="t-lead muted">Five quick questions, about a minute. You can skip anything and change it all later.</p>
+                <div><Pill variant="tape" size="lg" knob onClick={next}>Let&apos;s begin</Pill></div>
+              </div>
+            )}
+
+            {step === 'name' && (
+              <form className="stack-lg" onSubmit={e => { e.preventDefault(); next() }}>
+                <TapeHeading as="h1" lines={['what should', 'we call you?']} accent="you?" size="t-h1" />
+                <div className="field">
+                  <label htmlFor="ob-name" className="field__label">Your name</label>
+                  <input id="ob-name" className="input" autoComplete="given-name" placeholder="e.g. Ayesha" maxLength={80}
+                    value={a.name} onChange={e => set('name', e.target.value)} />
+                </div>
+                <StepActions onNext={next} skip={!a.name.trim()} />
+              </form>
+            )}
+
+            {step === 'age' && (
+              <form className="stack-lg" onSubmit={e => { e.preventDefault(); next() }}>
+                <TapeHeading as="h1" lines={['how old', 'are you?']} accent="old" size="t-h1" />
+                <div className="field" style={{ maxWidth: 220 }}>
+                  <label htmlFor="ob-age" className="field__label">Age</label>
+                  <input id="ob-age" className="input" type="number" inputMode="numeric" min={3} max={99} placeholder="e.g. 16"
+                    value={a.age} onChange={e => set('age', e.target.value)} aria-describedby="ob-age-h" />
+                  <span id="ob-age-h" className="field__hint">Only used to talk to you at the right level.</span>
+                </div>
+                <StepActions onNext={next} skip={!a.age} />
+              </form>
+            )}
+
+            {step === 'study' && (
+              <div className="stack-lg">
+                <TapeHeading as="h1" lines={['where are you', 'studying?']} accent="studying?" size="t-h1" />
+                <div className="stack-sm">
+                  <p id="ob-board" className="field__label">Your stage</p>
+                  <OptionRows labelledBy="ob-board"
+                    options={BOARDS.map(b => ({ value: b.id, label: b.name }))}
+                    value={a.board} onChange={v => { set('board', v); set('level', '') }} />
+                </div>
+                {board && (
+                  <div className="stack-sm">
+                    <p id="ob-level" className="field__label">Which year?</p>
+                    <div role="radiogroup" aria-labelledby="ob-level" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {board.levels.map(l => (
+                        <button key={l} type="button" role="radio" aria-checked={a.level === l} className="chip" onClick={() => set('level', l)}>{l}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <StepActions onNext={next} skip={!a.board} />
+              </div>
+            )}
+
+            {step === 'mood' && (
+              <div className="stack-lg">
+                <TapeHeading as="h1" lines={['how are you', `arriving today, ${name}?`]} accent={name} size="t-h1" />
+                <MoodPicker value={a.mood} onChange={v => set('mood', v)} label="How are you arriving today?" />
+                <p className="t-body muted" aria-live="polite" style={{ minHeight: 26 }}>
+                  {moodNow ? moodNow.reply : 'Tap one. There is no wrong answer.'}
+                </p>
+                <StepActions onNext={next} skip={!a.mood} />
+              </div>
+            )}
+
+            {step === 'privacy' && (
+              <div className="stack-lg">
+                <TapeHeading as="h1" lines={['one last thing:', 'your privacy']} accent="privacy" size="t-h1" />
+                <div className="sheet sheet--pad stack">
+                  <div className="row" style={{ alignItems: 'flex-start', gap: 14, flexWrap: 'nowrap' }}>
+                    <span className="disc" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></span>
+                    <div>
+                      <p className="t-label" style={{ fontSize: 16 }}>Your journal and Kokoro chats are always private</p>
+                      <p className="t-small muted" style={{ marginTop: 4 }}>Only you can read them. They are never shared with anyone, including the research team.</p>
+                    </div>
+                  </div>
+                  <hr style={{ border: 0, borderTop: '1px solid var(--line)', margin: '20px 0' }} />
+                  <div className="stack-sm">
+                    <p id="ob-research" className="t-label" style={{ fontSize: 16 }}>Will you help the study?</p>
+                    <p className="t-small muted">
+                      Satori is part of a Lahore Garrison University study on academic stress. If you say yes, your mood
+                      and stress check-ins (with any notes on them) and your profile answers, including your name and
+                      email, are shared with the study team. You can change your mind any time in Settings.
+                    </p>
+                    <OptionRows labelledBy="ob-research" value={a.research} onChange={v => set('research', v)}
+                      options={[
+                        { value: 'yes', label: 'Yes, include my check-ins', hint: 'helps the study' },
+                        { value: 'no', label: 'No thanks', hint: 'you still get everything' },
+                      ]} />
+                  </div>
+                </div>
+
+                <details className="ob__terms">
+                  <summary className="t-label">Read the privacy terms</summary>
+                  <ul className="t-small muted stack-sm" style={{ margin: '12px 0 0', paddingLeft: 18 }}>
+                    <li>Satori stores your name, age, school details, check-ins and journal so the app can work for you.</li>
+                    <li>Data is encrypted at rest. Your journal and chats are visible only to you. Kokoro&apos;s replies are written by an AI service that processes each message you send it.</li>
+                    <li>You can download your data or delete your account and everything in it from Settings at any time.</li>
+                    <li>If you are under 18, we suggest letting a parent or guardian know you use Satori.</li>
+                    <li>Satori is support, not treatment. In an emergency, call Rescue 1122 or a helpline.</li>
+                  </ul>
+                </details>
+
+                <label className="row" style={{ alignItems: 'flex-start', gap: 12, flexWrap: 'nowrap', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={a.agreedToPolicies} onChange={e => set('agreedToPolicies', e.target.checked)}
+                    style={{ width: 22, height: 22, marginTop: 1, accentColor: 'var(--ink)', flexShrink: 0 }} />
+                  <span className="t-body">I&apos;ve read the privacy terms and agree to them.</span>
+                </label>
+
+                {error && <div className="notice notice--error" role="alert">{error}</div>}
+                <div className="row">
+                  <Pill variant="tape" size="lg" onClick={finish} disabled={!canFinish || saving} aria-describedby={!canFinish ? 'ob-need' : undefined}>
+                    {saving ? 'Saving…' : 'Finish setup'}
+                  </Pill>
+                  {!canFinish && <span id="ob-need" className="t-small muted">Choose yes or no above and tick the box to finish.</span>}
+                </div>
+              </div>
+            )}
+
+            {step === 'ready' && (
+              <div className="stack-lg">
+                <TapeHeading as="h1" lines={['your space', `is ready, ${name}`]} accent={name} size="t-h1" />
+                <p className="t-lead muted" style={{ maxWidth: 520 }}>
+                  {moodNow && moodNow.score <= 2
+                    ? "We'll start gently. Your home screen leads with a short breathing break and Kokoro, whenever you want them."
+                    : "We'll start simple: one check-in a day, and the tools are there whenever you need them."}
+                </p>
+                <div className="row">
+                  <Pill href="/dashboard" variant="tape" size="lg" knob>Go to my space</Pill>
+                </div>
+                <div className="sheet sheet--pad row" style={{ gap: 18, alignItems: 'center', flexWrap: 'nowrap', maxWidth: 560 }}>
+                  <Sticker name="papers" size={70} tilt={-6} />
+                  <p className="t-body">
+                    Got five more minutes? <Link href="/dashboard/survey" className="link" style={{ fontWeight: 600 }}>Answer the study questions</Link>{' '}
+                    about school and subjects. It&apos;s optional, and you can do it later from your home screen.
+                  </p>
+                </div>
+              </div>
+            )}
           </motion.div>
         </AnimatePresence>
-      </div>
+
+        {step !== 'ready' && (
+          <p className="t-small muted ob__help">
+            Need someone right now? Call <a className="link" href="tel:1122">Rescue 1122</a> or{' '}
+            <a className="link" href="tel:03174288665">Umang 0317-4288665</a>.
+          </p>
+        )}
+      </main>
+
+      <style>{`
+        .ob { min-height: 100svh; display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 16px; padding: 16px; background: var(--sky-2); }
+        .ob__art { border-radius: var(--r-lg); position: sticky; top: 16px; height: calc(100svh - 32px); background: var(--dusk); }
+        .ob__art-top { position: absolute; top: 28px; left: 28px; }
+        .ob__caption { position: absolute; left: 20px; right: 20px; bottom: 20px; display: flex; align-items: center; gap: 16px; padding: 16px 20px; }
+        .ob__panel { display: flex; flex-direction: column; padding: 12px clamp(8px, 4vw, 56px) 24px; min-height: calc(100svh - 32px); }
+        .ob__bar { display: flex; align-items: center; justify-content: space-between; min-height: 48px; }
+        .ob__progress { display: flex; align-items: center; gap: 6px; }
+        .ob__pol { width: 22px; height: 26px; background: var(--paper); border-radius: 2px; padding: 3px 3px 7px; box-shadow: 0 4px 8px -4px rgba(0,0,0,0.5); transform: rotate(var(--tilt)); position: relative; }
+        .ob__pol::after { content: ''; position: absolute; inset: 3px 3px 7px; background: #C4CFC8; border-radius: 1px; transition: background 240ms; }
+        .ob__pol[data-done="true"]::after { background: var(--dusk); }
+        .ob__pol[data-now="true"]::after { background: var(--marigold); }
+        .ob__body { flex: 1; display: flex; flex-direction: column; justify-content: center; width: 100%; max-width: 580px; padding: 40px 0; }
+        .ob__body h1:focus { outline: none; }
+        .ob__terms summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+        .ob__help { max-width: 580px; }
+        @media (max-width: 860px) {
+          .ob { grid-template-columns: 1fr; padding: 10px; }
+          .ob__art { position: relative; top: 0; height: 200px; }
+          .ob__caption { display: none; }
+          .ob__panel { min-height: 0; padding: 4px 6px 24px; }
+          .ob__body { padding: 24px 0; }
+        }
+      `}</style>
     </div>
   )
 }
 
-// ── Reusable shell components ─────────────────────────────────────
-
-function BCard({ children }: { children: ReactNode }) {
+function StepActions({ onNext, skip }: { onNext: () => void; skip: boolean }) {
   return (
-    <div style={{ border: '1.5px solid var(--border)', padding: 'clamp(24px,5vw,40px)', background: 'var(--bg)' }}>
-      {children}
+    <div className="row">
+      <Pill type="submit" variant="tape" size="lg" onClick={e => { if ((e.currentTarget as HTMLButtonElement).form) return; onNext() }}>
+        Continue
+      </Pill>
+      {skip && <button type="button" className="text-btn" onClick={onNext}>Skip for now</button>}
     </div>
-  )
-}
-
-function NavBtns({ onNext, onBack, nextDisabled }: { onNext: () => void; onBack: () => void; nextDisabled: boolean }) {
-  return (
-    <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-      <button
-        onClick={onBack}
-        className="br-btn"
-        style={{ padding: '12px 20px', color: 'var(--ink-2)', fontSize: 12, letterSpacing: '0.06em' }}
-      >
-        ← BACK
-      </button>
-      <button
-        onClick={onNext}
-        disabled={nextDisabled}
-        className="br-btn br-btn-inv"
-        style={{ flex: 1, padding: '12px 20px', fontSize: 12, letterSpacing: '0.06em', opacity: nextDisabled ? 0.38 : 1, cursor: nextDisabled ? 'not-allowed' : 'pointer' }}
-      >
-        NEXT →
-      </button>
-    </div>
-  )
-}
-
-// ── Step components ───────────────────────────────────────────────
-
-function WelcomeStep({ nextStep }: { nextStep: () => void }) {
-  return (
-    <BCard>
-      <div style={{ marginBottom: 32 }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.14em', marginBottom: 16 }}>
-          MENTAL WELLNESS RESEARCH PLATFORM
-        </div>
-        <h1 style={{ ...H, fontSize: 'clamp(28px,5vw,44px)', marginBottom: 20 }}>
-          Welcome to Satori.
-        </h1>
-        <p style={{ ...SUB, marginBottom: 12 }}>
-          We&apos;re honored to have you here. This questionnaire will help us understand you better and provide personalized mental wellness support.
-        </p>
-        <p style={{ ...SUB, marginBottom: 12 }}>
-          Your responses are confidential and used solely for research purposes to improve mental health services for students in Pakistan.
-        </p>
-        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', letterSpacing: '0.08em' }}>
-          TAKES 10–15 MINUTES TO COMPLETE.
-        </p>
-      </div>
-      <button
-        onClick={nextStep}
-        className="br-btn br-btn-inv"
-        style={{ padding: '14px 28px', fontSize: 13, letterSpacing: '0.06em' }}
-      >
-        BEGIN ONBOARDING →
-      </button>
-    </BCard>
-  )
-}
-
-function PrivacyStep({ agreed, onAgree, nextStep, prevStep }: any) {
-  return (
-    <BCard>
-      <h2 style={H}>Privacy Policy &amp; Terms</h2>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 20 }}>
-        READ BEFORE CONTINUING
-      </div>
-
-      <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 20, paddingRight: 8 }}>
-        {[
-          { title: '1. Data Collection & Usage', body: 'We collect personal information including your name, age, educational background, hobbies, personality traits, mood patterns, and academic performance data. This information is used exclusively to provide personalized mental wellness support, analyze patterns in student mental health, and improve our services.' },
-          { title: '2. Data Security & Confidentiality', body: 'All data is encrypted using industry-standard AES-256 encryption. Your conversations with Kokoro are completely private and confidential. We never share your personal information with third parties without explicit consent.' },
-          { title: '3. Your Rights', body: 'You have the right to access all your personal data at any time. You can request deletion of your account and all associated data, and opt out of research participation while continuing to use the service.' },
-          { title: '4. Age Restrictions', body: 'Users must be between 3 and 99 years old to use this service. For users under 18, we recommend parental guidance when using mental health services.' },
-          { title: '5. Limitation of Services', body: 'Satori is designed to provide support and guidance for mental wellness. It is not a substitute for professional mental health care. In emergencies, please contact a licensed mental health professional or emergency services immediately.' },
-        ].map(s => (
-          <div key={s.title} style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink)', letterSpacing: '0.04em', marginBottom: 6 }}>{s.title}</div>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.6 }}>{s.body}</p>
-          </div>
-        ))}
-      </div>
-
-      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 4, cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={agreed}
-          onChange={e => onAgree(e.target.checked)}
-          style={{ marginTop: 3, width: 16, height: 16, cursor: 'pointer', flexShrink: 0, accentColor: 'var(--ink)' }}
-        />
-        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}>
-          I have read and agree to the privacy policy and terms of service.
-        </span>
-      </label>
-
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!agreed} />
-    </BCard>
-  )
-}
-
-function ResearchStep({ agreed, onAgree, nextStep, prevStep }: any) {
-  return (
-    <BCard>
-      <h2 style={H}>Research Participation</h2>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 20 }}>
-        VOLUNTARY CONSENT
-      </div>
-
-      <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 20, paddingRight: 8 }}>
-        {[
-          { title: 'Purpose of Research', body: 'This research aims to understand the relationship between academic stress and mental wellness among students in Pakistan. Your participation will contribute to developing better support systems for student mental health.' },
-          { title: 'How Your Data Will Be Used', body: 'Your data is kept confidential and is only accessible to the research team. Published findings are anonymised and never identify individuals. We will analyze trends in mood, academic stress, and study habits. Research findings will directly improve Kokoro\'s ability to provide personalized mental health support.' },
-          { title: 'Your Rights as a Research Participant', body: 'Participation is completely voluntary. You can withdraw from the research at any time without affecting your access to Satori. You can request that your data be excluded from research while still using the service.' },
-          { title: 'Questions or Concerns?', body: 'If you have any questions about the research or wish to exercise any of your rights, please contact us at saadnizami114@gmail.com' },
-        ].map(s => (
-          <div key={s.title} style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--ink)', letterSpacing: '0.04em', marginBottom: 6 }}>{s.title}</div>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.6 }}>{s.body}</p>
-          </div>
-        ))}
-      </div>
-
-      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 4, cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={agreed}
-          onChange={e => onAgree(e.target.checked)}
-          style={{ marginTop: 3, width: 16, height: 16, cursor: 'pointer', flexShrink: 0, accentColor: 'var(--ink)' }}
-        />
-        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}>
-          I voluntarily consent to participate in this research study and understand I can withdraw at any time.
-        </span>
-      </label>
-
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!agreed} />
-    </BCard>
-  )
-}
-
-function NameStep({ value, onChange, nextStep, prevStep }: any) {
-  return (
-    <BCard>
-      <h2 style={H}>What&apos;s your name?</h2>
-      <p style={SUB}>This helps us personalize your experience with Kokoro.</p>
-      <label style={MONO_LABEL}>FULL NAME</label>
-      <input
-        type="text"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder="Enter your full name"
-        className="br-input"
-        style={INPUT_STYLE}
-        autoFocus
-      />
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value.trim()} />
-    </BCard>
-  )
-}
-
-function AgeStep({ value, onChange, nextStep, prevStep }: any) {
-  return (
-    <BCard>
-      <h2 style={H}>How old are you?</h2>
-      <p style={SUB}>Enter your current age.</p>
-      <label style={MONO_LABEL}>AGE</label>
-      <input
-        type="number"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder="e.g. 17"
-        min="3"
-        max="99"
-        className="br-input"
-        style={INPUT_STYLE}
-      />
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value || parseInt(value) < 3 || parseInt(value) > 99} />
-    </BCard>
-  )
-}
-
-function ReligionStep({ value, onChange, nextStep, prevStep }: any) {
-  const options = ['Islam', 'Christianity', 'Hinduism', 'Buddhism', 'Sikhism', 'Atheism', 'Other', 'Prefer not to say']
-  return (
-    <BCard>
-      <h2 style={H}>Your Religion</h2>
-      <p style={SUB}>Helps us provide culturally sensitive support.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
-        {options.map(r => (
-          <button key={r} onClick={() => onChange(r)} style={optStyle(value === r)}>{r}</button>
-        ))}
-      </div>
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
-    </BCard>
-  )
-}
-
-function CityStep({ value, onChange, nextStep, prevStep }: any) {
-  const cities = [
-    'Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad',
-    'Multan', 'Peshawar', 'Quetta', 'Sialkot', 'Gujranwala',
-    'Hyderabad', 'Abbottabad', 'Bahawalpur', 'Sargodha', 'Sukkur',
-    'Larkana', 'Sheikhupura', 'Rahim Yar Khan', 'Jhang', 'Dera Ghazi Khan',
-    'Gujrat', 'Sahiwal', 'Wah Cantonment', 'Mardan', 'Kasur', 'Other',
-  ]
-  return (
-    <BCard>
-      <h2 style={H}>Which city do you live in?</h2>
-      <p style={SUB}>Select your city from the list below.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 4, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
-        {cities.map(c => (
-          <button key={c} onClick={() => onChange(c)} style={optStyle(value === c)}>{c}</button>
-        ))}
-      </div>
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
-    </BCard>
-  )
-}
-
-function SchoolTypeStep({ value, onChange, nextStep, prevStep }: any) {
-  const types = [
-    { id: 'private', name: 'Private School' },
-    { id: 'public', name: 'Government / Public' },
-    { id: 'islamic', name: 'Islamic / Madrasa' },
-    { id: 'homeschool', name: 'Homeschool' },
-  ]
-  return (
-    <BCard>
-      <h2 style={H}>Type of School</h2>
-      <p style={SUB}>What type of educational institution do you attend?</p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
-        {types.map(t => (
-          <button key={t.id} onClick={() => onChange(t.id)} style={optStyle(value === t.id)}>{t.name}</button>
-        ))}
-      </div>
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
-    </BCard>
-  )
-}
-
-function SchoolNameStep({ value, onChange, nextStep, prevStep }: any) {
-  return (
-    <BCard>
-      <h2 style={H}>School Name</h2>
-      <p style={SUB}>What&apos;s the name of your school or institution?</p>
-      <label style={MONO_LABEL}>SCHOOL / INSTITUTION</label>
-      <input
-        type="text"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder="e.g. Lahore Grammar School"
-        className="br-input"
-        style={INPUT_STYLE}
-      />
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value.trim()} />
-    </BCard>
-  )
-}
-
-function EducationLevelStep({ boardValue, levelValue, onBoardChange, onLevelChange, nextStep, prevStep }: any) {
-  const boards = [
-    { id: 'primary-middle', name: 'Primary / Middle', levels: ['Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8'] },
-    { id: 'matric', name: 'Matric', levels: ['Class 9', 'Class 10'] },
-    { id: 'fsc', name: 'FSC / Intermediate', levels: ['Class 11 (1st Year)', 'Class 12 (2nd Year)'] },
-    { id: 'olevels', name: 'O-Levels', levels: ['O-Level Year 1', 'O-Level Year 2', 'O-Level Year 3'] },
-    { id: 'alevels', name: 'A-Levels', levels: ['A-Level Year 1 (AS)', 'A-Level Year 2 (A2)'] },
-    { id: 'bachelors', name: 'Bachelors / University', levels: ['Semester 1', 'Semester 2', 'Semester 3', 'Semester 4', 'Semester 5', 'Semester 6', 'Semester 7', 'Semester 8'] },
-  ]
-  const selected = boards.find(b => b.id === boardValue)
-  return (
-    <BCard>
-      <h2 style={H}>Education Level</h2>
-      <p style={SUB}>Select your board and current year.</p>
-      <label style={MONO_LABEL}>EDUCATIONAL BOARD / SYSTEM</label>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 20 }}>
-        {boards.map(b => (
-          <button key={b.id} onClick={() => { onBoardChange(b.id); onLevelChange('') }} style={optStyle(boardValue === b.id)}>{b.name}</button>
-        ))}
-      </div>
-      {selected && (
-        <>
-          <label style={MONO_LABEL}>CURRENT CLASS / LEVEL</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 4, maxHeight: 200, overflowY: 'auto', paddingRight: 4 }}>
-            {selected.levels.map(l => (
-              <button key={l} onClick={() => onLevelChange(l)} style={optStyle(levelValue === l)}>{l}</button>
-            ))}
-          </div>
-        </>
-      )}
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!boardValue || !levelValue} />
-    </BCard>
-  )
-}
-
-function HobbiesStep({ value, onChange, nextStep, prevStep }: any) {
-  const hobbies = [
-    'Drawing/Painting', 'Writing', 'Photography', 'Calligraphy', 'Crafts',
-    'Singing', 'Playing Instrument', 'Music Production', 'Listening to Music',
-    'Cricket', 'Football', 'Basketball', 'Badminton', 'Swimming', 'Cycling',
-    'Running', 'Gym/Fitness', 'Martial Arts', 'Yoga',
-    'Video Gaming', 'PC Gaming', 'Mobile Gaming', 'Coding/Programming',
-    'Web Design', 'Robotics', 'Reading Books', 'Poetry', 'Debating',
-    'Science Experiments', 'Chess', 'Puzzles', 'Watching Movies',
-    'Watching Drama/Series', 'Social Media', 'YouTube', 'Making Videos',
-    'Blogging', 'Cooking', 'Baking', 'Food Blogging', 'Gardening',
-    'Bird Watching', 'Pet Care', 'Traveling', 'Hiking', 'Quran Recitation',
-    'Islamic Studies', 'Volunteering', 'Community Service', 'Fashion Design',
-    'Makeup', 'Styling', 'Collecting', 'Organizing', 'Journaling',
-    'Acting', 'Dancing', 'Public Speaking', 'Other',
-  ]
-  const toggle = (h: string) => onChange(value.includes(h) ? value.filter((x: string) => x !== h) : [...value, h])
-  return (
-    <BCard>
-      <h2 style={H}>Your Hobbies &amp; Interests</h2>
-      <p style={SUB}>Select all that apply — at least 1.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 12, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
-        {hobbies.map(h => (
-          <button key={h} onClick={() => toggle(h)} style={optStyle(value.includes(h))}>{h}</button>
-        ))}
-      </div>
-      {value.length > 0 && (
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 4 }}>
-          {value.length} SELECTED
-        </div>
-      )}
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={value.length === 0} />
-    </BCard>
-  )
-}
-
-function PersonalityStep({ value, onChange, nextStep, prevStep }: any) {
-  const traits = [
-    'Introverted', 'Extroverted', 'Analytical', 'Creative',
-    'Organized', 'Spontaneous', 'Empathetic', 'Logical',
-    'Optimistic', 'Realistic', 'Ambitious', 'Relaxed',
-    'Confident', 'Humble', 'Independent', 'Team Player',
-    'Adventurous', 'Cautious', 'Outgoing', 'Reserved',
-    'Leader', 'Follower', 'Perfectionist', 'Flexible',
-  ]
-  const toggle = (t: string) => onChange(value.includes(t) ? value.filter((x: string) => x !== t) : [...value, t])
-  return (
-    <BCard>
-      <h2 style={H}>Your Personality</h2>
-      <p style={SUB}>Choose traits that describe you — select at least 3.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 12 }}>
-        {traits.map(t => (
-          <button key={t} onClick={() => toggle(t)} style={optStyle(value.includes(t))}>{t}</button>
-        ))}
-      </div>
-      {value.length > 0 && (
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 4 }}>
-          {value.length} SELECTED
-        </div>
-      )}
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={value.length < 3} />
-    </BCard>
-  )
-}
-
-function RecentMoodStep({ value, onChange, nextStep, prevStep }: any) {
-  const moods = [
-    { value: 1, label: 'VERY BAD' },
-    { value: 2, label: 'BAD' },
-    { value: 3, label: 'NEUTRAL' },
-    { value: 4, label: 'GOOD' },
-    { value: 5, label: 'VERY GOOD' },
-  ]
-  return (
-    <BCard>
-      <h2 style={H}>How have you been feeling lately?</h2>
-      <p style={SUB}>Rate your mood over the past few days.</p>
-      <div style={{ display: 'flex', border: '1.5px solid var(--border)', marginBottom: 4 }}>
-        {moods.map((m, i) => (
-          <button
-            key={m.value}
-            onClick={() => onChange(m.value)}
-            style={{
-              flex: 1,
-              padding: 'clamp(14px,3vw,20px) clamp(4px,1vw,8px)',
-              textAlign: 'center',
-              background: value === m.value ? 'var(--bg-invert)' : 'var(--bg)',
-              color: value === m.value ? 'var(--ink-invert)' : 'var(--ink)',
-              border: 'none',
-              borderRight: i < moods.length - 1 ? '1.5px solid var(--border)' : 'none',
-              fontFamily: 'var(--font-display)',
-              fontWeight: 800,
-              fontSize: 'clamp(9px,1.8vw,12px)',
-              letterSpacing: '0.04em',
-              cursor: 'pointer',
-              transition: 'background 80ms, color 80ms',
-            }}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={value === 0} />
-    </BCard>
-  )
-}
-
-function AcademicStressStep({ value, moodValue, stressIsAcademic, onChange, onStressChange, nextStep, prevStep }: any) {
-  const levels = [
-    { value: 1, label: 'VERY LOW' },
-    { value: 2, label: 'LOW' },
-    { value: 3, label: 'MODERATE' },
-    { value: 4, label: 'HIGH' },
-    { value: 5, label: 'VERY HIGH' },
-  ]
-  const showQ = moodValue <= 3
-  return (
-    <BCard>
-      <h2 style={H}>Academic Stress Level</h2>
-      <p style={SUB}>How stressed do you feel about your studies?</p>
-      <div style={{ display: 'flex', border: '1.5px solid var(--border)', marginBottom: 20 }}>
-        {levels.map((l, i) => (
-          <button
-            key={l.value}
-            onClick={() => onChange(l.value)}
-            style={{
-              flex: 1,
-              padding: 'clamp(12px,2.5vw,18px) clamp(4px,1vw,6px)',
-              textAlign: 'center',
-              background: value === l.value ? 'var(--bg-invert)' : 'var(--bg)',
-              color: value === l.value ? 'var(--ink-invert)' : 'var(--ink)',
-              border: 'none',
-              borderRight: i < levels.length - 1 ? '1.5px solid var(--border)' : 'none',
-              fontFamily: 'var(--font-display)',
-              fontWeight: 800,
-              fontSize: 'clamp(9px,1.8vw,12px)',
-              letterSpacing: '0.04em',
-              cursor: 'pointer',
-              transition: 'background 80ms, color 80ms',
-            }}
-          >
-            {l.label}
-          </button>
-        ))}
-      </div>
-      {showQ && value > 0 && (
-        <div style={{ border: '1.5px solid var(--border-2)', padding: 16, marginBottom: 8 }}>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 12 }}>
-            IS YOUR MOOD RELATED TO ACADEMIC STRESS?
-          </p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {['yes', 'no', 'partially'].map(opt => (
-              <button
-                key={opt}
-                onClick={() => onStressChange(opt)}
-                style={{ ...optStyle(stressIsAcademic === opt), flex: 1, textTransform: 'uppercase' as const }}
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={value === 0 || (showQ && !stressIsAcademic)} />
-    </BCard>
-  )
-}
-
-function FavoriteSubjectStep({ value, onChange, nextStep, prevStep }: any) {
-  const subjects = [
-    'Mathematics', 'Physics', 'Chemistry', 'Biology',
-    'English', 'Urdu', 'Islamiyat', 'Pakistan Studies',
-    'Computer Science', 'Economics', 'Accounting', 'Business Studies',
-    'History', 'Geography', 'Psychology', 'Sociology',
-    'Art', 'Physical Education', 'Other',
-  ]
-  return (
-    <BCard>
-      <h2 style={H}>Favorite Subject</h2>
-      <p style={SUB}>Which subject do you enjoy the most?</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 4 }}>
-        {subjects.map(s => (
-          <button key={s} onClick={() => onChange(s)} style={optStyle(value === s)}>{s}</button>
-        ))}
-      </div>
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
-    </BCard>
-  )
-}
-
-function WorstSubjectStep({ value, onChange, nextStep, prevStep }: any) {
-  const subjects = [
-    'Mathematics', 'Physics', 'Chemistry', 'Biology',
-    'English', 'Urdu', 'Islamiyat', 'Pakistan Studies',
-    'Computer Science', 'Economics', 'Accounting', 'Business Studies',
-    'History', 'Geography', 'Psychology', 'Sociology',
-    'Art', 'Physical Education', 'Other', 'None — I like all',
-  ]
-  return (
-    <BCard>
-      <h2 style={H}>Least Favorite Subject</h2>
-      <p style={SUB}>Which subject do you find most challenging?</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 4 }}>
-        {subjects.map(s => (
-          <button key={s} onClick={() => onChange(s)} style={optStyle(value === s)}>{s}</button>
-        ))}
-      </div>
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
-    </BCard>
-  )
-}
-
-function SubjectWhyStep({ type, subject, value, onChange, nextStep, prevStep }: any) {
-  return (
-    <BCard>
-      <h2 style={H}>Why {subject}?</h2>
-      <p style={SUB}>
-        {type === 'favorite'
-          ? `What makes ${subject} your favorite subject?`
-          : `What makes ${subject} challenging for you?`}
-      </p>
-      <label style={MONO_LABEL}>YOUR ANSWER</label>
-      <textarea
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder="Share your thoughts..."
-        rows={5}
-        className="br-input"
-        style={{ width: '100%', padding: '13px 14px', fontSize: 14, boxSizing: 'border-box', resize: 'none', marginBottom: 4 }}
-      />
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value.trim() || value.trim().length < 10} />
-    </BCard>
-  )
-}
-
-function ReportCardStep({ value, onChange, nextStep, prevStep }: any) {
-  const grades = [
-    { id: 'excellent', label: 'EXCELLENT — A+ / 90–100%' },
-    { id: 'very-good', label: 'VERY GOOD — A / 80–89%' },
-    { id: 'good', label: 'GOOD — B / 70–79%' },
-    { id: 'satisfactory', label: 'SATISFACTORY — C / 60–69%' },
-    { id: 'needs-improvement', label: 'NEEDS IMPROVEMENT — < 60%' },
-    { id: 'varies', label: 'VARIES BY SUBJECT' },
-  ]
-  return (
-    <BCard>
-      <h2 style={H}>Report Card Average</h2>
-      <p style={SUB}>On average, how do you perform academically?</p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
-        {grades.map(g => (
-          <button key={g.id} onClick={() => onChange(g.id)} style={{ ...optStyle(value === g.id), textAlign: 'left' as const, padding: '13px 12px' }}>
-            {g.label}
-          </button>
-        ))}
-      </div>
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
-    </BCard>
-  )
-}
-
-function TutoringStep({ value, onChange, nextStep, prevStep }: any) {
-  const options = [
-    { id: 'yes-regularly', label: 'YES — REGULARLY' },
-    { id: 'yes-occasionally', label: 'YES — OCCASIONALLY' },
-    { id: 'no', label: 'NO' },
-    { id: 'online-courses', label: 'ONLINE COURSES / YOUTUBE' },
-  ]
-  return (
-    <BCard>
-      <h2 style={H}>Private Tutoring</h2>
-      <p style={SUB}>Do you take any private tutoring or extra classes?</p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
-        {options.map(o => (
-          <button key={o.id} onClick={() => onChange(o.id)} style={optStyle(value === o.id)}>{o.label}</button>
-        ))}
-      </div>
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
-    </BCard>
-  )
-}
-
-function CheatingStep({ value, onChange, nextStep, prevStep }: any) {
-  const options = [
-    { id: 'never', label: 'NEVER' },
-    { id: 'once-twice', label: 'ONCE OR TWICE' },
-    { id: 'occasionally', label: 'OCCASIONALLY' },
-    { id: 'frequently', label: 'FREQUENTLY' },
-    { id: 'prefer-not-say', label: 'PREFER NOT TO SAY' },
-  ]
-  return (
-    <BCard>
-      <h2 style={H}>Academic Honesty</h2>
-      <p style={SUB}>Have you ever cheated on exams or assignments? Your honest answer helps us understand academic pressures.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
-        {options.map(o => (
-          <button key={o.id} onClick={() => onChange(o.id)} style={optStyle(value === o.id)}>{o.label}</button>
-        ))}
-      </div>
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
-    </BCard>
-  )
-}
-
-function ResearchParticipationStep({ value, onChange, nextStep, prevStep }: any) {
-  const options = [
-    { id: 'yes', label: 'YES', desc: "I've participated in research studies before" },
-    { id: 'no', label: 'NO', desc: 'This is my first time' },
-    { id: 'not-sure', label: 'NOT SURE', desc: "I might have but I'm not certain" },
-  ]
-  return (
-    <BCard>
-      <h2 style={H}>Research Experience</h2>
-      <p style={SUB}>Have you ever participated in a research study before?</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 4 }}>
-        {options.map(o => (
-          <button
-            key={o.id}
-            onClick={() => onChange(o.id)}
-            style={{
-              ...optStyle(value === o.id),
-              textAlign: 'left' as const,
-              padding: '14px 16px',
-            }}
-          >
-            <div style={{ fontWeight: 800, marginBottom: 2 }}>{o.label}</div>
-            <div style={{ fontSize: 11, opacity: 0.7, fontFamily: 'var(--font-body)', fontWeight: 400, letterSpacing: 0 }}>{o.desc}</div>
-          </button>
-        ))}
-      </div>
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={!value} />
-    </BCard>
-  )
-}
-
-function IntermissionStep({ nextStep, prevStep }: any) {
-  return (
-    <BCard>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.14em', marginBottom: 16 }}>
-          ALMOST THERE
-        </div>
-        <h1 style={{ ...H, fontSize: 'clamp(28px,5vw,44px)', marginBottom: 20 }}>
-          Thank you for your patience.
-        </h1>
-        <div style={{ border: '1.5px solid var(--border-2)', padding: 20, marginBottom: 20 }}>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: 'var(--ink-2)', lineHeight: 1.7, marginBottom: 8 }}>
-            We know that form felt like a marathon.
-          </p>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.7 }}>
-            Thank you for crossing the finish line with us. We promise the personalized experience will be worth it.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 20 }}>
-          <div>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, color: 'var(--ink)', letterSpacing: '0.06em', marginBottom: 2 }}>✓ DATA COLLECTED</div>
-          </div>
-          <div>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, color: 'var(--ink)', letterSpacing: '0.06em', marginBottom: 2 }}>✓ PERSONALIZATION READY</div>
-          </div>
-        </div>
-      </div>
-      <NavBtns onNext={nextStep} onBack={prevStep} nextDisabled={false} />
-    </BCard>
-  )
-}
-
-function KokoroStep({ onFinish, prevStep, loading }: any) {
-  return (
-    <BCard>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.14em', marginBottom: 16 }}>
-          YOUR AI COMPANION
-        </div>
-        <h1 style={{ ...H, fontSize: 'clamp(28px,5vw,44px)', marginBottom: 20 }}>
-          Meet Kokoro.
-        </h1>
-        <div style={{ border: '1.5px solid var(--border-2)', padding: 20, marginBottom: 20 }}>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.7, fontStyle: 'italic' }}>
-            &ldquo;Hello! I&apos;m Kokoro, and I&apos;m honored to be part of your journey toward mental clarity and academic success. Together, we&apos;ll explore your thoughts, celebrate your victories, and navigate challenges with compassion and understanding. Your well-being is my priority.&rdquo;
-          </p>
-        </div>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.6 }}>
-          Kokoro is available 24/7, ready to help you process your thoughts and emotions in a safe, judgment-free space.
-        </p>
-      </div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button
-          onClick={prevStep}
-          className="br-btn"
-          style={{ padding: '12px 20px', fontSize: 12, letterSpacing: '0.06em', color: 'var(--ink-2)' }}
-        >
-          ← BACK
-        </button>
-        <button
-          onClick={onFinish}
-          disabled={loading}
-          className="br-btn br-btn-inv"
-          style={{ flex: 1, padding: '14px 20px', fontSize: 12, letterSpacing: '0.06em', opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
-        >
-          {loading ? 'SAVING...' : 'COMPLETE ONBOARDING →'}
-        </button>
-      </div>
-    </BCard>
-  )
-}
-
-function SuccessStep({ router }: { router: any }) {
-  useEffect(() => {
-    const t = setTimeout(() => router.push('/dashboard'), 4000)
-    return () => clearTimeout(t)
-  }, [router])
-
-  return (
-    <BCard>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.14em', marginBottom: 16 }}>
-          ONBOARDING COMPLETE
-        </div>
-        <h1 style={{ ...H, fontSize: 'clamp(28px,5vw,44px)', marginBottom: 20 }}>
-          All Done.
-        </h1>
-        <div style={{ border: '1.5px solid var(--border-2)', padding: 20, marginBottom: 20 }}>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: 'var(--ink-2)', lineHeight: 1.7, marginBottom: 12 }}>
-            Thank you for sharing your responses with us. Your insights are invaluable in helping us understand student mental health and academic wellness in Pakistan.
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[
-              'Your responses have been securely and confidentially saved',
-              'Kokoro is now personalized to support your unique needs',
-              'You\'ll be redirected to your dashboard momentarily',
-            ].map(item => (
-              <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--ink)', flexShrink: 0 }}>✓</span>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5 }}>{item}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.1em' }}>
-          Questions? Contact us at{' '}
-          <a href="mailto:saadnizami114@gmail.com" style={{ color: 'var(--ink-2)' }}>saadnizami114@gmail.com</a>
-        </p>
-      </div>
-      <motion.div
-        animate={{ opacity: [0.4, 1, 0.4] }}
-        transition={{ duration: 2, repeat: Infinity }}
-        style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em' }}
-      >
-        REDIRECTING TO DASHBOARD...
-      </motion.div>
-    </BCard>
   )
 }

@@ -1,145 +1,60 @@
-'use client'
-
 import Link from 'next/link'
+import { Phone, MessageCircle } from 'lucide-react'
+import { HELPLINES } from '@/lib/helplines'
+import { PageHeader } from '@/components/app/PageHeader'
 
-const HELPLINES = [
-  { name: 'RESCUE / AMBULANCE',  number: '1122',         note: '24/7 emergency services' },
-  { name: 'UMANG MENTAL HEALTH', number: '0317-4288665', note: 'Free counselling helpline' },
-  { name: 'UMANG WHATSAPP',      number: '0311-7786264', note: 'Mental health on WhatsApp' },
-  { name: 'ROZAN COUNSELLING',   number: '051-2890505',  note: 'Islamabad counselling' },
-  { name: 'EDHI FOUNDATION',     number: '115',          note: 'Social welfare & crisis support' },
-]
-
-const REMINDERS = [
-  {
-    q: 'YOU ARE NOT ALONE.',
-    a: 'Mental health struggles are common, especially among students. Reaching out is a sign of strength, not weakness.',
-  },
-  {
-    q: "IT'S OKAY TO ASK FOR HELP.",
-    a: "If you're feeling overwhelmed, anxious, or depressed — talk to someone. A professional, a friend, or Kokoro right here in the app.",
-  },
-  {
-    q: 'FREE SUPPORT EXISTS.',
-    a: 'Umang Pakistan and Rozan offer free, confidential mental health support via call and WhatsApp.',
-  },
-]
+/* A calm page: no stickers, no tilt, no animation. Crisis line first. */
 
 export default function HelplinePage() {
+  const [crisis, ...others] = HELPLINES
   return (
-    <div style={{ maxWidth: 680 }}>
+    <div className="page-narrow">
+      <PageHeader calm lines={["You don't have to do this alone"]}
+        lead="Every number here is free and answered by a trained person in Pakistan. You don't need a better reason to call than wanting to talk to someone." />
 
-      {/* Header */}
-      <div style={{ marginBottom: 8 }}>
-        <h1 style={{
-          fontFamily: 'var(--font-display)', fontWeight: 800,
-          fontSize: 'clamp(36px,5vw,56px)', color: 'var(--ink)',
-          letterSpacing: '-0.03em', lineHeight: 1,
-        }}>
-          GET HELP.
-        </h1>
-        <div style={{ borderTop: '1.5px solid var(--border)', marginTop: 8 }} />
-      </div>
-
-      {/* Crisis banner */}
-      <div style={{
-        border: '2px solid var(--accent)', padding: '14px 18px', marginBottom: 32,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <span style={{
-          fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13,
-          letterSpacing: '0.04em', color: 'var(--accent)',
-        }}>
-          IN IMMEDIATE DANGER? CALL 1122 NOW.
-        </span>
-        <a
-          href="tel:1122"
-          style={{
-            fontFamily: 'var(--font-mono)', fontSize: 20,
-            color: 'var(--accent)', textDecoration: 'none',
-          }}
-        >
-          →
-        </a>
-      </div>
-
-      {/* Helplines */}
-      <div style={{ marginBottom: 40 }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 6 }}>
-          PAKISTAN HELPLINES
-        </div>
-        <div style={{ borderTop: '1.5px solid var(--border)' }}>
-          {HELPLINES.map((h, i) => (
-            <div
-              key={h.name}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '14px 0',
-                borderBottom: '1px solid var(--border-2)',
-              }}
-            >
-              <div>
-                <div style={{
-                  fontFamily: 'var(--font-display)', fontWeight: 700,
-                  fontSize: 13, color: 'var(--ink)', letterSpacing: '0.02em', marginBottom: 2,
-                }}>
-                  {h.name}
-                </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.04em' }}>
-                  {h.note}
-                </div>
-              </div>
-              <a
-                href={`tel:${h.number}`}
-                className="br-btn"
-                style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 12, padding: '6px 14px',
-                  letterSpacing: '0.04em', textDecoration: 'none', color: 'var(--ink)',
-                  whiteSpace: 'nowrap', display: 'inline-block',
-                }}
-              >
-                {h.number}
-              </a>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Reminders */}
-      <div style={{ marginBottom: 40 }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)', letterSpacing: '0.12em', marginBottom: 6 }}>
-          REMEMBER
-        </div>
-        <div style={{ borderTop: '1.5px solid var(--border)' }}>
-          {REMINDERS.map((item, i) => (
-            <div
-              key={i}
-              style={{ padding: '16px 0', borderBottom: i < REMINDERS.length - 1 ? '1px solid var(--border-2)' : 'none' }}
-            >
-              <div style={{
-                fontFamily: 'var(--font-display)', fontWeight: 800,
-                fontSize: 14, color: 'var(--ink)', letterSpacing: '0.02em', marginBottom: 6,
-              }}>
-                {item.q}
-              </div>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.65 }}>
-                {item.a}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div style={{ borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
-        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', letterSpacing: '0.06em' }}>
-          YOU CAN ALSO TALK TO{' '}
-          <Link href="/dashboard/kokoro" style={{ color: 'var(--ink)', textDecoration: 'underline', letterSpacing: '0.06em' }}>
-            KOKORO
-          </Link>{' '}
-          ANYTIME IN THE APP
+      <section aria-labelledby="hl-now" className="hl-crisis">
+        <h2 id="hl-now" className="t-h3">If you are in danger right now</h2>
+        <p className="t-body" style={{ marginTop: 6 }}>
+          If you might hurt yourself, or someone else is in danger, call {crisis.name} on {crisis.number}. It&apos;s free and answers 24/7.
         </p>
-      </div>
+        <a href={crisis.href} className="pill pill--danger pill--lg" style={{ marginTop: 16 }}>
+          <Phone size={18} aria-hidden="true" /> Call {crisis.number}
+        </a>
+      </section>
+
+      <section aria-labelledby="hl-talk" style={{ marginTop: 32 }}>
+        <h2 id="hl-talk" className="section-title">To talk something through</h2>
+        <ul className="list sheet" style={{ padding: '4px 20px' }}>
+          {others.map(h => {
+            const whatsapp = h.href.startsWith('https://wa.me')
+            return (
+              <li key={h.name} style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <div>
+                  <p className="t-label" style={{ fontSize: 16 }}>{h.name}</p>
+                  <p className="t-small muted">{h.note}</p>
+                </div>
+                <a href={h.href} className="pill pill--ghost pill--sm" aria-label={`${whatsapp ? 'Message' : 'Call'} ${h.name} on ${h.number}`}>
+                  {whatsapp ? <MessageCircle size={16} aria-hidden="true" /> : <Phone size={16} aria-hidden="true" />}
+                  {h.number}
+                </a>
+              </li>
+            )
+          })}
+        </ul>
+      </section>
+
+      <section aria-labelledby="hl-know" style={{ marginTop: 32 }} className="sheet sheet--pad stack-sm">
+        <h2 id="hl-know" className="section-title" style={{ margin: 0 }}>Worth remembering</h2>
+        <p className="t-body">Most students feel overwhelmed at some point, especially around exams. You are not the only one.</p>
+        <p className="t-body">If calling feels like too much, start with someone you trust: a friend, an older sibling, a teacher or your school counsellor.</p>
+        <p className="t-body">
+          You can also <Link href="/dashboard/kokoro" className="link">talk to Kokoro</Link> any time. It&apos;s an AI, so for anything serious, please reach a person too.
+        </p>
+      </section>
+
+      <style>{`
+        .hl-crisis { padding: clamp(22px, 3vw, 30px); border-radius: var(--r-lg); background: var(--marigold-2); border: 1.5px solid #E9CF7E; }
+      `}</style>
     </div>
   )
 }

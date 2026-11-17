@@ -1,222 +1,105 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useState } from 'react'
+import { useReducedMotion } from 'framer-motion'
+import { PageHeader } from '@/components/app/PageHeader'
+import { OptionRows } from '@/components/ui/controls'
+import { Pill } from '@/components/ui/kit'
 
-const TECHNIQUES = [
-  {
-    id: 'box',
-    name: 'BOX BREATHING',
-    desc: 'Calm & focus',
-    steps: [
-      { label: 'INHALE', duration: 4 },
-      { label: 'HOLD',   duration: 4 },
-      { label: 'EXHALE', duration: 4 },
-      { label: 'HOLD',   duration: 4 },
-    ],
-  },
-  {
-    id: '478',
-    name: '4-7-8',
-    desc: 'Deep relaxation',
-    steps: [
-      { label: 'INHALE', duration: 4 },
-      { label: 'HOLD',   duration: 7 },
-      { label: 'EXHALE', duration: 8 },
-    ],
-  },
-  {
-    id: 'calm',
-    name: 'CALM BREATH',
-    desc: 'Gentle & easy',
-    steps: [
-      { label: 'INHALE', duration: 4 },
-      { label: 'EXHALE', duration: 6 },
-    ],
-  },
-  {
-    id: 'deep',
-    name: 'DEEP BREATHING',
-    desc: 'Ground yourself',
-    steps: [
-      { label: 'INHALE', duration: 5 },
-      { label: 'HOLD',   duration: 5 },
-      { label: 'EXHALE', duration: 5 },
-    ],
-  },
+/* A calm page: no stickers, no tilt. The only motion is the breath itself. */
+
+type Step = { label: 'Breathe in' | 'Hold' | 'Breathe out'; duration: number }
+const TECHNIQUES: { id: string; name: string; hint: string; steps: Step[] }[] = [
+  { id: 'box', name: 'Box breathing', hint: 'steadies you before an exam', steps: [
+    { label: 'Breathe in', duration: 4 }, { label: 'Hold', duration: 4 }, { label: 'Breathe out', duration: 4 }, { label: 'Hold', duration: 4 }] },
+  { id: '478', name: '4-7-8', hint: 'helps you fall asleep', steps: [
+    { label: 'Breathe in', duration: 4 }, { label: 'Hold', duration: 7 }, { label: 'Breathe out', duration: 8 }] },
+  { id: 'calm', name: 'Long out-breath', hint: 'the gentlest one', steps: [
+    { label: 'Breathe in', duration: 4 }, { label: 'Breathe out', duration: 6 }] },
+  { id: 'deep', name: 'Even breathing', hint: 'grounds you when you feel scattered', steps: [
+    { label: 'Breathe in', duration: 5 }, { label: 'Hold', duration: 5 }, { label: 'Breathe out', duration: 5 }] },
 ]
-
-const PHASE_BG: Record<string, string> = {
-  INHALE: '#F4F2EE',
-  HOLD:   '#E8E6E0',
-  EXHALE: '#F4F2EE',
-}
+const ROUNDS = 4
 
 export default function BreathingPage() {
-  const [selected, setSelected] = useState(TECHNIQUES[0])
-  const [running, setRunning]   = useState(false)
-  const [stepIdx, setStepIdx]   = useState(0)
-  const [elapsed, setElapsed]   = useState(0)
-  const [cycles, setCycles]     = useState(0)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const reduce = useReducedMotion()
+  const [techId, setTechId]   = useState('box')
+  const [running, setRunning] = useState(false)
+  const [t, setT]             = useState(0)   // seconds into the session
 
-  const currentStep = selected.steps[stepIdx]
-  const progress    = elapsed / currentStep.duration
-
-  const tick = useCallback(() => {
-    setElapsed(prev => {
-      if (prev + 1 >= currentStep.duration) {
-        setStepIdx(si => {
-          const next = (si + 1) % selected.steps.length
-          if (next === 0) setCycles(c => c + 1)
-          return next
-        })
-        return 0
-      }
-      return prev + 1
-    })
-  }, [currentStep.duration, selected.steps.length])
+  // Everything else is derived from t: the round, the step and its countdown.
+  const selected = TECHNIQUES.find(x => x.id === techId)!
+  const cycle = selected.steps.reduce((a, s) => a + s.duration, 0)
+  const total = cycle * ROUNDS
+  const finished = t >= total
+  const rounds = Math.min(Math.floor(t / cycle), ROUNDS)
+  let into = finished ? 0 : t % cycle, stepIdx = 0
+  while (!finished && into >= selected.steps[stepIdx].duration) { into -= selected.steps[stepIdx].duration; stepIdx++ }
+  const step = selected.steps[stepIdx]
+  const elapsed = into
+  const active = running && !finished
 
   useEffect(() => {
-    if (running) {
-      intervalRef.current = setInterval(tick, 1000)
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current)
+    if (!active) return
+    const id = setInterval(() => setT(x => Math.min(x + 1, total)), 1000)
+    return () => clearInterval(id)
+  }, [active, total])
+
+  const reset = () => { setRunning(false); setT(0) }
+  const begin = () => { if (finished) { setT(0); setRunning(true) } else setRunning(r => !r) }
+
+  // The circle's size: full on the in-breath, small on the out-breath, held otherwise.
+  const prevBig = (() => {
+    for (let i = stepIdx - 1 + selected.steps.length; i >= 0; i--) {
+      const s = selected.steps[i % selected.steps.length]
+      if (s.label !== 'Hold') return s.label === 'Breathe in'
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [running, tick])
-
-  const reset = () => {
-    setRunning(false); setStepIdx(0); setElapsed(0); setCycles(0)
-  }
-
-  const switchTechnique = (t: typeof TECHNIQUES[0]) => {
-    reset(); setSelected(t)
-  }
-
-  const patternInfo = selected.steps.map(s => `${s.label} ${s.duration}s`).join('  ·  ')
-  const phaseBg = running ? (PHASE_BG[currentStep.label] ?? 'var(--bg)') : 'var(--bg)'
+    return false
+  })()
+  const big = !active ? false : step.label === 'Breathe in' ? true : step.label === 'Breathe out' ? false : prevBig
+  const label = finished ? 'Well done' : active ? step.label : 'Ready'
 
   return (
-    <div style={{ maxWidth: 560 }}>
+    <div>
+      <PageHeader calm lines={['Breathe with it']}
+        lead="A few slow rounds tell your body it's safe to settle. Sit comfortably, drop your shoulders, and follow the circle." />
 
-      {/* Header */}
-      <div style={{ marginBottom: 40 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(36px, 5vw, 56px)', color: 'var(--ink)', letterSpacing: '-0.03em', lineHeight: 1 }}>
-          BREATHING
-        </h1>
-        <div style={{ borderTop: '1.5px solid var(--border)', marginTop: 12 }} />
-      </div>
-
-      {/* Technique selector */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 32, flexWrap: 'wrap' }}>
-        {TECHNIQUES.map(t => (
-          <button
-            key={t.id}
-            onClick={() => switchTechnique(t)}
-            style={{
-              padding: '8px 16px',
-              background: selected.id === t.id ? 'var(--bg-invert)' : 'var(--bg)',
-              color: selected.id === t.id ? 'var(--ink-invert)' : 'var(--ink-2)',
-              border: '1.5px solid var(--border)',
-              fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
-              letterSpacing: '0.04em', cursor: 'pointer',
-              transition: 'background 80ms, color 80ms',
-            }}
-          >
-            {t.name}
-          </button>
-        ))}
-      </div>
-
-      {/* Main breathing block */}
-      <div
-        style={{
-          border: '1.5px solid var(--border)',
-          padding: '48px 40px',
-          marginBottom: 24,
-          background: phaseBg,
-          transition: `background 800ms ease`,
-        }}
-      >
-        {/* Phase word */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={running ? currentStep.label : 'idle'}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(40px, 8vw, 64px)', color: 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1, marginBottom: 12 }}>
-              {running ? currentStep.label : 'READY'}
-            </div>
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Progress line */}
-        <div className="phase-line-track" style={{ marginBottom: 24 }}>
-          <div
-            className="phase-line-fill"
-            style={{
-              width: running ? `${progress * 100}%` : '0%',
-              transitionDuration: running ? `${currentStep.duration}s` : '0s',
-            }}
-          />
-        </div>
-
-        {/* Countdown */}
-        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 'clamp(80px, 16vw, 112px)', color: 'var(--ink)', lineHeight: 1, letterSpacing: '-0.02em', marginBottom: 20 }}>
-          {running ? currentStep.duration - elapsed : selected.steps[0].duration}
-        </div>
-
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', letterSpacing: '0.1em', marginBottom: 28 }}>
-          CYCLE {String(cycles + 1).padStart(2, '0')} OF 04
-        </div>
-
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button onClick={reset} className="br-btn" style={{ padding: '12px 20px' }}>
-            RESET
-          </button>
-          <button
-            onClick={() => setRunning(r => !r)}
-            className="br-btn br-btn-inv"
-            style={{ padding: '12px 32px', flex: 1 }}
-          >
-            {running ? '■ STOP' : '▶ BEGIN'}
-          </button>
-        </div>
-      </div>
-
-      {/* Pattern info */}
-      <div style={{ border: '1.5px solid var(--border)', padding: '14px 16px' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', letterSpacing: '0.08em' }}>
-          {selected.name}  ·  {patternInfo}
-        </div>
-      </div>
-
-      {/* Steps reference */}
-      <div style={{ display: 'flex', border: '1.5px solid var(--border)', borderTop: 'none', marginBottom: 0 }}>
-        {selected.steps.map((step, i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1, padding: '16px 12px', textAlign: 'center',
-              borderRight: i < selected.steps.length - 1 ? '1px solid var(--border-2)' : 'none',
-              background: running && i === stepIdx ? 'var(--bg-card)' : 'var(--bg)',
-              transition: 'background 300ms',
-            }}
-          >
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: running && i === stepIdx ? 'var(--ink)' : 'var(--ink-3)', letterSpacing: '0.04em', marginBottom: 4 }}>
-              {step.label}
-            </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 20, color: running && i === stepIdx ? 'var(--ink)' : 'var(--ink-3)' }}>
-              {step.duration}
-            </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-3)', letterSpacing: '0.08em', marginTop: 2 }}>SEC</div>
+      <div className="br-grid">
+        <section aria-label="Breathing guide" className="sheet br-stage">
+          <div className="br-circle-wrap" aria-hidden="true">
+            <div className="br-circle" data-big={big}
+              style={{ transitionDuration: reduce ? '0s' : `${active ? step.duration : 0.6}s` }} />
           </div>
-        ))}
+          <div className="br-text">
+            <p className="t-h1" aria-live="assertive">{label}</p>
+            <p className="t-lead muted" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {finished ? `${ROUNDS} rounds done. Notice how you feel now.` : active ? `${step.duration - elapsed}` : `${ROUNDS} rounds, about ${Math.round((selected.steps.reduce((a, s) => a + s.duration, 0) * ROUNDS) / 60 * 10) / 10} minutes`}
+            </p>
+          </div>
+          <div className="row" style={{ justifyContent: 'center', position: 'relative' }}>
+            <Pill variant="tape" size="lg" onClick={begin} style={{ minWidth: 170 }}>{active ? 'Pause' : finished ? 'Go again' : t > 0 ? 'Resume' : 'Begin'}</Pill>
+            {t > 0 && !finished && <button type="button" className="text-btn" onClick={reset}>Start over</button>}
+          </div>
+          {active && <p className="t-small muted" style={{ position: 'relative' }}>Round {rounds + 1} of {ROUNDS}</p>}
+        </section>
+
+        <aside className="sheet sheet--pad stack-sm">
+          <h2 id="br-pick" className="section-title" style={{ margin: 0 }}>Choose a pattern</h2>
+          <OptionRows labelledBy="br-pick" value={techId} onChange={v => { reset(); setTechId(v) }}
+            options={TECHNIQUES.map(t => ({ value: t.id, label: t.name, hint: t.steps.map(s => s.duration).join('-') }))} />
+          <p className="t-small muted">{selected.name}: {selected.hint}.</p>
+        </aside>
       </div>
+
+      <style>{`
+        .br-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+        .br-stage { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 48px 24px 36px; text-align: center; min-height: 520px; justify-content: center; }
+        .br-circle-wrap { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+        .br-circle { width: min(78%, 420px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, var(--sky-2) 0%, rgba(169,196,190,0.35) 60%, rgba(169,196,190,0) 72%); transform: scale(0.45); transition-property: transform; transition-timing-function: ease-in-out; }
+        .br-circle[data-big="true"] { transform: scale(1); }
+        .br-text { position: relative; display: grid; gap: 8px; }
+        @media (max-width: 900px) { .br-grid { grid-template-columns: 1fr; } .br-stage { min-height: 420px; } }
+      `}</style>
     </div>
   )
 }

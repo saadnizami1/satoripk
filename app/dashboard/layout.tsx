@@ -2,45 +2,75 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import Link from 'next/link'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { Menu, X, Settings } from 'lucide-react'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import { CHECKIN_EVENT, startOfToday } from '@/lib/dates'
+import { Logo } from '@/components/ui/kit'
 
-const NAV_ITEMS: ({ label: string; href: string; badge?: true } | null)[] = [
-  { label: 'HOME',          href: '/dashboard' },
-  { label: 'KOKORO',        href: '/dashboard/kokoro' },
-  { label: 'MOOD',          href: '/dashboard/mood' },
-  { label: 'JOURNAL',       href: '/dashboard/journal' },
-  null,
-  { label: 'RECORD TODAY',  href: '/dashboard/today', badge: true },
-  { label: 'HISTORY',       href: '/dashboard/history' },
-  null,
-  { label: 'POMODORO',      href: '/dashboard/pomodoro' },
-  { label: 'BREATHING',     href: '/dashboard/breathing' },
-  { label: 'MOOD GRAPH',    href: '/dashboard/graph' },
-  { label: 'STRESS',        href: '/dashboard/research' },
-  null,
-  { label: 'HELP',          href: '/dashboard/helpline' },
-  { label: 'RESEARCH DATA', href: '/dashboard/research-data' },
-  { label: 'PROFILE',       href: '/dashboard/profile' },
-  { label: 'SETTINGS',      href: '/dashboard/settings' },
-  { label: 'ABOUT',         href: '/dashboard/creator' },
+type NavItem = { label: string; href: string; badge?: true }
+
+// Every dashboard page appears here. Core ones also sit in the top bar
+// (desktop) and the bottom tabs (phones).
+const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
+  { title: 'Every day', items: [
+    { label: 'Home', href: '/dashboard' },
+    { label: 'Record today', href: '/dashboard/today', badge: true },
+    { label: 'Talk to Kokoro', href: '/dashboard/kokoro' },
+    { label: 'Journal', href: '/dashboard/journal' },
+  ] },
+  { title: 'Tools', items: [
+    { label: 'Mood check-in', href: '/dashboard/mood' },
+    { label: 'Focus timer', href: '/dashboard/pomodoro' },
+    { label: 'Breathing', href: '/dashboard/breathing' },
+    { label: 'Academic stress', href: '/dashboard/research' },
+  ] },
+  { title: 'Look back', items: [
+    { label: 'Mood graph', href: '/dashboard/graph' },
+    { label: 'Stress insights', href: '/dashboard/research/insights' },
+    { label: 'History', href: '/dashboard/history' },
+  ] },
+  { title: 'You', items: [
+    { label: 'Get help', href: '/dashboard/helpline' },
+    { label: 'Profile', href: '/dashboard/profile' },
+    { label: 'Settings', href: '/dashboard/settings' },
+    { label: 'Study survey', href: '/dashboard/survey' },
+    { label: 'For researchers', href: '/dashboard/research-data' },
+    { label: 'About Satori', href: '/dashboard/creator' },
+  ] },
 ]
 
-const MOBILE_TABS = [
-  { label: 'HOME',    href: '/dashboard' },
-  { label: 'TODAY',   href: '/dashboard/today', badge: true as true },
-  { label: 'CHAT',    href: '/dashboard/kokoro' },
-  { label: 'JOURNAL', href: '/dashboard/journal' },
+const TOP_NAV: NavItem[] = [
+  { label: 'Home', href: '/dashboard' },
+  { label: 'Today', href: '/dashboard/today', badge: true },
+  { label: 'Kokoro', href: '/dashboard/kokoro' },
+  { label: 'Journal', href: '/dashboard/journal' },
+  { label: 'Insights', href: '/dashboard/graph' },
+  { label: 'Help', href: '/dashboard/helpline' },
 ]
+
+const MOBILE_TABS: NavItem[] = [
+  { label: 'Home', href: '/dashboard' },
+  { label: 'Today', href: '/dashboard/today', badge: true },
+  { label: 'Kokoro', href: '/dashboard/kokoro' },
+  { label: 'Journal', href: '/dashboard/journal' },
+]
+
+function PendingDot({ label = 'not recorded yet' }: { label?: string }) {
+  return (
+    <span className="pending-dot" role="img" aria-label={label} />
+  )
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter()
   const pathname = usePathname()
-  const [menuOpen, setMenuOpen]       = useState(false)
+  const reduce   = useReducedMotion()
+  const [menuOpen, setMenuOpen]         = useState(false)
   const [todayPending, setTodayPending] = useState(false)
+  const [initial, setInitial]           = useState('')
 
   const refreshTodayStatus = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -56,7 +86,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [])
 
   // Auth and onboarding are enforced by the proxy before this renders, so
-  // the layout no longer blocks on a profile query. It only reacts to a
+  // the layout never blocks on a profile query. It only reacts to a
   // sign-out (e.g. from another tab).
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -64,6 +94,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
           router.replace('/auth')
         }
+        if (session?.user?.email) setInitial(session.user.email[0].toUpperCase())
       }
     )
     return () => subscription.unsubscribe()
@@ -78,231 +109,172 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => { setMenuOpen(false) }, [pathname])
 
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false)
+    window.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
+  }, [menuOpen])
+
+  const isHome = pathname === '/dashboard'
+  const isActive = (href: string) => href === '/dashboard' ? pathname === href : pathname === href || pathname.startsWith(href + '/')
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div className={`app ${isHome ? 'app--night on-dark' : ''}`}>
+      <a href="#app-main" className="skip-link">Skip to content</a>
 
-      {/* ── Main content ── */}
-      <main style={{ minHeight: '100vh' }}>
-        <div className="px-4 pt-6 pb-28 sm:px-10 sm:pt-12 lg:pb-12">
-          {children}
+      {/* ── Top bar ── */}
+      <header className="app-bar">
+        <div className="app-bar__inner">
+          <Link href="/dashboard" aria-label="Satori home" style={{ textDecoration: 'none' }}>
+            <Logo tone={isHome ? 'paper' : 'ink'} size={24} />
+          </Link>
+          <nav aria-label="Main" className="app-nav">
+            {TOP_NAV.map(item => (
+              <Link key={item.href} href={item.href} className="app-nav__link" aria-current={isActive(item.href) ? 'page' : undefined}>
+                {item.label}
+                {item.badge && todayPending && <PendingDot />}
+              </Link>
+            ))}
+          </nav>
+          <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+            <Link href="/dashboard/settings" className="icon-btn app-hide-sm" aria-label="Settings"><Settings size={20} strokeWidth={1.6} /></Link>
+            <Link href="/dashboard/profile" className="avatar-btn" aria-label="Your profile">{initial || 'S'}</Link>
+            <button type="button" className="icon-btn" aria-label="Open menu" aria-expanded={menuOpen} aria-controls="app-menu" onClick={() => setMenuOpen(true)}>
+              <Menu size={22} strokeWidth={1.8} />
+            </button>
+          </div>
         </div>
-      </main>
+      </header>
 
-      {/* ── Floating glassmorphic menu button ── */}
-      <button
-        onClick={() => setMenuOpen(true)}
-        aria-label="Open menu"
-        style={{
-          position: 'fixed', top: 20, right: 20, zIndex: 50,
-          width: 44, height: 44,
-          background: 'rgba(244,242,238,0.72)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1.5px solid rgba(12,12,12,0.18)',
-          boxShadow: '2px 2px 0px rgba(12,12,12,0.12)',
-          cursor: 'pointer',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 5,
-        }}
-      >
-        <span style={{ display: 'block', width: 16, height: 1.5, background: 'var(--ink)' }} />
-        <span style={{ display: 'block', width: 16, height: 1.5, background: 'var(--ink)' }} />
-        <span style={{ display: 'block', width: 16, height: 1.5, background: 'var(--ink)' }} />
-        {todayPending && (
-          <span style={{
-            position: 'absolute', top: 7, right: 7,
-            width: 7, height: 7, borderRadius: '50%',
-            background: 'var(--accent)',
-            border: '1.5px solid rgba(244,242,238,0.9)',
-          }} />
-        )}
-      </button>
+      <main id="app-main" className="app-main">{children}</main>
 
-      {/* ── Menu overlay ── */}
+      {/* ── Menu sheet ── */}
       <AnimatePresence>
         {menuOpen && (
           <>
+            <motion.div key="scrim" className="menu-scrim" onClick={() => setMenuOpen(false)}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} />
             <motion.div
-              key="backdrop"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              onClick={() => setMenuOpen(false)}
-              style={{
-                position: 'fixed', inset: 0, zIndex: 60,
-                background: 'rgba(12,12,12,0.35)',
-                backdropFilter: 'blur(6px)',
-                WebkitBackdropFilter: 'blur(6px)',
-              }}
-            />
-
-            <motion.div
-              key="panel"
-              initial={{ opacity: 0, y: -12, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -12, scale: 0.96 }}
-              transition={{ duration: 0.18, ease: [0.25, 0, 0, 1] }}
-              style={{
-                position: 'fixed', top: 14, right: 14, zIndex: 70,
-                width: 220,
-                background: 'rgba(244,242,238,0.88)',
-                backdropFilter: 'blur(28px)',
-                WebkitBackdropFilter: 'blur(28px)',
-                border: '1.5px solid rgba(12,12,12,0.14)',
-                boxShadow: '6px 6px 0px rgba(12,12,12,0.12)',
-              }}
+              key="sheet" id="app-menu" role="dialog" aria-modal="true" aria-label="Menu" className="menu-sheet"
+              initial={reduce ? { opacity: 0 } : { x: 40, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
+              exit={reduce ? { opacity: 0 } : { x: 40, opacity: 0 }} transition={{ duration: 0.24, ease: [0.2, 0.7, 0.2, 1] }}
             >
-              {/* Panel header */}
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '14px 18px',
-                borderBottom: '1px solid rgba(12,12,12,0.1)',
-              }}>
-                <span style={{
-                  fontFamily: 'var(--font-display)', fontWeight: 800,
-                  fontSize: 15, color: 'var(--ink)', letterSpacing: '-0.01em',
-                }}>
-                  SATORI
-                </span>
-                <button
-                  onClick={() => setMenuOpen(false)}
-                  style={{
-                    width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'transparent', border: 'none', cursor: 'pointer',
-                    fontFamily: 'var(--font-mono)', fontSize: 18, color: 'var(--ink-2)', lineHeight: 1,
-                  }}
-                >
-                  ×
+              <div className="menu-sheet__head">
+                <Logo size={22} />
+                <button type="button" className="icon-btn" aria-label="Close menu" onClick={() => setMenuOpen(false)} autoFocus>
+                  <X size={22} />
                 </button>
               </div>
-
-              {/* Nav */}
-              <nav style={{ padding: '6px 0' }}>
-                {NAV_ITEMS.map((item, i) =>
-                  item === null ? (
-                    <div key={`d-${i}`} style={{ borderTop: '1px solid rgba(12,12,12,0.07)', margin: '3px 0' }} />
-                  ) : (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '7px 18px',
-                        fontFamily: 'var(--font-display)',
-                        fontWeight: 700,
-                        fontSize: 12,
-                        letterSpacing: '0.06em',
-                        color: pathname === item.href ? 'var(--ink-invert)' : 'var(--ink)',
-                        background: pathname === item.href ? 'var(--bg-invert)' : 'transparent',
-                        textDecoration: 'none',
-                        transition: 'background 80ms, color 80ms',
-                      }}
-                      onMouseEnter={e => {
-                        if (pathname !== item.href)
-                          (e.currentTarget as HTMLElement).style.background = 'rgba(12,12,12,0.07)'
-                      }}
-                      onMouseLeave={e => {
-                        if (pathname !== item.href)
-                          (e.currentTarget as HTMLElement).style.background = 'transparent'
-                      }}
-                    >
-                      {item.label}
-                      {item.badge && todayPending && (
-                        <span style={{
-                          width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                          background: pathname === item.href ? 'var(--ink-invert)' : 'var(--accent)',
-                        }} />
-                      )}
-                    </Link>
-                  )
-                )}
+              <nav aria-label="All pages" className="menu-sheet__nav">
+                {NAV_GROUPS.map(g => (
+                  <div key={g.title}>
+                    <p className="menu-sheet__group">{g.title}</p>
+                    {g.items.map(item => (
+                      <Link key={item.href} href={item.href} className="menu-link" aria-current={isActive(item.href) ? 'page' : undefined}>
+                        {item.label}
+                        {item.badge && todayPending && <PendingDot />}
+                      </Link>
+                    ))}
+                  </div>
+                ))}
               </nav>
-
-              {/* Sign out */}
-              <div style={{ borderTop: '1px solid rgba(12,12,12,0.1)', padding: '4px 0 4px' }}>
-                <button
-                  onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }}
-                  style={{
-                    display: 'block', width: '100%', padding: '8px 18px', textAlign: 'left',
-                    fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
-                    letterSpacing: '0.06em', color: 'var(--accent)',
-                    background: 'transparent', border: 'none', cursor: 'pointer',
-                    transition: 'background 80ms',
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-bg)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                >
-                  SIGN OUT
-                </button>
-              </div>
+              <button type="button" className="menu-link menu-link--danger"
+                onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }}>
+                Sign out
+              </button>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* ── Mobile bottom nav ── */}
-      <nav
-        className="lg:hidden"
-        style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
-          background: 'rgba(244,242,238,0.92)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
-          borderTop: '1.5px solid var(--border)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'stretch' }}>
-          {MOBILE_TABS.map(tab => {
-            const isActive = pathname === tab.href
-            return (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                style={{
-                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '12px 0',
-                  fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 9,
-                  letterSpacing: '0.06em',
-                  color: isActive ? 'var(--ink-invert)' : 'var(--ink-3)',
-                  background: isActive ? 'var(--bg-invert)' : 'transparent',
-                  borderRight: '1px solid var(--border-2)',
-                  textDecoration: 'none', transition: 'background 80ms',
-                  position: 'relative',
-                }}
-              >
-                {tab.label}
-                {tab.badge && todayPending && !isActive && (
-                  <span style={{
-                    position: 'absolute', top: 6, right: '25%',
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: 'var(--accent)',
-                    border: '1.5px solid rgba(244,242,238,0.92)',
-                  }} />
-                )}
-              </Link>
-            )
-          })}
-          <button
-            onClick={() => setMenuOpen(true)}
-            style={{
-              flex: 1, padding: '12px 0',
-              fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 9,
-              letterSpacing: '0.06em', color: 'var(--ink-3)',
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              position: 'relative',
-            }}
-          >
-            MENU
-            {todayPending && (
-              <span style={{
-                position: 'absolute', top: 6, right: '25%',
-                width: 6, height: 6, borderRadius: '50%',
-                background: 'var(--accent)',
-                border: '1.5px solid rgba(244,242,238,0.92)',
-              }} />
-            )}
-          </button>
-        </div>
+      {/* ── Phone tab bar ── */}
+      <nav aria-label="Quick" className="tabbar">
+        {MOBILE_TABS.map(tab => (
+          <Link key={tab.href} href={tab.href} className="tabbar__tab" aria-current={isActive(tab.href) ? 'page' : undefined}>
+            {tab.label}
+            {tab.badge && todayPending && <PendingDot />}
+          </Link>
+        ))}
+        <button type="button" className="tabbar__tab" onClick={() => setMenuOpen(true)} aria-expanded={menuOpen} aria-controls="app-menu">
+          Menu
+        </button>
       </nav>
+
+      <style>{`
+        .app { min-height: 100svh; background: var(--fog); color: var(--ink); }
+        .app--night { background: var(--night); color: var(--on-dark); }
+        .app-bar { position: sticky; top: 0; z-index: 40; padding: 12px var(--gutter) 0; }
+        .app-bar__inner {
+          max-width: var(--container); margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+          padding: 8px 8px 8px 20px; border-radius: var(--r-pill);
+          background: rgba(255,253,247,0.86); border: 1px solid rgba(17,17,17,0.06);
+          backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
+          box-shadow: 0 10px 30px -20px rgba(15,30,46,0.5);
+        }
+        .app--night .app-bar__inner { background: rgba(15,30,46,0.7); border-color: var(--line-dark); }
+        .app-nav { display: flex; gap: 2px; }
+        .app-nav__link {
+          position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px;
+          border-radius: var(--r-pill); text-decoration: none; font-weight: 500; font-size: 15px; color: var(--ink-2);
+          transition: background 180ms, color 180ms;
+        }
+        .app-nav__link:hover { background: rgba(17,17,17,0.06); color: var(--ink); }
+        .app-nav__link[aria-current="page"] { background: var(--tape); color: var(--paper); }
+        .app--night .app-nav__link { color: var(--on-dark-2); }
+        .app--night .app-nav__link:hover { background: rgba(255,253,247,0.1); color: var(--on-dark); }
+        .app--night .app-nav__link[aria-current="page"] { background: var(--paper); color: var(--ink); }
+        .icon-btn { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 0; background: transparent; cursor: pointer; color: inherit; text-decoration: none; }
+        .icon-btn:hover { background: rgba(17,17,17,0.06); }
+        .app--night .icon-btn:hover { background: rgba(255,253,247,0.1); }
+        .avatar-btn { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--marigold); color: var(--ink); font: 400 19px/1 var(--font-display); text-decoration: none; }
+        .pending-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--marigold); box-shadow: 0 0 0 2px var(--ink); flex-shrink: 0; }
+        .app--night .pending-dot { box-shadow: 0 0 0 2px var(--paper); }
+        .app-main { max-width: var(--container); margin: 0 auto; padding: 28px var(--gutter) 64px; }
+
+        .menu-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(15,30,46,0.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+        .menu-sheet {
+          position: fixed; top: 12px; right: 12px; bottom: 12px; z-index: 70; width: min(360px, calc(100vw - 24px));
+          display: flex; flex-direction: column; background: var(--paper); color: var(--ink); border-radius: 24px;
+          box-shadow: 0 30px 60px -20px rgba(0,0,0,0.5); overflow: hidden;
+        }
+        .menu-sheet__head { display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 10px 22px; border-bottom: 1px solid var(--line); }
+        .menu-sheet__nav { flex: 1; overflow-y: auto; padding: 8px 12px 12px; }
+        .menu-sheet__group { font-size: 13px; font-weight: 600; color: var(--ink-3); padding: 14px 12px 4px; }
+        .menu-link {
+          display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0 12px;
+          border-radius: 12px; border: 0; background: none; cursor: pointer; text-align: left; text-decoration: none;
+          font: 500 16px/1.2 var(--font-body); color: var(--ink);
+        }
+        .menu-link:hover { background: var(--fog); }
+        .menu-link[aria-current="page"] { background: var(--tape); color: var(--paper); }
+        .menu-link[aria-current="page"] .pending-dot { box-shadow: 0 0 0 2px var(--paper); }
+        .menu-link--danger { color: var(--danger); margin: 0 12px 12px; width: calc(100% - 24px); border-top: 1px solid var(--line); border-radius: 0 0 12px 12px; padding-top: 4px; }
+        .menu-link--danger:hover { background: var(--danger-bg); }
+
+        .tabbar { display: none; }
+        @media (max-width: 899px) {
+          .app-nav { display: none; }
+        }
+        @media (max-width: 760px) {
+          .app-hide-sm { display: none !important; }
+          .app-bar { padding: 8px 10px 0; }
+          .app-main { padding: 20px 16px calc(96px + env(safe-area-inset-bottom, 0px)); }
+          .tabbar {
+            position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 40;
+            display: grid; grid-template-columns: repeat(5, 1fr); padding: 6px; border-radius: var(--r-pill);
+            background: var(--tape); box-shadow: 0 16px 30px -12px rgba(0,0,0,0.5);
+          }
+          .tabbar__tab {
+            position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 48px;
+            border-radius: var(--r-pill); border: 0; background: none; cursor: pointer; text-decoration: none;
+            font: 600 13px/1 var(--font-body); color: var(--on-dark-2);
+          }
+          .tabbar__tab[aria-current="page"] { background: var(--paper); color: var(--ink); }
+          .tabbar .pending-dot { box-shadow: 0 0 0 2px var(--tape); width: 7px; height: 7px; position: absolute; top: 9px; right: 18%; }
+        }
+      `}</style>
     </div>
   )
 }

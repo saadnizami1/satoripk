@@ -1,807 +1,417 @@
-'use client'
-
-import { useState, useEffect, useRef, type ReactNode, type CSSProperties } from 'react'
-import { motion, useInView, useReducedMotion, useScroll, useMotionValueEvent } from 'framer-motion'
 import Link from 'next/link'
+import { LandingHeader } from '@/components/landing/LandingHeader'
+import { HeroPhone } from '@/components/landing/HeroPhone'
+import { TapeHeading, Pill, Scene, ZigzagDivider, NumberBadge, TornPaper, FilmStrip, Logo } from '@/components/ui/kit'
+import { Sticker, type StickerName } from '@/components/ui/stickers'
+import { Accordion } from '@/components/ui/controls'
+import { MoodGlyph } from '@/components/ui/MoodGlyph'
+import { Classroom, Library, ExamHall, Rooftop } from '@/components/ui/school-scenes'
+import { HELPLINES } from '@/lib/helplines'
 
-/* ────────────────────────────────────────────────────────────────
-   Satori — landing page
-   Concept: a research dossier, typeset like a printed document.
-   Swiss grid, masked type reveals, index rows instead of cards.
-──────────────────────────────────────────────────────────────── */
+/*
+ * Landing page: a scrapbook kept on a Lahore rooftop. One painted dusk
+ * scene, label-tape headings, cut-out stickers and torn paper. Everything
+ * here is server-rendered; only the header and the hero phone hydrate.
+ */
 
-const EASE = [0.25, 0, 0, 1] as const
+const STEPS: { title: string; body: string; sticker: StickerName; tilt: number }[] = [
+  { title: 'check in', body: 'One tap tells Satori how today feels. No essays and no wrong answers.', sticker: 'phone', tilt: -8 },
+  { title: 'do one small thing', body: 'Breathe for two minutes, write three lines, or start a focus block. Satori suggests one that fits the day.', sticker: 'chai', tilt: 6 },
+  { title: 'see your weeks', body: 'After a few weeks your patterns show up: what drains you, and what helps.', sticker: 'calendar', tilt: -5 },
+  { title: 'talk it out', body: 'Kokoro is there at 2am, between classes, and the night before results. Say it however it comes out.', sticker: 'polaroid', tilt: 7 },
+]
 
-/* ── Masked line reveal — text slides up from behind a crop ── */
-function Reveal({
-  children,
-  delay = 0,
-  once = true,
-}: {
-  children: ReactNode
-  delay?: number
-  once?: boolean
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once, margin: '-10% 0px' })
-  const reduce = useReducedMotion()
-  return (
-    <div ref={ref} style={{ overflow: 'hidden' }}>
-      <motion.div
-        initial={{ y: reduce ? 0 : '110%' }}
-        animate={inView ? { y: 0 } : { y: reduce ? 0 : '110%' }}
-        transition={{ duration: 0.9, delay, ease: EASE }}
-      >
-        {children}
-      </motion.div>
-    </div>
-  )
-}
+const STATS = [
+  { n: '200+', label: 'students using Satori', color: 'var(--marigold)', tilt: -4, seed: 3 },
+  { n: '7', label: 'schools', color: 'var(--rose)', tilt: 3, seed: 7 },
+  { n: '4', label: 'cities across Pakistan', color: 'var(--mint)', tilt: -2, seed: 11 },
+]
 
-/* ── Fade-in for secondary content ── */
-function Fade({
-  children,
-  delay = 0,
-  style,
-}: {
-  children: ReactNode
-  delay?: number
-  style?: CSSProperties
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, margin: '-8% 0px' })
-  const reduce = useReducedMotion()
-  return (
-    <motion.div
-      ref={ref}
-      style={style}
-      initial={{ opacity: 0, y: reduce ? 0 : 20 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.8, delay, ease: EASE }}
-    >
-      {children}
-    </motion.div>
-  )
-}
+const KOKORO = [
+  { title: 'built with researchers', body: 'Made as part of a Lahore Garrison University study on academic stress, with Matric, FSc and A-Level pressure in mind.', sticker: 'papers' as const },
+  { title: 'remembers your week', body: "Kokoro sees your recent check-ins, so you don't have to explain everything from the start each time.", sticker: 'notebook' as const },
+  { title: 'there at 2am', body: "Exam tomorrow, can't sleep, need to vent. Kokoro answers any time, and points you to real people in an emergency.", sticker: 'moon' as const },
+]
 
-/* ── Horizontal rule that draws itself in ── */
-function Rule({ delay = 0, color = 'var(--border)' }: { delay?: number; color?: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, margin: '-5% 0px' })
-  const reduce = useReducedMotion()
-  return (
-    <div ref={ref}>
-      <motion.div
-        initial={{ scaleX: reduce ? 1 : 0 }}
-        animate={inView ? { scaleX: 1 } : {}}
-        transition={{ duration: 1.1, delay, ease: EASE }}
-        style={{ height: 1.5, background: color, transformOrigin: 'left' }}
-      />
-    </div>
-  )
-}
-
-/* ── Count-up numeral ── */
-function Counter({ end, suffix = '' }: { end: number; suffix?: string }) {
-  const [n, setN] = useState(0)
-  const ref = useRef<HTMLSpanElement>(null)
-  const inView = useInView(ref, { once: true, margin: '-15% 0px' })
-  useEffect(() => {
-    if (!inView) return
-    const t0 = performance.now()
-    const dur = 1600
-    let raf = 0
-    const tick = (t: number) => {
-      const p = Math.min((t - t0) / dur, 1)
-      setN(Math.round((1 - Math.pow(1 - p, 3)) * end))
-      if (p < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [inView, end])
-  return <span ref={ref}>{n}{suffix}</span>
-}
-
-/* ── Live Lahore clock — renders after mount to avoid hydration drift ── */
-function LahoreClock() {
-  const [time, setTime] = useState<string | null>(null)
-  useEffect(() => {
-    const fmt = new Intl.DateTimeFormat('en-GB', {
-      timeZone: 'Asia/Karachi',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hour12: false,
-    })
-    const tick = () => setTime(fmt.format(new Date()))
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [])
-  return (
-    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-      LHE {time ?? '--:--:--'}
-    </span>
-  )
-}
-
-/* ── Section folio label ── */
-function Folio({ n, title }: { n: string; title: string }) {
-  return (
-    <Fade>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 10,
-          letterSpacing: '0.2em', color: 'var(--ink)',
-        }}>
-          §{n}
-        </span>
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 10,
-          letterSpacing: '0.2em', color: 'var(--ink-3)',
-        }}>
-          {title}
-        </span>
+const FAQ = [
+  {
+    q: 'How does Satori use my data?',
+    a: (
+      <div className="stack-sm">
+        <p>Your journal and your Kokoro chats are yours. They are never part of the research data.</p>
+        <p>
+          Satori is also a research study on academic stress. If you say yes to research, your mood and stress
+          check-ins (with any notes you add to them) and your profile answers, including your name and email, are
+          shared with the study team at Lahore Garrison University. Nobody else gets them.
+        </p>
+        <p>Research is optional. You can say no and still use everything, or change your mind any time in Settings.</p>
       </div>
-    </Fade>
-  )
-}
-
-/* ── Data ─────────────────────────────────────────────────────── */
-
-const TOOLS = [
-  { n: '01', name: 'AI COMPANION',    desc: 'Listens without judgment. Trained on what students here actually face.' },
-  { n: '02', name: 'MOOD TRACKING',   desc: 'Log the day in seconds. Patterns emerge when you look back.' },
-  { n: '03', name: 'PRIVATE JOURNAL', desc: 'Write freely. Entries stay yours unless you decide otherwise.' },
-  { n: '04', name: 'FOCUS TIMER',     desc: 'Twenty-five minutes of work, five to breathe. Deceptively effective.' },
-  { n: '05', name: 'BREATHING GUIDES',desc: 'Four science-backed techniques. Under five minutes, anywhere.' },
-  { n: '06', name: 'STRESS TRACKER',  desc: 'Academic pressure, acknowledged — tracked so it can be managed.' },
-  { n: '07', name: 'MOOD INSIGHTS',   desc: 'Your emotional patterns, visualised across weeks and months.' },
-  { n: '08', name: 'CRISIS HELPLINES',desc: 'Real humans, 24/7. Pakistan-specific numbers, one tap away.' },
+    ),
+  },
+  {
+    q: 'Is Kokoro a therapist?',
+    a: (
+      <p>
+        No. Kokoro is an AI companion. It can listen and suggest small next steps, but it can&apos;t diagnose or treat
+        anything. Its replies are written by an AI model, and your chats are saved to your account so you can come
+        back to them. If things feel serious, please talk to a real person: the numbers are below.
+      </p>
+    ),
+  },
+  { q: 'Is it really free?', a: <p>Yes. No trials, no ads and no paid tier. Satori is a research project, not a business.</p> },
+  {
+    q: 'Can my school or parents read my journal?',
+    a: <p>No. Only you can open your journal. Schools and parents never get access to anyone&apos;s account.</p>,
+  },
+  {
+    q: 'What if I need help right now?',
+    a: (
+      <div className="stack-sm">
+        <p>Please reach out to a real person. These lines are free:</p>
+        <ul style={{ margin: 0, paddingLeft: 18 }}>
+          {HELPLINES.slice(0, 3).map(h => (
+            <li key={h.name}><a className="link" href={h.href}>{h.name}: {h.number}</a> <span className="faint-dark">{h.note.toLowerCase()}</span></li>
+          ))}
+        </ul>
+      </div>
+    ),
+  },
 ]
-
-const SCHOOLS = [
-  'INTERNATIONAL SCHOOL LAHORE',
-  'WAHADAT GOVERNMENT SCHOOL',
-  'LAHORE GRAMMAR SCHOOL ISLAMABAD',
-  'QUETTA GRAMMAR SCHOOL',
-  'AL-HUDA MODEL SCHOOL PESHAWAR',
-  "ST. PATRICK'S HIGH SCHOOL KARACHI",
-  'KABUL INTERNATIONAL MODEL SCHOOL',
-]
-
-const TICKER = TOOLS.map(t => t.name)
-
-/* ── Page ─────────────────────────────────────────────────────── */
 
 export default function LandingPage() {
-  const [mounted, setMounted] = useState(false)
-  const [headerSolid, setHeaderSolid] = useState(false)
-  // Scroll progress is a motion value bound straight to the DOM, so
-  // scrolling never re-renders the page; the header only re-renders when
-  // it crosses the threshold.
-  const { scrollY, scrollYProgress } = useScroll()
-  useMotionValueEvent(scrollY, 'change', y => setHeaderSolid(y > 60))
-
-  useEffect(() => {
-    setMounted(true)
-    setHeaderSolid(window.scrollY > 60)
-  }, [])
-
-  const PX = 'clamp(20px, 5vw, 80px)'
-
   return (
-    <div style={{ background: 'var(--bg)', color: 'var(--ink)', overflowX: 'clip' }}>
+    <div className="lp">
+      <a href="#main" className="skip-link">Skip to content</a>
+      <div className="texture" aria-hidden="true" />
+      <LandingHeader />
 
-      <style>{`
-        @keyframes tk { from { transform: translateX(0) } to { transform: translateX(-50%) } }
-        .tk-row { animation: tk 36s linear infinite; }
-        .tk-wrap:hover .tk-row { animation-play-state: paused; }
-
-        @keyframes hero-rise { from { transform: translateY(105%) } to { transform: translateY(0) } }
-        @keyframes hero-fade { from { opacity: 0 } to { opacity: 1 } }
-        .hero-rise { animation: hero-rise 1.1s cubic-bezier(0.25,0,0,1) 0.15s both; }
-        .hero-fade { animation: hero-fade 0.7s ease both; }
-        @media (prefers-reduced-motion: reduce) {
-          .hero-rise, .hero-fade { animation: none; }
-        }
-
-        @keyframes dot-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.25 } }
-        .dot-pulse { animation: dot-pulse 1.8s ease-in-out infinite; }
-
-        /* Index rows — full invert on hover */
-        .idx-row {
-          display: grid;
-          grid-template-columns: clamp(40px,6vw,80px) 1fr minmax(0, 42%);
-          align-items: baseline;
-          gap: clamp(12px, 2.5vw, 32px);
-          padding: clamp(18px, 3vw, 28px) clamp(20px, 5vw, 80px);
-          border-bottom: 1.5px solid var(--border);
-          background: transparent;
-          transition: background 160ms cubic-bezier(0.25,0,0,1);
-          position: relative;
-        }
-        .idx-row:hover { background: var(--ink); }
-        .idx-num  { transition: color 160ms; }
-        .idx-name { transition: color 160ms, transform 240ms cubic-bezier(0.25,0,0,1); }
-        .idx-desc { transition: color 160ms; }
-        .idx-row:hover .idx-num  { color: var(--bg) !important; opacity: 0.5; }
-        .idx-row:hover .idx-name { color: var(--bg) !important; transform: translateX(10px); }
-        .idx-row:hover .idx-desc { color: var(--bg) !important; opacity: 0.75; }
-        @media (max-width: 720px) {
-          .idx-row { grid-template-columns: clamp(40px,6vw,80px) 1fr; }
-          .idx-desc { grid-column: 2; }
-          .idx-row:hover .idx-name { transform: none; }
-        }
-
-        /* Ledger rows */
-        .ledger-row {
-          display: flex; align-items: baseline; gap: 20px;
-          padding: 16px clamp(20px, 5vw, 80px);
-          border-bottom: 1px solid var(--border-2);
-          transition: background 140ms;
-        }
-        .ledger-row:hover { background: var(--bg-card); }
-
-        /* CTA buttons */
-        .cta-main {
-          display: inline-flex; align-items: center; gap: 12px;
-          font-family: var(--font-display); font-weight: 800; font-size: 13px;
-          letter-spacing: 0.06em; text-decoration: none;
-          color: var(--ink-invert); background: var(--bg-invert);
-          border: 1.5px solid var(--border); padding: 18px 34px;
-          transition: box-shadow 120ms cubic-bezier(0.25,0,0,1), transform 120ms cubic-bezier(0.25,0,0,1);
-          cursor: pointer;
-        }
-        .cta-main:hover { box-shadow: 5px 5px 0 var(--border); transform: translate(-3px,-3px); }
-        .cta-ghost {
-          display: inline-flex; align-items: center;
-          font-family: var(--font-display); font-weight: 700; font-size: 13px;
-          letter-spacing: 0.06em; text-decoration: none;
-          color: var(--ink-2); border: 1.5px solid var(--border-2);
-          padding: 18px 26px;
-          transition: border-color 140ms, color 140ms;
-          cursor: pointer;
-        }
-        .cta-ghost:hover { border-color: var(--border); color: var(--ink); }
-
-        .quiet-link {
-          font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em;
-          color: var(--ink-3); text-decoration: none; transition: color 140ms;
-        }
-        .quiet-link:hover { color: var(--ink); }
-
-        /* Footer watermark — outlined, cropped at the page edge */
-        .watermark {
-          font-family: var(--font-display); font-weight: 800;
-          font-size: clamp(110px, 21vw, 340px);
-          line-height: 0.76; letter-spacing: -0.04em;
-          color: transparent;
-          -webkit-text-stroke: 1.5px var(--ink);
-          user-select: none;
-          transform: translateY(0.14em);
-        }
-
-        /* Hero vertical hairlines — Swiss column guides */
-        .hair-v { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-2); opacity: 0.45; }
-        @media (max-width: 720px) { .hair-v { display: none } }
-
-        /* Abstract — sticky folio beside copy, stacked on phones */
-        .abs-grid {
-          display: grid;
-          grid-template-columns: minmax(140px, 1fr) minmax(0, 3fr);
-          gap: clamp(24px, 4vw, 64px);
-          align-items: start;
-        }
-        @media (max-width: 720px) {
-          .abs-grid { grid-template-columns: 1fr; }
-          .abs-grid .abs-folio { position: static !important; }
-        }
-      `}</style>
-
-      {/* ── Scroll progress ── */}
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, zIndex: 300 }}>
-        <motion.div style={{
-          height: '100%', background: 'var(--ink)',
-          scaleX: scrollYProgress, transformOrigin: 'left',
-        }} />
-      </div>
-
-      {/* ── Header ── */}
-      <header style={{
-        position: 'fixed', top: 2, left: 0, right: 0, zIndex: 200,
-        padding: `16px ${PX}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: headerSolid ? 'rgba(244,242,238,0.92)' : 'transparent',
-        backdropFilter: headerSolid ? 'blur(16px)' : 'none',
-        WebkitBackdropFilter: headerSolid ? 'blur(16px)' : 'none',
-        borderBottom: `1.5px solid ${headerSolid ? 'var(--border)' : 'transparent'}`,
-        transition: 'background 300ms ease, border-color 300ms ease',
-      }}>
-        <span style={{
-          fontFamily: 'var(--font-display)', fontWeight: 800,
-          fontSize: 15, letterSpacing: '-0.02em',
-        }}>
-          SATORI.
-        </span>
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 10,
-          letterSpacing: '0.14em', color: 'var(--ink-3)',
-        }}>
-          <LahoreClock />
-        </span>
-      </header>
-
-      {/* ══════════════════════════════════════════════
-          HERO — masthead
-      ══════════════════════════════════════════════ */}
-      <section style={{
-        minHeight: '100dvh',
-        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-        position: 'relative',
-        padding: `clamp(96px,14vh,160px) 0 0`,
-      }}>
-        {/* Column guides */}
-        <div className="hair-v" style={{ left: '33.33%' }} />
-        <div className="hair-v" style={{ left: '66.66%' }} />
-
-        {/* Top-right dateline */}
-        {mounted && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.4, duration: 0.8 }}
-            style={{
-              position: 'absolute', top: 'clamp(84px,12vh,140px)', right: PX,
-              textAlign: 'right',
-              fontFamily: 'var(--font-mono)', fontSize: 10, lineHeight: 2,
-              letterSpacing: '0.14em', color: 'var(--ink-3)',
-            }}
-          >
-            FIELD STUDY · VOL. 01<br />
-            31.5204° N, 74.3587° E
-          </motion.div>
-        )}
-
-        {/* Wordmark — one masked reveal, cropped tight to the rule */}
-        <div style={{ padding: `0 ${PX}`, position: 'relative', zIndex: 1 }}>
-          <div style={{ overflow: 'hidden' }}>
-            {/* CSS animation, not JS: the wordmark is the LCP element and
-                must paint before hydration. */}
-            <h1
-              className="hero-rise"
-              style={{
-                fontFamily: 'var(--font-display)', fontWeight: 800,
-                fontSize: 'clamp(72px, 16.5vw, 250px)',
-                lineHeight: 0.94, letterSpacing: '-0.045em',
-                margin: 0, whiteSpace: 'nowrap',
-              }}
-            >
-              SATORI<span style={{ color: 'var(--accent)' }}>.</span>
-            </h1>
-          </div>
-        </div>
-
-        {/* Masthead rule */}
-        <div style={{ margin: `clamp(20px,3vh,36px) 0 0` }}>
-          <Rule delay={0.9} />
-        </div>
-
-        {/* Metadata strip — three mono columns */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          borderBottom: '1.5px solid var(--border)',
-        }}>
-          {[
-            {
-              k: 'THE STUDY',
-              v: 'Mood, stress and focus infrastructure for students navigating academic pressure in Pakistan.',
-              delay: 1.15,
-            },
-            {
-              k: 'INSTITUTION',
-              v: 'Lahore Garrison University. Principal investigator: Saad Nizami.',
-              delay: 1.3,
-            },
-            {
-              k: 'STATUS',
-              v: 'Recruiting participants — free for students.',
-              delay: 1.45,
-              live: true,
-            },
-          ].map(({ k, v, delay, live }, i) => (
-            <div
-              key={k}
-              className="hero-fade"
-              style={{
-                animationDelay: `${delay}s`,
-                padding: `clamp(20px,3vh,30px) clamp(20px,3vw,36px)`,
-                borderLeft: i > 0 ? '1px solid var(--border-2)' : 'none',
-              }}
-            >
-              <div style={{
-                fontFamily: 'var(--font-mono)', fontSize: 9,
-                letterSpacing: '0.2em', color: 'var(--ink-3)',
-                marginBottom: 12,
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}>
-                {live && (
-                  <span className="dot-pulse" style={{
-                    width: 6, height: 6, background: 'var(--accent)',
-                    display: 'inline-block', flexShrink: 0,
-                  }} />
-                )}
-                {k}
-              </div>
-              <div style={{
-                fontFamily: 'var(--font-body)', fontSize: 13.5,
-                lineHeight: 1.6, color: 'var(--ink-2)', maxWidth: 340,
-              }}>
-                {v}
-              </div>
+      <main id="main">
+        {/* ── Hero ───────────────────────────────────────────────── */}
+        <Scene src="/art/dusk.webp" priority position="center 72%" className="on-dark lp-hero"
+          scrim="linear-gradient(180deg, rgba(15,30,46,0.55) 0%, rgba(15,30,46,0.1) 45%, rgba(15,30,46,0) 60%, rgba(15,30,46,0.55) 100%)">
+          <div className="container lp-hero__inner">
+            <h1 className="t-hero lp-hero__title">a quiet place for the loudest years</h1>
+            <p className="t-lead lp-hero__lead">
+              A free, private space for students in Pakistan to check in, breathe, focus and talk things
+              through, especially when exams feel bigger than everything else.
+            </p>
+            <div className="row" style={{ justifyContent: 'center', gap: 10 }}>
+              <Pill href="/auth?mode=signup" variant="white" size="lg" knob>Start free</Pill>
+              <Pill href="#how" variant="glass" size="lg">See how it works</Pill>
             </div>
-          ))}
-        </div>
-
-        {/* Ticker — the eight instruments, single pass */}
-        <div className="tk-wrap" style={{
-          overflow: 'hidden',
-          borderBottom: '1.5px solid var(--border)',
-          padding: '13px 0',
-        }}>
-          <div className="tk-row" style={{ display: 'flex', width: 'max-content', whiteSpace: 'nowrap' }}>
-            {[...TICKER, ...TICKER].map((t, i) => (
-              <span key={i} style={{
-                fontFamily: 'var(--font-mono)', fontSize: 11,
-                letterSpacing: '0.16em', color: 'var(--ink-3)',
-                padding: '0 34px',
-              }}>
-                {t}
-                <span style={{ marginLeft: 34, color: 'var(--border-2)' }}>/</span>
-              </span>
-            ))}
           </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════
-          §01 — ABSTRACT
-      ══════════════════════════════════════════════ */}
-      <section style={{ padding: `clamp(72px,12vh,140px) ${PX}` }}>
-        <div className="abs-grid">
-          <div className="abs-folio" style={{ position: 'sticky', top: 90 }}>
-            <Folio n="01" title="ABSTRACT" />
+          <div className="lp-hero__phone">
+            <Sticker name="chai" size={128} tilt={-10} className="lp-hero__sticker lp-hero__sticker--l" />
+            <HeroPhone />
+            <Sticker name="kite" size={110} tilt={12} className="lp-hero__sticker lp-hero__sticker--r sway" />
           </div>
+        </Scene>
 
-          <div>
-            {[
-              { t: 'Academic pressure is real.', mute: false },
-              { t: 'Satori is a daily practice for the students living it —', mute: false },
-              { t: 'not a replacement for care.', mute: true },
-            ].map(({ t, mute }, i) => (
-              <Reveal key={i} delay={i * 0.12}>
-                <p style={{
-                  fontFamily: 'var(--font-display)', fontWeight: 800,
-                  fontSize: 'clamp(26px, 4.6vw, 62px)',
-                  lineHeight: 1.08, letterSpacing: '-0.03em',
-                  color: mute ? 'var(--ink-3)' : 'var(--ink)',
-                  margin: '0 0 8px',
-                }}>
-                  {t}
-                </p>
-              </Reveal>
-            ))}
-
-            <Fade delay={0.4} style={{ marginTop: 36 }}>
-              <p style={{
-                fontFamily: 'var(--font-body)', fontSize: 'clamp(14px,1.7vw,17px)',
-                lineHeight: 1.75, color: 'var(--ink-2)', maxWidth: 520,
-              }}>
-                Eight instruments in one place — built alongside more than 150 students
-                in seven cities, and studied with the rigour of a university research
-                programme. Free to use. Private by default. No ads, no data sold.
-              </p>
-            </Fade>
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════
-          §02 — THE TOOLKIT (index rows)
-      ══════════════════════════════════════════════ */}
-      <section style={{ paddingBottom: 'clamp(72px,12vh,140px)' }}>
-        <div style={{ padding: `0 ${PX}`, marginBottom: 'clamp(32px,5vh,56px)' }}>
-          <Folio n="02" title="THE TOOLKIT" />
-          <div style={{ height: 20 }} />
-          <Reveal>
-            <h2 style={{
-              fontFamily: 'var(--font-display)', fontWeight: 800,
-              fontSize: 'clamp(34px,6vw,80px)', letterSpacing: '-0.035em',
-              lineHeight: 0.98, margin: 0,
-            }}>
-              EIGHT INSTRUMENTS.
-            </h2>
-          </Reveal>
-        </div>
-
-        <Rule />
-        <div>
-          {TOOLS.map((t, i) => (
-            <Fade key={t.n} delay={Math.min(i * 0.04, 0.24)}>
-              <div className="idx-row">
-                <span className="idx-num" style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)',
-                }}>
-                  {t.n}
-                </span>
-                <span className="idx-name" style={{
-                  fontFamily: 'var(--font-display)', fontWeight: 800,
-                  fontSize: 'clamp(18px, 3vw, 38px)', letterSpacing: '-0.02em',
-                  color: 'var(--ink)', display: 'inline-block',
-                }}>
-                  {t.name}
-                </span>
-                <span className="idx-desc" style={{
-                  fontFamily: 'var(--font-body)', fontSize: 13.5,
-                  lineHeight: 1.6, color: 'var(--ink-2)',
-                }}>
-                  {t.desc}
-                </span>
-              </div>
-            </Fade>
-          ))}
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════
-          §03 — THE RESEARCH (inverted)
-      ══════════════════════════════════════════════ */}
-      <section style={{
-        background: 'var(--bg-invert)', color: 'var(--ink-invert)',
-        padding: `clamp(72px,12vh,140px) ${PX}`,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 'clamp(36px,6vh,64px)' }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em' }}>§03</span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em', color: 'rgba(244,242,238,0.4)' }}>
-            THE RESEARCH
-          </span>
-        </div>
-
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: 'clamp(48px,7vw,110px)',
-          alignItems: 'start',
-        }}>
-          <div>
-            <Reveal>
-              <h2 style={{
-                fontFamily: 'var(--font-display)', fontWeight: 800,
-                fontSize: 'clamp(34px,5.2vw,72px)', lineHeight: 1.02,
-                letterSpacing: '-0.03em', margin: '0 0 28px',
-              }}>
-                MORE THAN<br />AN APP.
-              </h2>
-            </Reveal>
-            <Fade delay={0.15}>
-              <p style={{
-                fontFamily: 'var(--font-body)', fontSize: 'clamp(14px,1.7vw,17px)',
-                color: 'rgba(244,242,238,0.65)', lineHeight: 1.75,
-                maxWidth: 440, margin: 0,
-              }}>
-                Every session contributes to an active psychological study on student
-                mental health across Pakistan. The goal is research that shapes
-                policy — not research that fills a database.
-              </p>
-            </Fade>
-          </div>
-
-          {/* Stats — hairline table */}
-          <Fade delay={0.2}>
-            <div style={{ borderTop: '1px solid rgba(244,242,238,0.25)' }}>
-              {([
-                { end: 30,  suffix: '+', label: 'SCHOOLS PILOTED' },
-                { end: 150, suffix: '+', label: 'STUDENT PARTICIPANTS' },
-                { end: 7,   suffix: '',  label: 'CITIES' },
-                { end: 1,   suffix: '',  label: 'UNIVERSITY PARTNER' },
-              ] as const).map((s, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                  gap: 24, padding: 'clamp(18px,2.6vh,26px) 0',
-                  borderBottom: '1px solid rgba(244,242,238,0.25)',
-                }}>
-                  <span style={{
-                    fontFamily: 'var(--font-display)', fontWeight: 800,
-                    fontSize: 'clamp(40px,5.5vw,68px)', lineHeight: 1,
-                    letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums',
-                  }}>
-                    <Counter end={s.end} suffix={s.suffix} />
-                  </span>
-                  <span style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 10,
-                    letterSpacing: '0.16em', color: 'rgba(244,242,238,0.45)',
-                    textAlign: 'right',
-                  }}>
-                    {s.label}
-                  </span>
-                </div>
+        {/* ── How it works ───────────────────────────────────────── */}
+        <section id="how" aria-labelledby="how-h" className="lp-how">
+          <div className="container">
+            <TapeHeading id="how-h" lines={['how it', 'works']} accent="works" size="t-h1" />
+            <p className="t-lead" style={{ maxWidth: 520, marginTop: 18 }}>
+              A two-minute habit, not another thing to keep up with.
+            </p>
+            <ol className="lp-steps">
+              {STEPS.map((s, i) => (
+                <li key={s.title} className="lp-step" data-side={i % 2 ? 'right' : 'left'}>
+                  <div className="lp-step__art"><Sticker name={s.sticker} size={190} tilt={s.tilt} /></div>
+                  <div className="lp-step__text">
+                    <NumberBadge n={i + 1} color={['var(--marigold)', 'var(--mint)', 'var(--paper)', 'var(--rose)'][i]} />
+                    <h3 className="t-h2">{s.title}</h3>
+                    <p className="t-lead">{s.body}</p>
+                  </div>
+                </li>
               ))}
+            </ol>
+          </div>
+        </section>
+
+        <ZigzagDivider top="var(--sky-2)" bottom="var(--night)" />
+
+        {/* ── Real students ──────────────────────────────────────── */}
+        <section aria-labelledby="real-h" className="on-dark lp-night">
+          <div className="container">
+            <div className="lp-split">
+              <TapeHeading id="real-h" lines={['real students,', 'real weeks']} accent="real" tone="paper" size="t-h1" />
+              <p className="t-lead" style={{ color: 'var(--on-dark-2)', maxWidth: 440 }}>
+                Satori began as a research study at Lahore Garrison University and grew with the students who use it,
+                from Matric to university.
+              </p>
             </div>
-          </Fade>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════
-          §04 — PARTICIPATING SCHOOLS (ledger)
-      ══════════════════════════════════════════════ */}
-      <section style={{ padding: `clamp(72px,12vh,140px) 0 0` }}>
-        <div style={{ padding: `0 ${PX}`, marginBottom: 'clamp(28px,4vh,44px)' }}>
-          <Folio n="04" title="PARTICIPATING SCHOOLS" />
-        </div>
-
-        <Rule />
-        {SCHOOLS.map((s, i) => (
-          <Fade key={s} delay={Math.min(i * 0.03, 0.18)}>
-            <div className="ledger-row">
-              <span style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10,
-                color: 'var(--ink-3)', width: 28, flexShrink: 0,
-              }}>
-                {String(i + 1).padStart(2, '0')}
-              </span>
-              <span style={{
-                fontFamily: 'var(--font-display)', fontWeight: 700,
-                fontSize: 'clamp(13px,1.8vw,17px)', letterSpacing: '0.04em',
-                flex: 1, minWidth: 0,
-              }}>
-                {s}
-              </span>
-              <span style={{
-                fontFamily: 'var(--font-mono)', fontSize: 9,
-                letterSpacing: '0.18em', color: 'var(--ink-3)', flexShrink: 0,
-              }}>
-                ACTIVE
-              </span>
+            <div className="lp-film">
+              <FilmStrip label="Places Satori students study">
+                {[Classroom, Library, ExamHall, Rooftop].map((Art, i) => (
+                  <div key={i} role="listitem" className="film__frame"><Art /></div>
+                ))}
+              </FilmStrip>
+              <ul className="lp-stats" aria-label="Satori in numbers">
+                {STATS.map(s => (
+                  <li key={s.label}>
+                    <TornPaper color={s.color} tilt={s.tilt} seed={s.seed}>
+                      <span className="t-num" style={{ display: 'block' }}>{s.n}</span>
+                      <span className="t-label" style={{ fontSize: 15 }}>{s.label}</span>
+                    </TornPaper>
+                  </li>
+                ))}
+              </ul>
             </div>
-          </Fade>
-        ))}
-        <div style={{
-          padding: `16px ${PX}`,
-          borderBottom: '1.5px solid var(--border)',
-        }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10,
-            letterSpacing: '0.16em', color: 'var(--ink-3)',
-          }}>
-            + 23 MORE ACROSS PAKISTAN
-          </span>
-        </div>
-      </section>
+          </div>
+        </section>
 
-      {/* ══════════════════════════════════════════════
-          §05 — FOR ADMINISTRATORS
-      ══════════════════════════════════════════════ */}
-      <section style={{ padding: `clamp(72px,12vh,140px) ${PX}` }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: 'clamp(40px,6vw,90px)',
-          alignItems: 'end',
-        }}>
+        {/* ── Kokoro ─────────────────────────────────────────────── */}
+        <section id="kokoro" aria-labelledby="kokoro-h" className="on-dark lp-kokoro">
+          <div className="container">
+            <TapeHeading id="kokoro-h" lines={['meet kokoro,', 'your pocket companion']} accent="kokoro" tone="marigold" size="t-h1" />
+            <ul className="grid-3 lp-kokoro__cols">
+              {KOKORO.map((k, i) => (
+                <li key={k.title}>
+                  <Sticker name={k.sticker} size={150} tilt={[-6, 5, -3][i]} />
+                  <h3 className="t-h3" style={{ marginTop: 18 }}>{k.title}</h3>
+                  <p className="t-body" style={{ color: 'var(--on-dark-2)', marginTop: 10 }}>{k.body}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="t-small" style={{ color: 'var(--on-dark-2)', marginTop: 40 }}>
+              Kokoro is an AI, not a therapist. For anything serious, talk to a person too.
+            </p>
+          </div>
+        </section>
+
+        {/* ── Doomscrolling comparison ───────────────────────────── */}
+        <Scene src="/art/blur-dusk.webp" className="on-dark lp-compare" scrim="rgba(15,30,46,0.35)">
+          <section aria-labelledby="cmp-h" className="container">
+            <h2 id="cmp-h" className="tape-stack tape-stack--center t-h1" style={{ alignItems: 'center' }}>
+              <span className="tape" style={{ ['--tilt' as string]: '-1.5deg' }}>tired of doomscrolling?</span>
+              <span className="tape tape--rose" style={{ ['--tilt' as string]: '1.2deg', marginLeft: '8%' }}>try one calm minute</span>
+            </h2>
+            <div className="lp-compare__grid">
+              <div className="glass lp-compare__calm">
+                <Logo tone="paper" size={20} />
+                <p className="t-h3" style={{ marginTop: 18 }}>how are you arriving today?</p>
+                <div className="row" style={{ gap: 6, marginTop: 18 }} aria-hidden="true">
+                  {[1, 2, 3, 4, 5].map(n => <MoodGlyph key={n} score={n} size={40} />)}
+                </div>
+                <p className="t-body" style={{ marginTop: 18, color: 'var(--on-dark-2)' }}>
+                  Open it, tap one, close it. No feed, no likes, nothing to keep up with.
+                </p>
+              </div>
+              <TornPaper color="#D9DDD9" tilt={2.5} seed={5} className="lp-compare__feed" innerStyle={{ padding: '28px 28px 34px' }}>
+                <p className="t-label faint">your feed, all day</p>
+                <ul className="lp-feed">
+                  {['results leaked??', 'who topped the mocks', '12 new reels', 'group chat (148)', 'everyone is studying except you'].map((t, i) => (
+                    <li key={t}>
+                      <span>{t}</span>
+                      <span className="lp-feed__badge">{['99+', '41', '12', '148', '!'][i]}</span>
+                    </li>
+                  ))}
+                </ul>
+                <svg viewBox="0 0 300 40" className="lp-scribble" aria-hidden="true"><path d="M4 30 C40 4 60 38 96 14 S150 36 180 10 S240 34 296 8" fill="none" stroke="#111" strokeWidth="3" strokeLinecap="round" /></svg>
+              </TornPaper>
+            </div>
+          </section>
+        </Scene>
+
+        <ZigzagDivider top="var(--dusk)" bottom="var(--fog)" />
+
+        {/* ── Privacy ────────────────────────────────────────────── */}
+        <section id="privacy" aria-labelledby="privacy-h" className="lp-privacy">
+          <div className="container">
+            <TapeHeading id="privacy-h" lines={['private. safe.', 'yours.']} accent="yours." size="t-h1" />
+            <ul className="grid-3 lp-privacy__cols">
+              <li>
+                <Sticker name="padlock" size={130} tilt={-6} />
+                <h3 className="t-h3">your journal stays yours</h3>
+                <p className="t-body muted">Only you can read your journal and your Kokoro chats. Not your school, not your parents, not the researchers.</p>
+              </li>
+              <li>
+                <Sticker name="coin" size={130} tilt={5} />
+                <h3 className="t-h3">no ads, nothing sold</h3>
+                <p className="t-body muted">Satori is free and has no ads, and your data is never sold.</p>
+              </li>
+              <li>
+                <Sticker name="phoneHeart" size={130} tilt={-3} />
+                <h3 className="t-h3">real people, when you need them</h3>
+                <ul className="lp-lines">
+                  {HELPLINES.slice(0, 2).map(h => (
+                    <li key={h.name}><a href={h.href} className="link">{h.name}: <strong>{h.number}</strong></a></li>
+                  ))}
+                </ul>
+              </li>
+            </ul>
+            <div className="sheet sheet--pad lp-consent">
+              <Sticker name="papers" size={88} tilt={-8} />
+              <div>
+                <h3 className="t-h4">research is your choice</h3>
+                <p className="t-body muted" style={{ marginTop: 6 }}>
+                  If you say yes, your check-ins and profile answers, including your name and email, go to the study
+                  team at Lahore Garrison University and nobody else. Say no and you still get everything.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── FAQ ────────────────────────────────────────────────── */}
+        <Scene src="/art/blur-night.webp" className="on-dark lp-faq" scrim="rgba(15,30,46,0.25)">
+          <section id="faq" aria-labelledby="faq-h" className="container lp-faq__inner">
+            <TapeHeading id="faq-h" lines={['questions,', 'answered']} accent="answered" tone="paper" size="t-h1" />
+            <div className="glass glass--dark lp-faq__panel">
+              <Accordion items={FAQ} />
+            </div>
+          </section>
+        </Scene>
+
+        {/* ── Schools ────────────────────────────────────────────── */}
+        <section id="schools" aria-labelledby="schools-h" className="lp-schools">
+          <div className="container lp-schools__inner">
+            <div>
+              <TapeHeading id="schools-h" lines={['bring satori', 'to your school']} accent="school" tone="marigold" size="t-h1" />
+              <p className="t-lead" style={{ marginTop: 22, maxWidth: 480 }}>
+                Satori is free for every school. If you&apos;re a counsellor or teacher and want it for your students,
+                we&apos;d love to hear from you.
+              </p>
+              <div style={{ marginTop: 26 }}>
+                <Pill href="mailto:saadnizami@icloud.com?subject=Satori%20for%20our%20school" variant="tape" size="lg" knob>Talk to the team</Pill>
+              </div>
+            </div>
+            <div className="lp-schools__art" aria-hidden="true">
+              <Sticker name="bag" size={170} tilt={-8} />
+              <Sticker name="pencil" size={130} tilt={10} style={{ marginLeft: -30, marginTop: 70 }} />
+              <Sticker name="envelope" size={120} tilt={-4} style={{ marginLeft: -10 }} />
+            </div>
+          </div>
+        </section>
+
+        {/* ── Final call ─────────────────────────────────────────── */}
+        <Scene src="/art/night.webp" position="center 85%" className="on-dark lp-end"
+          scrim="linear-gradient(180deg, var(--night) 0%, rgba(15,30,46,0.2) 30%, rgba(15,30,46,0) 60%)">
+          <div className="container" style={{ textAlign: 'center' }}>
+            <h2 className="t-hero" style={{ textShadow: '0 2px 0 rgba(0,0,0,0.25)' }}>start with one check-in</h2>
+            <div className="row" style={{ justifyContent: 'center', marginTop: 30 }}>
+              <Pill href="/auth?mode=signup" variant="white" size="lg" knob>Make your space</Pill>
+            </div>
+          </div>
+        </Scene>
+      </main>
+
+      <footer className="on-dark lp-foot">
+        <div className="container lp-footer">
           <div>
-            <Folio n="05" title="FOR ADMINISTRATORS" />
-            <div style={{ height: 20 }} />
-            <Reveal>
-              <h2 style={{
-                fontFamily: 'var(--font-display)', fontWeight: 800,
-                fontSize: 'clamp(30px,4.6vw,60px)', lineHeight: 1.04,
-                letterSpacing: '-0.028em', margin: '0 0 22px',
-              }}>
-                RUNNING A SCHOOL?
-              </h2>
-            </Reveal>
-            <Fade delay={0.15}>
-              <p style={{
-                fontFamily: 'var(--font-body)', fontSize: 'clamp(14px,1.7vw,17px)',
-                color: 'var(--ink-2)', lineHeight: 1.72, maxWidth: 420, margin: 0,
-              }}>
-                If you&apos;d like your institution to take part in the research — or
-                simply want Satori for your students — we&apos;d like to hear from you.
-              </p>
-            </Fade>
+            <Logo tone="paper" />
+            <p className="t-body" style={{ marginTop: 12, color: 'var(--on-dark-2)', maxWidth: 360 }}>
+              Breathe without scrolling. Satori supports you; it doesn&apos;t replace a counsellor or doctor.
+            </p>
           </div>
-
-          <Fade delay={0.2}>
-            <div style={{ border: '1.5px solid var(--border)', padding: 'clamp(28px,4vw,44px)' }}>
-              <span style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10,
-                letterSpacing: '0.16em', color: 'var(--ink-3)',
-                display: 'block', marginBottom: 18,
-              }}>
-                RESEARCH COLLABORATION
-              </span>
-              <p style={{
-                fontFamily: 'var(--font-body)', fontSize: 14,
-                color: 'var(--ink-2)', lineHeight: 1.7, margin: '0 0 28px',
-              }}>
-                We are actively expanding to more schools as part of the ongoing
-                study at Lahore Garrison University.
-              </p>
-              <a href="mailto:saadnizami@icloud.com" className="cta-main">
-                CONTACT US <span aria-hidden>→</span>
-              </a>
-            </div>
-          </Fade>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════
-          §06 — BEGIN (the only sign-up on the page)
-      ══════════════════════════════════════════════ */}
-      <section style={{ borderTop: '1.5px solid var(--border)', padding: `clamp(80px,14vh,160px) ${PX}` }}>
-        <Folio n="06" title="GET STARTED — FREE" />
-        <div style={{ height: 'clamp(28px,4vh,44px)' }} />
-
-        <Reveal>
-          <h2 style={{
-            fontFamily: 'var(--font-display)', fontWeight: 800,
-            fontSize: 'clamp(64px,13vw,190px)', lineHeight: 0.9,
-            letterSpacing: '-0.045em', margin: '0 0 40px',
-          }}>
-            BEGIN<span style={{ color: 'var(--accent)' }}>.</span>
-          </h2>
-        </Reveal>
-
-        <Fade delay={0.15}>
-          <p style={{
-            fontFamily: 'var(--font-body)', fontSize: 'clamp(14px,1.7vw,17px)',
-            color: 'var(--ink-2)', lineHeight: 1.7,
-            maxWidth: 420, margin: '0 0 44px',
-          }}>
-            Join more than 150 students already part of the study.
-            Free to use. Private. No ads. No data sold.
-          </p>
-        </Fade>
-
-        <Fade delay={0.25}>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Link href="/auth" className="cta-main">
-              CREATE FREE ACCOUNT <span aria-hidden>→</span>
-            </Link>
-            <Link href="/auth" className="cta-ghost">
-              SIGN IN
-            </Link>
+          <nav aria-label="Footer">
+            <a href="#how" className="text-btn">how it works</a>
+            <a href="#privacy" className="text-btn">privacy</a>
+            <a href="#faq" className="text-btn">faq</a>
+            <a href="#schools" className="text-btn">for schools</a>
+            <Link href="/auth" className="text-btn">log in</Link>
+          </nav>
+          <div>
+            <p className="t-label" style={{ color: 'var(--paper)' }}>need help now?</p>
+            <ul className="lp-lines" style={{ marginTop: 8 }}>
+              {HELPLINES.slice(0, 2).map(h => (
+                <li key={h.name}><a href={h.href} className="link">{h.name}: {h.number}</a></li>
+              ))}
+            </ul>
           </div>
-        </Fade>
-      </section>
-
-      {/* ── Footer ── */}
-      <footer style={{ borderTop: '1.5px solid var(--border)' }}>
-        <div style={{
-          padding: `clamp(20px,3vw,28px) ${PX}`,
-          display: 'flex', flexWrap: 'wrap', gap: 18,
-          justifyContent: 'space-between', alignItems: 'center',
-        }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10,
-            letterSpacing: '0.1em', color: 'var(--ink-3)',
-          }}>
-            © 2026 · LAHORE GARRISON UNIVERSITY RESEARCH
-          </span>
-          <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
-            <a href="mailto:saadnizami@icloud.com" className="quiet-link" style={{ fontSize: 10 }}>
-              CONTACT
-            </a>
-            <Link href="/auth" className="quiet-link" style={{ fontSize: 10 }}>
-              SIGN IN
-            </Link>
-          </div>
-        </div>
-
-        {/* Cropped outline watermark */}
-        <div style={{ overflow: 'hidden', padding: `0 ${PX}` }} aria-hidden>
-          <div className="watermark">SATORI</div>
+          <p className="t-small lp-footer__legal">© 2026 Satori, a Lahore Garrison University research project.</p>
         </div>
       </footer>
+
+      <style>{LANDING_CSS}</style>
     </div>
   )
 }
+
+const LANDING_CSS = `
+.lp { overflow-x: clip; }
+.lp ul, .lp ol { list-style: none; margin: 0; padding: 0; }
+.faint-dark { color: var(--on-dark-2); }
+
+/* Hero */
+.lp-hero { min-height: max(860px, 100svh); padding-top: 168px; overflow: visible; z-index: 2; background: var(--night); }
+.lp-hero .scene__art { overflow: hidden; }
+.lp-hero__inner { text-align: center; display: grid; justify-items: center; gap: 22px; }
+.lp-hero__title { max-width: 12ch; color: var(--paper); text-shadow: 0 2px 0 rgba(0,0,0,0.25), 0 10px 40px rgba(0,0,0,0.35); }
+.lp-hero__lead { max-width: 560px; color: var(--paper); text-shadow: 0 1px 12px rgba(0,0,0,0.6); }
+.lp-hero__phone { position: relative; display: flex; justify-content: center; align-items: flex-start; margin: 56px auto -280px; width: fit-content; }
+.lp-hero__sticker { position: absolute; z-index: 1; }
+.lp-hero__sticker--l { left: -150px; bottom: 120px; }
+.lp-hero__sticker--r { right: -130px; top: 40px; }
+@media (max-width: 760px) {
+  .lp-hero { padding-top: 140px; }
+  .lp-hero__sticker { display: none !important; }
+  .lp-hero__phone { transform: scale(0.92); transform-origin: top center; margin-bottom: -300px; }
+}
+
+/* How it works */
+.lp-how { background: var(--sky-2); padding: 360px 0 120px; position: relative; z-index: 1;
+  background-image: radial-gradient(ellipse 60% 40% at 20% 30%, rgba(255,253,247,0.35), transparent 70%), radial-gradient(ellipse 50% 35% at 85% 70%, rgba(255,253,247,0.25), transparent 70%); }
+.lp-steps { display: grid; gap: clamp(40px, 6vw, 72px); margin-top: 64px !important; }
+.lp-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: center; gap: clamp(24px, 5vw, 80px); }
+.lp-step[data-side="right"] .lp-step__art { order: 2; }
+.lp-step__art { display: flex; justify-content: center; }
+.lp-step__text { display: grid; gap: 14px; justify-items: start; max-width: 520px; }
+@media (max-width: 760px) {
+  .lp-step { grid-template-columns: 1fr; }
+  .lp-step[data-side="right"] .lp-step__art { order: 0; }
+  .lp-step__art .sticker { width: 140px !important; }
+  .lp-step__art > span { width: 140px !important; }
+}
+
+/* Night: stats on film */
+.lp-night { background: var(--night); color: var(--on-dark); padding: 110px 0 120px; }
+.lp-split { display: flex; justify-content: space-between; align-items: flex-end; gap: 32px; flex-wrap: wrap; }
+.lp-film { position: relative; margin-top: 56px; }
+.lp-stats { display: flex; gap: clamp(12px, 3vw, 36px); justify-content: center; flex-wrap: wrap; margin-top: -48px !important; position: relative; z-index: 1; }
+.lp-stats li { min-width: 190px; }
+
+/* Kokoro */
+.lp-kokoro { background: linear-gradient(180deg, var(--night), var(--dusk)); color: var(--on-dark); padding: 40px 0 130px; }
+.lp-kokoro__cols { margin-top: 64px !important; gap: clamp(28px, 4vw, 56px) !important; }
+
+/* Compare */
+.lp-compare { color: var(--on-dark); padding: 120px 0 130px; background: var(--dusk); }
+.lp-compare__grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 4vw, 56px); margin-top: 64px; align-items: center; max-width: 980px; margin-inline: auto; }
+.lp-compare__calm { padding: 28px; transform: rotate(-1.5deg); }
+.lp-feed { display: grid; gap: 10px; margin-top: 16px !important; }
+.lp-feed li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: #ECEEEC; border-radius: 10px; font-size: 15px; }
+.lp-feed__badge { min-width: 30px; height: 24px; padding: 0 8px; border-radius: 12px; background: var(--rose); color: var(--tape); font-size: 13px; font-weight: 700; display: grid; place-items: center; }
+.lp-scribble { position: absolute; left: 8%; right: 8%; top: 46%; width: 84%; opacity: 0.85; pointer-events: none; }
+@media (max-width: 760px) { .lp-compare__grid { grid-template-columns: 1fr; } }
+
+/* Privacy */
+.lp-privacy { background: var(--fog); padding: 110px 0 120px; }
+.lp-privacy__cols { margin-top: 56px !important; gap: clamp(28px, 4vw, 48px) !important; }
+.lp-privacy__cols > li { display: grid; gap: 12px; align-content: start; }
+.lp-lines { display: grid; gap: 6px; }
+.lp-consent { display: flex; gap: 22px; align-items: center; margin-top: 56px; max-width: 820px; }
+@media (max-width: 560px) { .lp-consent { flex-direction: column; align-items: flex-start; } }
+
+/* FAQ */
+.lp-faq { color: var(--on-dark); background: var(--night); }
+.lp-faq__inner { padding-top: 110px; padding-bottom: 120px; display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: clamp(28px, 5vw, 72px); align-items: start; }
+.lp-faq__panel { padding: 8px 26px; }
+.lp-faq .acc { border-color: var(--line-dark); }
+@media (max-width: 899px) { .lp-faq__inner { grid-template-columns: 1fr; } }
+
+/* Schools */
+.lp-schools { background: var(--marigold-2); padding: 100px 0; }
+.lp-schools__inner { display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: center; }
+.lp-schools__art { display: flex; justify-content: center; align-items: flex-start; }
+@media (max-width: 760px) { .lp-schools__inner { grid-template-columns: 1fr; } .lp-schools__art { display: none; } }
+
+/* End + footer */
+.lp-end { color: var(--on-dark); padding: 150px 0 clamp(300px, 34vw, 480px); background: var(--night); }
+.lp-foot { background: #060B12; color: var(--on-dark); }
+.lp-footer { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 32px; padding-top: 64px; padding-bottom: 36px; }
+.lp-footer nav { display: grid; justify-items: start; }
+.lp-footer__legal { grid-column: 1 / -1; color: var(--on-dark-2); border-top: 1px solid var(--line-dark); padding-top: 20px; }
+@media (max-width: 760px) { .lp-footer { grid-template-columns: 1fr; } }
+`
