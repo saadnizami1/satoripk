@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Reorder } from 'framer-motion'
 import { ArrowDown, ArrowUp, Send, GripVertical } from 'lucide-react'
@@ -312,6 +313,20 @@ export default function DashboardHome() {
         </section>
       )}
 
+      <section aria-labelledby="people-h" className="home__people">
+        <div className="home__faces" aria-hidden="true">
+          <Image src="/team/saad-nizami.jpg" alt="" width={64} height={64} />
+          <Image src="/team/havaida-munir.jpg" alt="" width={64} height={64} />
+        </div>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <h2 id="people-h" className="t-h4">the people behind satori</h2>
+          <p className="t-small" style={{ color: 'var(--on-dark-2)', marginTop: 4 }}>
+            Who runs the study, what it looks at, and the research paper it has produced so far.
+          </p>
+        </div>
+        <Pill href="/about" variant="glass" size="sm" knob>Read about the research</Pill>
+      </section>
+
       <p className="t-small home__foot">
         Your journal is private. Mood and stress check-ins go to the research study only if you said yes.{' '}
         <Link href="/dashboard/settings" className="link">Change this in Settings</Link>.
@@ -353,6 +368,10 @@ export default function DashboardHome() {
         .home__help .link { color: var(--ink); }
         .home__survey { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 18px 22px; border-radius: var(--r-md); border: 1px dashed var(--line-dark); }
         .home__foot { color: var(--on-dark-2); padding-top: 8px; }
+        .home__people { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 18px 22px; border-radius: var(--r-md); background: rgba(255,253,247,0.06); border: 1px solid var(--line-dark); }
+        .home__faces { display: flex; }
+        .home__faces img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 3px var(--night); }
+        .home__faces img + img { margin-left: -14px; }
         @media (max-width: 900px) {
           .home__row--top, .home__row--bottom { grid-template-columns: 1fr; }
           .home__kokoro-inner { min-height: 360px; }

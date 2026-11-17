@@ -199,6 +199,7 @@ img { max-width: 100%; display: block; }
 .pill--white .knob svg, .pill--marigold .knob svg { color: var(--paper); }
 .pill--tape .knob { background: var(--marigold); }
 .pill--tape .knob svg { color: var(--ink); }
+.pill--glass .knob svg { color: var(--ink); }
 
 .text-btn {
   display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px;

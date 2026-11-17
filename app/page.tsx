@@ -114,6 +114,7 @@ export default function LandingPage() {
             <div className="row" style={{ justifyContent: 'center', gap: 10 }}>
               <Pill href="/auth?mode=signup" variant="white" size="lg" knob>Start free</Pill>
               <Pill href="#how" variant="glass" size="lg">See how it works</Pill>
+              <Pill href="/about" variant="glass" size="lg">The research behind it</Pill>
             </div>
           </div>
           <div className="lp-hero__phone">
@@ -170,7 +171,9 @@ export default function LandingPage() {
                   Made for teenagers, with teenagers. Satori began as a research study on academic stress and grew with
                   the students who use it, from Matric and O-Levels to FSc and A-Levels.
                 </p>
-                <Link href="/about" className="link" style={{ color: 'var(--paper)', fontWeight: 600 }}>Meet the researchers and read the paper</Link>
+                <div style={{ marginTop: 6 }}>
+                  <Pill href="/about" variant="marigold" knob>Meet the researchers</Pill>
+                </div>
               </div>
             </div>
             <div className="lp-film">
