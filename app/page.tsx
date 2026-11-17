@@ -114,7 +114,16 @@ export default function LandingPage() {
             <div className="row" style={{ justifyContent: 'center', gap: 10 }}>
               <Pill href="/auth?mode=signup" variant="white" size="lg" knob>Start free</Pill>
               <Pill href="#how" variant="glass" size="lg">See how it works</Pill>
-              <Pill href="/about" variant="glass" size="lg">The research behind it</Pill>
+              <span className="lp-research">
+                <Pill href="/about" variant="glass" size="lg">The research behind it</Pill>
+                <span className="lp-research__note" aria-hidden="true">
+                  <svg className="lp-research__arrow" viewBox="0 0 74 44" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M70 6 C 50 0, 26 8, 10 30" />
+                    <path d="M6 17 L9 32 L23 28" />
+                  </svg>
+                  <HandNote color="var(--marigold)">for investors &amp; school admins</HandNote>
+                </span>
+              </span>
             </div>
           </div>
           <div className="lp-hero__phone">
@@ -365,6 +374,13 @@ const LANDING_CSS = `
 .lp-hero__tag { margin: 0; }
 .lp-hero__tag .t-hand { display: inline-block; padding: 4px 14px 6px; background: var(--marigold); color: var(--ink); transform: rotate(-2deg); box-shadow: 0 8px 14px -10px rgba(0,0,0,0.6); }
 .lp-hero__note { position: absolute; left: -210px; top: 210px; transform: rotate(-6deg); display: grid; justify-items: end; z-index: 2; }
+.lp-research { position: relative; display: inline-flex; }
+.lp-research__note { position: absolute; left: calc(100% + 4px); top: -30px; display: flex; align-items: flex-start; gap: 2px; color: var(--marigold); transform: rotate(-4deg); white-space: nowrap; pointer-events: none; }
+.lp-research__arrow { width: 64px; margin-top: 14px; flex-shrink: 0; }
+@media (max-width: 1380px) {
+  .lp-research__note { left: 50%; top: calc(100% + 4px); transform: translateX(-50%) rotate(-3deg); }
+  .lp-research__arrow { display: none; }
+}
 .lp-step__art { position: relative; flex-direction: column; align-items: center; }
 .lp-step__note { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; transform: rotate(-3deg); }
 .lp-film__cap { position: absolute; left: 10px; bottom: 6px; color: var(--paper); text-shadow: 0 1px 6px rgba(0,0,0,0.75); font-size: 22px; }
